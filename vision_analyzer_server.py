@@ -11,32 +11,53 @@ vision_analyzer_server.py — локальный HTTP-сервер риск-тр
 умолчанию задаётся константой BACKEND, но тоже может быть переопределён
 в запросе полем "backend".
 
+Если backend не был явно указан в запросе, а дефолтный оказался
+недоступен по подключению, сервер один раз автоматически пробует
+альтернативный бэкенд с автоопределением его модели. Явно указанный
+backend никогда не подменяется — недоступность возвращается как ошибка.
+Фактически использованный бэкенд для каждой картинки возвращается в
+поле "backend" внутри соответствующего результата; поле "requested_backend"
+на верхнем уровне ответа — то, что было запрошено изначально.
+
+Формат Content-Type изображения определяется не по заголовку, присланному
+клиентом, а по реальному содержимому файла (через Pillow) — заявленный
+клиентом MIME-тип ни на что не влияет и используется только как быстрый
+фильтр "похоже на image/*ли это вообще".
+
 Запуск:
     python vision_analyzer_server.py
 
 Использование (curl):
-    # одно изображение, бэкенд и модель по умолчанию
+    # одно изображение, бэкенд и модель по умолчанию (multipart/form-data)
     curl -F "images=@photo.jpg" http://localhost:6769/analyze
 
-    # батч
-    curl -F "images=@1.jpg" -F "images=@2.jpg" http://localhost:6769/analyze
+    # батч из нескольких изображений, разные форматы — можно мешать
+    curl -F "images=@1.jpg" -F "images=@2.png" http://localhost:6769/analyze
 
-    # явный бэкенд/модель на один запрос
+    # явный бэкенд/модель на один запрос (фолбэка не будет)
     curl -F "backend=ollama" -F "model=qwen-analytical:latest" \
          -F "images=@photo.jpg" http://localhost:6769/analyze
 
     # то же самое через query-параметры
     curl -F "images=@photo.jpg" \
          "http://localhost:6769/analyze?backend=vllm&model=google/gemma-4-31B-it"
+
+    # одно изображение сырым телом запроса, без multipart-обёртки
+    # (без batch, backend/model — только через query-параметры)
+    curl -X POST -H "Content-Type: image/jpeg" \
+         --data-binary "@photo.jpg" http://localhost:6769/analyze
 """
 
 import asyncio
 import base64
 import json
 import logging
-
+from PIL import Image
+import io
 import aiohttp
 from aiohttp import web
+from functools import partial
+
 
 try:
     from vision_analyzer_prompt import SYSTEM_PROMPT
@@ -53,7 +74,7 @@ except ImportError:
 BACKEND = "vllm"  # "vllm" или "ollama" — бэкенд по умолчанию, можно переопределить в запросе
 
 OLLAMA_HOST = "http://127.0.0.1:11434"
-VLLM_URL = "http://localhost:8000/v1"
+VLLM_URL = "http://host.docker.internal:8000/v1"
 
 SERVER_HOST = "0.0.0.0"
 SERVER_PORT = 6769
@@ -206,20 +227,7 @@ async def _analyze_image(
     backend: str = BACKEND,
     model: str | None = None,
     allow_fallback: bool = True,
-) -> dict:
-    """Отправляет изображение в vision-модель выбранного бэкенда и возвращает
-    разобранный отчёт.
-
-    Если backend не был явно запрошен вызывающим кодом (allow_fallback=True)
-    и оказался недоступен по подключению (connection refused), один раз
-    пробуем единственный альтернативный бэкенд с автоопределением его модели.
-    Если backend был явно указан в запросе — фолбэка не будет, ошибка
-    подключения пробрасывается как есть.
-
-    При невалидном JSON от модели возвращает словарь с ключом "_raw",
-    содержащим исходный текст ответа — чтобы вызывающий код мог показать
-    хоть что-то вместо ошибки.
-    """
+) -> tuple[dict, str]:  
     try:
         resolved_model = model or await _discover_model(backend)
 
@@ -243,10 +251,10 @@ async def _analyze_image(
         )
 
     try:
-        return json.loads(content)
+        return json.loads(content), backend
     except (json.JSONDecodeError, TypeError):
         logging.warning("vision_analyzer: модель (%s/%s) вернула невалидный JSON", backend, resolved_model)
-        return {"_raw": content or "⚠️ Модель вернула пустой ответ."}
+        return {"_raw": content or "⚠️ Модель вернула пустой ответ."}, backend
 
 
 def _format_report(report: dict, source_name: str = "") -> str:
@@ -290,9 +298,23 @@ def _format_report(report: dict, source_name: str = "") -> str:
     return "\n".join(lines)
 
 
+
 # ---------------------------------------------------------------------------
 # HTTP-слой
 # ---------------------------------------------------------------------------
+
+def _detect_image_mime_sync(data: bytes) -> str | None:
+    try:
+        img = Image.open(io.BytesIO(data))
+        img.verify()
+        return Image.MIME.get(img.format)
+    except Exception:
+        return None
+
+
+async def _detect_image_mime(data: bytes) -> str | None:
+    loop = asyncio.get_running_loop()
+    return await loop.run_in_executor(None, _detect_image_mime_sync, data)
 
 async def handle_index(request: web.Request) -> web.Response:
     return web.Response(
@@ -338,43 +360,61 @@ async def handle_health(request: web.Request) -> web.Response:
 
 
 async def handle_analyze(request: web.Request) -> web.Response:
-    if not request.content_type.startswith("multipart/"):
-        return web.json_response(
-            {"error": "Ожидается multipart/form-data с полем 'images'."},
-            status=400,
-        )
+    content_type = request.content_type
 
-    # Дефолты из query-параметров, могут быть переопределены полями формы ниже.
     override_backend = request.query.get("backend")
     override_model = request.query.get("model")
 
-    reader = await request.multipart()
-    tasks = []
-    names = []
+    # --- Новый путь: сырое изображение прямо в теле запроса ---
+    if content_type.startswith("image/"):
+        data = await request.read()
+        if not data:
+            return web.json_response({"error": "Пустое тело запроса."}, status=400)
 
-    async for part in reader:
-        if part.name == "backend":
-            override_backend = (await part.read(decode=True)).decode("utf-8").strip()
-            continue
-        if part.name == "model":
-            override_model = (await part.read(decode=True)).decode("utf-8").strip()
-            continue
-        if part.name not in ("images", "image"):
-            continue
-        if not (part.headers.get("Content-Type", "").startswith("image/")):
-            logging.warning("Пропускаю не-изображение: %s", part.filename)
-            continue
+        real_mime = await _detect_image_mime(data)
+        if real_mime is None:
+            return web.json_response({"error": "Содержимое не распознано как изображение."}, status=400)
 
-        data = await part.read(decode=True)
         image_b64 = base64.b64encode(data).decode("utf-8")
-        image_mime = part.headers.get("Content-Type", "image/jpeg")
-        source_name = part.filename or f"image_{len(names) + 1}"
-        names.append(source_name)
-        tasks.append((image_b64, image_mime))
+        tasks = [(image_b64, real_mime)]
+        names = ["body"]
 
-    if not tasks:
+    # --- Старый путь: multipart/form-data ---
+    elif content_type.startswith("multipart/"):
+        reader = await request.multipart()
+        tasks = []
+        names = []
+
+        async for part in reader:
+            if part.name == "backend":
+                override_backend = (await part.read(decode=True)).decode("utf-8").strip()
+                continue
+            if part.name == "model":
+                override_model = (await part.read(decode=True)).decode("utf-8").strip()
+                continue
+            if part.name not in ("images", "image"):
+                continue
+
+            data = await part.read(decode=True)
+            real_mime = await _detect_image_mime(data)
+            if real_mime is None:
+                logging.warning("Пропускаю не-изображение: %s", part.filename)
+                continue
+
+            image_b64 = base64.b64encode(data).decode("utf-8")
+            source_name = part.filename or f"image_{len(names) + 1}"
+            names.append(source_name)
+            tasks.append((image_b64, real_mime))
+
+        if not tasks:
+            return web.json_response(
+                {"error": "Не найдено ни одного изображения в поле 'images'."},
+                status=400,
+            )
+
+    else:
         return web.json_response(
-            {"error": "Не найдено ни одного изображения в поле 'images'."},
+            {"error": "Ожидается multipart/form-data (поле 'images') либо тело image/*."},
             status=400,
         )
 
@@ -392,8 +432,8 @@ async def handle_analyze(request: web.Request) -> web.Response:
         len(tasks), ", ".join(names), backend, override_model or "auto",
     )
 
-    try:
-        reports = await asyncio.gather(*[
+    try:    
+        results_raw = await asyncio.gather(*[
             _analyze_image(
                 img_b64, img_mime,
                 backend=backend, model=override_model,
@@ -415,14 +455,14 @@ async def handle_analyze(request: web.Request) -> web.Response:
         return web.json_response({"error": "Не удалось проанализировать изображение(я)."}, status=500)
 
     results = []
-    for name, report in zip(names, reports):
+    for name, (report, actual_backend) in zip(names, results_raw):
         formatted = _format_report(report, source_name=name)
         print(formatted)
         print()
-        results.append({"file": name, "report": report})
+        results.append({"file": name, "backend": actual_backend, "report": report})
 
     return web.json_response(
-        {"count": len(results), "backend": backend, "results": results},
+        {"count": len(results), "requested_backend": backend, "results": results},
         dumps=lambda obj: json.dumps(obj, ensure_ascii=False, indent=2),
     )
 
