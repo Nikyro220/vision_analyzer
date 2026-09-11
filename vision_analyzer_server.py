@@ -307,8 +307,17 @@ def _detect_image_mime_sync(data: bytes) -> str | None:
     try:
         img = Image.open(io.BytesIO(data))
         img.verify()
-        return Image.MIME.get(img.format)
-    except Exception:
+        mime = Image.MIME.get(img.format)
+        logging.info(
+            "Pillow определил изображение: format=%s mime=%s size=%d байт",
+            img.format, mime, len(data),
+        )
+        return mime
+    except Exception as e:
+        logging.warning(
+            "Pillow не смог распознать содержимое как изображение (%d байт): %s",
+            len(data), e,
+        )
         return None
 
 
