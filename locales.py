@@ -1,29 +1,58 @@
-import os, json
+import os, json, logging
 
-LOCALE_FILE_NAME = "locales.json"
-LOCALE_LOCATION = None
-LOCALES = {}
+LOCALES_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "locales")
+DEFAULT_LANG = "en"
+LOCALES: dict[str, dict] = {}  # {"ru": {...}, "en": {...}}
 
 
-def get_locales_path(name, directory = None):
-	return os.path.join(LOCALE_LOCATION, LOCALE_FILE_NAME) if LOCALE_LOCATION else LOCALE_FILE_NAME
+def load_locales(directory=LOCALES_DIR):
+    if not os.path.isdir(directory):
+        logging.warning("locales: директория не найдена: %s", directory)
+        return
+    for fname in os.listdir(directory):
+        if fname.endswith(".json"):
+            lang = fname[:-5]
+            with open(os.path.join(directory, fname), "r", encoding="utf-8") as f:
+                LOCALES[lang] = json.load(f)
 
-def load_locales(locales, path):
-    if os.path.exists(path):
-        with open(path, "r", encoding="utf-8") as f:
-            locales.update(json.load(f))		
+
+def set_default_lang(lang: str) -> None:
+    """Меняет DEFAULT_LANG во время работы сервера.
+
+    Достаточно вызвать это (или напрямую присвоить locales.DEFAULT_LANG = ...)
+    в любой момент — get_locale/get_formatted читают текущее значение
+    DEFAULT_LANG на каждый вызов, а не на момент импорта.
+    """
+    global DEFAULT_LANG
+    if lang not in LOCALES:
+        logging.warning(
+            "locales: язык %r не загружен (доступны: %s), меняю всё равно",
+            lang, list(LOCALES.keys()),
+        )
+    DEFAULT_LANG = lang
+    logging.info("locales: язык по умолчанию переключён на %r", lang)
+
 
 def format(s, **kwargs):
-    return s.format(**kwargs)
-
-def get_locale(k):
-	return LOCALES.get(k, "404")
-
-def get_formatted(k, **kwargs):
-	return format(get_locale(k), **kwargs)
+    try:
+        return s.format(**kwargs)
+    except (KeyError, IndexError) as e:
+        logging.warning("locales: не удалось подставить %s в строку %r", e, s)
+        return s
 
 
+def get_locale(k, lang=None):
+    if lang is None:
+        lang = DEFAULT_LANG
+    if lang in LOCALES and k in LOCALES[lang]:
+        return LOCALES[lang][k]
+    if k in LOCALES.get(DEFAULT_LANG, {}):
+        return LOCALES[DEFAULT_LANG][k]
+    return f"???{k}???"
 
-load_locales(LOCALES, get_locales_path(LOCALE_FILE_NAME, LOCALE_LOCATION))
 
-print(get_formatted("test", test="testttt"))
+def get_formatted(k, lang=None, **kwargs):
+    return format(get_locale(k, lang), **kwargs)
+
+
+load_locales()
