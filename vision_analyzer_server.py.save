@@ -28,14 +28,24 @@ backend никогда не подменяется — недоступност�
     python vision_analyzer_server.py
 
 Использование (curl):
-	# проанализировать изображение, отправляет json ответ
-	curl -X POST -H "Content-Type: image/" --data-binary "@/путь/к/файл.png" http://xxx.xxx.xxx.xxx:6769/analyze
+    # одно изображение, бэкенд и модель по умолчанию (multipart/form-data)
+    curl -F "images=@photo.jpg" http://localhost:6769/analyze
 
-	# состояние программы
-	curl http://xxx.xxx.xxx.xxx:6769/health
+    # батч из нескольких изображений, разные форматы — можно мешать
+    curl -F "images=@1.jpg" -F "images=@2.png" http://localhost:6769/analyze
 
-	# индекс, использование программы и ее описание
-    curl http://xxx.xxx.xxx.xxx:6769/
+    # явный бэкенд/модель на один запрос (фолбэка не будет)
+    curl -F "backend=ollama" -F "model=qwen-analytical:latest" \
+         -F "images=@photo.jpg" http://localhost:6769/analyze
+
+    # то же самое через query-параметры
+    curl -F "images=@photo.jpg" \
+         "http://localhost:6769/analyze?backend=vllm&model=google/gemma-4-31B-it"
+
+    # одно изображение сырым телом запроса, без multipart-обёртки
+    # (без batch, backend/model — только через query-параметры)
+    curl -X POST -H "Content-Type: image/jpeg" \
+         --data-binary "@photo.jpg" http://localhost:6769/analyze
 """
 
 import asyncio
@@ -47,7 +57,7 @@ import io
 import aiohttp
 from aiohttp import web
 from functools import partial
-
+from locales import get_formatted
 
 try:
     from vision_analyzer_prompt import SYSTEM_PROMPT
@@ -327,13 +337,8 @@ async def handle_index(request: web.Request) -> web.Response:
             "  model    — имя/id модели (необязательно, иначе автоопределение)\n\n"
             "Бэкенд/модель также можно передать query-параметрами: "
             "?backend=vllm&model=google/gemma-4-31B-it\n\n"
-            "Использование:"
-    		"# проанализировать изображение, отправляет json ответ\n"
-    		'curl -X POST -H "Content-Type: image/" --data-binary "@/путь/к/файл.png" http://xxx.xxx.xxx.xxx:6769/analyze\n'
-	    	"# состояние программы\n"
-    		"curl http://xxx.xxx.xxx.xxx:6769/health\n"
-    		"# индекс, использование программы и ее описание\n"
-    		"curl http://xxx.xxx.xxx.xxx:6769/"
+            "Пример:\n"
+            "curl -F \"images=@photo.jpg\" http://localhost:6769/analyze\n"
         ),
         content_type="text/plain",
     )
