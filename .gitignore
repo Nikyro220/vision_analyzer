@@ -3,5 +3,5 @@ __pycache__/
 venv/
 v/
 .env
-*.pt
+
 *.safetensors

@@ -1,2 +1,4 @@
-aiohttp
-Pillow
+aiohttp>=3.9
+Pillow>=10.0
+torch>=2.0
+numpy>=1.24

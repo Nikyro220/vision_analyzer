@@ -45,6 +45,15 @@ except ImportError:
         "vision_analyzer_server: locales.py не найден, POST /lang будет недоступен"
     )
 
+try:
+    import image_upscaler
+except ImportError:
+    image_upscaler = None
+    logging.warning(
+        "vision_analyzer_server: image_upscaler.py не найден, "
+        "апскейлинг маленьких изображений отключён"
+    )
+
 
 def _current_lang() -> str:
     """Текущий язык сервера (для промпта модели и текстов ответов)."""
@@ -425,6 +434,11 @@ async def handle_analyze(request: web.Request) -> web.Response:
         if real_mime is None:
             return _json({"error": _t("error.not_image", lang=override_lang)}, status=400)
 
+        if image_upscaler is not None:
+            data, new_mime = await image_upscaler.upscale_if_needed(data, source_name="body")
+            if new_mime:
+                real_mime = new_mime
+
         image_b64 = base64.b64encode(data).decode("utf-8")
         tasks = [(image_b64, real_mime)]
         names = ["body"]
@@ -454,8 +468,14 @@ async def handle_analyze(request: web.Request) -> web.Response:
                 logging.warning("Пропускаю не-изображение: %s", part.filename)
                 continue
 
-            image_b64 = base64.b64encode(data).decode("utf-8")
             source_name = part.filename or f"image_{len(names) + 1}"
+
+            if image_upscaler is not None:
+                data, new_mime = await image_upscaler.upscale_if_needed(data, source_name=source_name)
+                if new_mime:
+                    real_mime = new_mime
+
+            image_b64 = base64.b64encode(data).decode("utf-8")
             names.append(source_name)
             tasks.append((image_b64, real_mime))
 
