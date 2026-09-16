@@ -30,8 +30,7 @@ from PIL import Image
 # Конфигурация
 # ---------------------------------------------------------------------------
 
-# Если И ширина, И высота изображения меньше этого значения (в пикселях) —
-# изображение апскейлится в SCALE раз перед отправкой в модель.
+# по площади/меньшей стороне
 MIN_SIDE_PX = 1200
 
 # Коэффициент апскейла и параметры сети — должны соответствовать весам
@@ -192,7 +191,7 @@ def _needs_upscale(data: bytes) -> bool:
             w, h = img.size
     except Exception:
         return False
-    return w < MIN_SIDE_PX and h < MIN_SIDE_PX
+    return min(w, h) < MIN_SIDE_PX
 
 
 def _upscale_sync(data: bytes, source_name: str = ""):
@@ -246,18 +245,6 @@ def _upscale_sync(data: bytes, source_name: str = ""):
 
 
 async def upscale_if_needed(data: bytes, source_name: str = ""):
-    """Апскейлит изображение в SCALE раз, если обе стороны меньше MIN_SIDE_PX.
-
-    source_name используется только для логов (имя файла/"body"), чтобы
-    при нескольких картинках в одном запросе было видно, к какой из них
-    относится строка лога.
-
-    Возвращает (image_bytes, mime):
-      - апскейлинг не потребовался или недоступен -> (data, None);
-        вызывающий код должен использовать уже известный ему mime.
-      - апскейлинг прошёл успешно -> (новые_байты, "image/png"),
-        т.к. результат всегда пересохраняется в OUTPUT_FORMAT.
-    """
     tag = f"[{source_name}] " if source_name else ""
 
     if not _needs_upscale(data):

@@ -194,7 +194,12 @@ async def _analyze_ollama(image_b64: str, model: str, lang: str | None = None) -
             {"role": "system", "content": _get_system_prompt(lang)},
             {"role": "user", "content": _USER_PROMPT, "images": [image_b64]},
         ],
-        "options": {"temperature": 0.1},
+        "options": {"temperature": 0, 
+                    "top_p": 1.0, 
+                    "top_k": 1,
+                    "seed": 42
+
+                    },
     }
 
     async with aiohttp.ClientSession(timeout=REQUEST_TIMEOUT) as session:
@@ -208,7 +213,9 @@ async def _analyze_ollama(image_b64: str, model: str, lang: str | None = None) -
 async def _analyze_vllm(image_b64: str, image_mime: str, model: str, lang: str | None = None) -> str:
     base_payload = {
         "model": model,
-        "temperature": 0.1,
+        "temperature": 0,
+        "top_p": 1.0,
+        "seed": 42,
         "messages": [
             {"role": "system", "content": _get_system_prompt(lang)},
             {
