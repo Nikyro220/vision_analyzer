@@ -19,9 +19,9 @@
                 <h2 class="card-title">Ошибка анализа</h2>
                 <p>{{ result.error }}</p>
             </div>
-        {% elif result.raw_report._raw %}
+        {% elif result.raw_report.raw %}
             <h2 class="card-title">Ответ модели (не JSON)</h2>
-            <pre class="raw-block">{{ result.raw_report._raw }}</pre>
+            <pre class="raw-block">{{ result.raw_report.raw }}</pre>
         {% else %}
             <div class="risk-header">
                 <span class="risk-pill risk-pill-{{ result.risk_level }} risk-pill-lg">{{ result.get_risk_level_display }}</span>

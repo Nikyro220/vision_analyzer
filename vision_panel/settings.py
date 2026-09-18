@@ -93,7 +93,7 @@ MEDIA_ROOT = BASE_DIR / "media"
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 # --- Настройки клиента vision_analyzer_server.py ---
-VISION_API_BASE_URL = os.environ.get("VISION_API_BASE_URL", "http://127.0.0.1:6769")
+VISION_API_BASE_URL = os.environ.get("VISION_API_BASE_URL", "http://10.125.0.89:6769")
 VISION_API_TIMEOUT = int(os.environ.get("VISION_API_TIMEOUT", "120"))
 
 # Ограничение на размер загружаемого файла (10 МБ)
