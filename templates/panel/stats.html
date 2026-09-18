@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% block title %}Обзор{% endblock %}
+{% block content %}
+<div class="page-header">
+    <h1>Обзор системы</h1>
+    <p class="page-sub">Сводка по пользователям и результатам анализа.</p>
+</div>
+
+<div class="stat-grid">
+    <div class="stat-card">
+        <span class="stat-value">{{ total_users }}</span>
+        <span class="stat-label">Пользователей всего</span>
+    </div>
+    <div class="stat-card">
+        <span class="stat-value">{{ total_analyses }}</span>
+        <span class="stat-label">Анализов выполнено</span>
+    </div>
+    <div class="stat-card stat-card-danger">
+        <span class="stat-value">{{ high_risk }}</span>
+        <span class="stat-label">Высокий риск</span>
+    </div>
+    <div class="stat-card stat-card-warn">
+        <span class="stat-value">{{ needs_review }}</span>
+        <span class="stat-label">Ждут проверки человеком</span>
+    </div>
+</div>
+
+<div class="panel-grid">
+    <div class="card">
+        <h2 class="card-title">Пользователи по ролям</h2>
+        <dl class="def-list">
+            {% for role, label, count in role_counts %}
+            <dt><span class="role-badge role-{{ role }}">{{ label }}</span></dt>
+            <dd>{{ count }}</dd>
+            {% endfor %}
+        </dl>
+    </div>
+
+    <div class="card">
+        <h2 class="card-title">Бэкенд анализа</h2>
+        {% if backend_error %}
+            <p class="report-error-text">{{ backend_error }}</p>
+        {% else %}
+            <p>
+                {% if backend_status.ok %}<span class="tag tag-ok">В сети</span>{% else %}<span class="tag tag-warn">Недоступен</span>{% endif %}
+                · по умолчанию: <strong>{{ backend_status.default_backend }}</strong>
+            </p>
+        {% endif %}
+        <a href="{% url 'analyzer:health' %}" class="link-more">Подробный статус →</a>
+    </div>
+</div>
+{% endblock %}

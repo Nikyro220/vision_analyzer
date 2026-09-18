@@ -2,3 +2,6 @@ aiohttp>=3.9
 Pillow>=10.0
 torch>=2.0
 numpy>=1.24
+Django>=6.1,<7.0
+Pillow>=10.0
+requests>=2.31

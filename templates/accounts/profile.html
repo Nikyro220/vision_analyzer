@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% block title %}Профиль{% endblock %}
+{% block content %}
+<div class="page-header">
+    <h1>Профиль</h1>
+    <p class="page-sub">Основные данные вашего аккаунта.</p>
+</div>
+
+<div class="panel-grid">
+    <div class="card">
+        <h2 class="card-title">Данные аккаунта</h2>
+        <dl class="def-list">
+            <dt>Логин</dt><dd>{{ user.username }}</dd>
+            <dt>Роль</dt><dd><span class="role-badge role-{{ user.role }}">{{ user.role_display_ru }}</span></dd>
+            <dt>Дата регистрации</dt><dd>{{ user.created_at|date:"d.m.Y H:i" }}</dd>
+        </dl>
+    </div>
+
+    <div class="card">
+        <h2 class="card-title">Изменить данные</h2>
+        <form method="post" class="form">
+            {% csrf_token %}
+            {% for field in form %}
+            <div class="field">
+                <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+                {{ field }}
+                {% for error in field.errors %}<div class="field-error">{{ error }}</div>{% endfor %}
+            </div>
+            {% endfor %}
+            <button type="submit" class="btn btn-primary">Сохранить</button>
+        </form>
+    </div>
+</div>
+{% endblock %}

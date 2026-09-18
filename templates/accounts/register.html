@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block title %}Регистрация{% endblock %}
+{% block guest_content %}
+<div class="auth-screen">
+    <div class="auth-card">
+        <div class="auth-mark">◈</div>
+        <h1>Создать аккаунт</h1>
+        <p class="auth-sub">Доступ к анализу изображений после регистрации выдаётся сразу с ролью «Пользователь».</p>
+
+        <form method="post" class="form" novalidate>
+            {% csrf_token %}
+            {% for field in form %}
+            <div class="field">
+                <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+                {{ field }}
+                {% for error in field.errors %}<div class="field-error">{{ error }}</div>{% endfor %}
+            </div>
+            {% endfor %}
+            <button type="submit" class="btn btn-primary btn-block">Зарегистрироваться</button>
+        </form>
+
+        <p class="auth-switch">Уже есть аккаунт? <a href="{% url 'accounts:login' %}">Войти</a></p>
+    </div>
+</div>
+{% endblock %}

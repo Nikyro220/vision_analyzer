@@ -1,0 +1,11 @@
+{% if page.has_other_pages %}
+<nav class="pagination">
+    {% if page.has_previous %}
+        <a href="?page={{ page.previous_page_number }}{% if request.GET.role %}&role={{ request.GET.role }}{% endif %}{% if request.GET.q %}&q={{ request.GET.q }}{% endif %}{% if request.GET.risk %}&risk={{ request.GET.risk }}{% endif %}{% if request.GET.review %}&review={{ request.GET.review }}{% endif %}" class="page-link">← Назад</a>
+    {% endif %}
+    <span class="page-current">Страница {{ page.number }} из {{ page.paginator.num_pages }}</span>
+    {% if page.has_next %}
+        <a href="?page={{ page.next_page_number }}{% if request.GET.role %}&role={{ request.GET.role }}{% endif %}{% if request.GET.q %}&q={{ request.GET.q }}{% endif %}{% if request.GET.risk %}&risk={{ request.GET.risk }}{% endif %}{% if request.GET.review %}&review={{ request.GET.review }}{% endif %}" class="page-link">Вперёд →</a>
+    {% endif %}
+</nav>
+{% endif %}

@@ -1,0 +1,80 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Vision Triage{% endblock %} · Панель анализа</title>
+    <link rel="stylesheet" href="{% static 'css/style.css' %}">
+    <link rel="icon" href="data:,">
+</head>
+<body class="{% if not user.is_authenticated %}is-guest{% endif %}">
+
+{% if user.is_authenticated and user.role != 'blocked' %}
+<div class="shell">
+    <aside class="sidebar">
+        <div class="brand">
+            <span class="brand-mark">◈</span>
+            <span class="brand-name">Vision&nbsp;Triage</span>
+        </div>
+
+        <nav class="nav">
+            <a class="nav-link {% if request.resolver_match.url_name == 'dashboard' %}is-active{% endif %}" href="{% url 'analyzer:dashboard' %}">
+                <span class="nav-ic">▣</span> Новый анализ
+            </a>
+            <a class="nav-link {% if request.resolver_match.url_name == 'history' %}is-active{% endif %}" href="{% url 'analyzer:history' %}">
+                <span class="nav-ic">≡</span> История
+            </a>
+            <a class="nav-link {% if request.resolver_match.url_name == 'health' %}is-active{% endif %}" href="{% url 'analyzer:health' %}">
+                <span class="nav-ic">◐</span> Статус сервера
+            </a>
+
+            {% if user.is_panel_staff %}
+            <div class="nav-divider">Панель управления</div>
+            <a class="nav-link {% if request.resolver_match.url_name == 'stats' %}is-active{% endif %}" href="{% url 'panel:stats' %}">
+                <span class="nav-ic">◆</span> Обзор
+            </a>
+            <a class="nav-link {% if request.resolver_match.url_name == 'users_list' or request.resolver_match.url_name == 'user_detail' %}is-active{% endif %}" href="{% url 'panel:users_list' %}">
+                <span class="nav-ic">◎</span> Пользователи
+            </a>
+            <a class="nav-link {% if request.resolver_match.url_name == 'analyses_list' %}is-active{% endif %}" href="{% url 'panel:analyses_list' %}">
+                <span class="nav-ic">▤</span> Все анализы
+            </a>
+            {% endif %}
+        </nav>
+
+        <div class="sidebar-footer">
+            <a class="nav-link" href="{% url 'accounts:profile' %}">
+                <span class="nav-ic">●</span> {{ user.username }}
+            </a>
+            <span class="role-badge role-{{ user.role }}">{{ user.role_display_ru }}</span>
+            <a class="logout-link" href="{% url 'accounts:logout' %}">Выйти</a>
+        </div>
+    </aside>
+
+    <main class="content">
+        {% if messages %}
+        <div class="messages">
+            {% for message in messages %}
+            <div class="msg msg-{{ message.tags }}">{{ message }}</div>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        {% block content %}{% endblock %}
+    </main>
+</div>
+{% else %}
+    {% if messages %}
+    <div class="messages messages-standalone">
+        {% for message in messages %}
+        <div class="msg msg-{{ message.tags }}">{{ message }}</div>
+        {% endfor %}
+    </div>
+    {% endif %}
+    {% block guest_content %}{% endblock %}
+{% endif %}
+
+<script src="{% static 'js/main.js' %}"></script>
+</body>
+</html>

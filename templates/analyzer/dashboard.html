@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% block title %}Новый анализ{% endblock %}
+{% block content %}
+<div class="page-header">
+    <h1>Новый анализ изображения</h1>
+    <p class="page-sub">Загрузите файл — он будет отправлен на локальную vision-модель для риск-триажа.</p>
+</div>
+
+<div class="panel-grid panel-grid-uneven">
+    <div class="card">
+        <h2 class="card-title">Загрузка</h2>
+        <form method="post" enctype="multipart/form-data" class="form" id="upload-form">
+            {% csrf_token %}
+            <div class="dropzone" id="dropzone">
+                <input type="file" name="image" id="id_image" accept="image/*" required>
+                <div class="dropzone-hint">
+                    <span class="dropzone-ic">⇧</span>
+                    <span>Перетащите изображение сюда или нажмите, чтобы выбрать файл</span>
+                    <span class="dropzone-preview-name" id="file-name"></span>
+                </div>
+            </div>
+            {% for error in form.image.errors %}<div class="field-error">{{ error }}</div>{% endfor %}
+            <button type="submit" class="btn btn-primary btn-block" id="submit-btn">Отправить на анализ</button>
+        </form>
+    </div>
+
+    <div class="card">
+        <h2 class="card-title">Последние загрузки</h2>
+        {% if recent %}
+        <ul class="mini-list">
+            {% for item in recent %}
+            <li>
+                <a href="{% url 'analyzer:result_detail' item.pk %}" class="mini-list-row">
+                    <span class="risk-dot risk-{{ item.risk_level }}"></span>
+                    <span class="mini-list-name">{{ item.original_name|default:"без имени"|truncatechars:28 }}</span>
+                    <span class="mini-list-date">{{ item.created_at|date:"d.m H:i" }}</span>
+                </a>
+            </li>
+            {% endfor %}
+        </ul>
+        <a href="{% url 'analyzer:history' %}" class="link-more">Вся история →</a>
+        {% else %}
+        <p class="empty-hint">Пока нет ни одного анализа. Загрузите первое изображение слева.</p>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
