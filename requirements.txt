@@ -10,3 +10,4 @@ Flask-Migrate>=4.0
 requests>=2.31
 email-validator>=2.0
 tzdata            # база часовых поясов (нужна на Windows и в минимальных образах)
+re

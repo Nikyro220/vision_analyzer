@@ -69,7 +69,7 @@ if __name__ == "__main__":
     try:
         app.run(
             host=os.environ.get("FLASK_RUN_HOST", "127.0.0.1"),
-            port=int(os.environ.get("FLASK_RUN_PORT", "8000")),
+            port=int(os.environ.get("FLASK_RUN_PORT", "6967")),
             debug=debug,
         )
     finally:
