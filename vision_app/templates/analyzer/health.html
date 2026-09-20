@@ -1,0 +1,130 @@
+{% extends "base.html" %}
+{% block title %}Статус сервера{% endblock %}
+{% block content %}
+<div class="page-header">
+    <h1>Статус сервера анализа</h1>
+    <p class="page-sub">Доступность бэкендов vision_analyzer_server.py{% if can_configure %}, выбор модели и параметры генерации{% endif %}.</p>
+</div>
+
+{% if error %}
+<div class="card">
+    <p class="report-error-text">{{ error }}</p>
+</div>
+{% else %}
+<div class="panel-grid">
+    <div class="card">
+        <h2 class="card-title">Общий статус</h2>
+        <p>
+            {% if status.get('ok') %}
+                <span class="tag tag-ok">В сети</span>
+            {% else %}
+                <span class="tag tag-warn">Недоступен</span>
+            {% endif %}
+            · бэкенд по умолчанию: <strong>{{ status.get('default_backend', '—') }}</strong>
+        </p>
+        <p class="field-hint">
+            Анализы выполняются на:
+            {% if target_backend %}
+                <strong>{{ target_backend }}</strong>, модель: <strong>{{ target_model or 'авто' }}</strong> (выбрано вручную)
+            {% elif effective_backend %}
+                <strong>{{ effective_backend }}</strong>, модель: авто
+                {% if via_fallback %}
+                — автоматический фолбэк: бэкенд по умолчанию «{{ status.get('default_backend') }}» недоступен
+                {% endif %}
+            {% else %}
+                <strong>ни на чём</strong>: оба бэкенда сейчас недоступны, анализы завершатся ошибкой
+            {% endif %}
+        </p>
+        {% if target_down %}
+        <div class="field-error">
+            Выбранный вручную бэкенд «{{ target_backend }}» недоступен. При явном выборе сервер
+            не переключается на другой бэкенд — анализы будут завершаться ошибкой.
+            {% if can_configure %}Нажмите «Сбросить к настройкам сервера», чтобы вернуть автоматический выбор.{% else %}Обратитесь к администратору.{% endif %}
+        </div>
+        {% endif %}
+        {% if can_configure and target_backend %}
+        <form method="post" action="{{ url_for('analyzer.reset_target') }}" class="form-inline">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button type="submit" class="btn btn-secondary">Сбросить к настройкам сервера</button>
+        </form>
+        {% endif %}
+        {% if can_configure and sampling_error %}
+        <div class="field-error">Не удалось получить параметры генерации: {{ sampling_error }}</div>
+        {% endif %}
+    </div>
+</div>
+
+<div class="backend-list">
+    {% for card in cards %}
+    <div class="card backend-card">
+        <div class="backend-head">
+            <h2 class="card-title">{{ card.name }}</h2>
+            {% if card.available %}<span class="tag tag-ok">Работает</span>{% else %}<span class="tag tag-warn">Недоступен</span>{% endif %}
+            {% if card.is_active %}
+                {% if card.available %}<span class="tag tag-accent">Используется для анализа{% if card.via_fallback %} (фолбэк){% endif %}</span>
+                {% else %}<span class="tag tag-warn">Выбран, но недоступен</span>{% endif %}
+            {% endif %}
+        </div>
+
+        <dl class="def-list">
+            <dt>Адрес</dt><dd>{{ card.info.get('endpoint', '—') }}</dd>
+            {% if card.info.get('model') %}<dt>Модель (авто)</dt><dd>{{ card.info.get('model') }}</dd>{% endif %}
+            {% if card.is_active %}<dt>Модель для анализа</dt><dd>{{ card.active_model or 'авто' }}</dd>{% endif %}
+            {% if card.info.get('error') %}<dt>Ошибка</dt><dd>{{ card.info.get('error') }}</dd>{% endif %}
+        </dl>
+
+        {% if card.configurable %}
+        <div class="backend-section">
+            <h3 class="section-title">Модель</h3>
+            <form method="post" action="{{ url_for('analyzer.save_model', name=card.name) }}" class="form form-inline form-wrap">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                {% if card.models %}
+                <select name="model" class="input input-grow" aria-label="Модель {{ card.name }}">
+                    <option value="">Авто (определяет сервер)</option>
+                    {% for m in card.models %}
+                    <option value="{{ m }}" {% if m == card.active_model %}selected{% endif %}>{{ m }}</option>
+                    {% endfor %}
+                </select>
+                {% else %}
+                <input type="text" name="model" class="input input-grow" maxlength="200"
+                       value="{{ card.active_model }}" placeholder="ID модели (пусто — авто)" aria-label="Модель {{ card.name }}">
+                {% endif %}
+                <button type="submit" class="btn btn-primary">Использовать для анализа</button>
+            </form>
+            <div class="field-hint">При явном выборе сервер не переключается на другой бэкенд, если этот перестанет отвечать. «Сбросить к настройкам сервера» возвращает автоматический выбор и фолбэк.</div>
+            {% if card.models_error %}
+            <div class="field-error">Не удалось получить список моделей: {{ card.models_error }}. Введите ID модели вручную.</div>
+            {% elif not card.models %}
+            <div class="field-hint">Бэкенд не вернул список моделей — введите ID вручную или оставьте пустым (авто).</div>
+            {% endif %}
+        </div>
+
+        <div class="backend-section">
+            <h3 class="section-title">Параметры генерации</h3>
+            <form method="post" action="{{ url_for('analyzer.save_sampling', name=card.name) }}" class="form" novalidate>
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <div class="sampling-grid">
+                    {% for field in card.form if field.widget.input_type != 'hidden' %}
+                    <div class="field">
+                        {{ field.label }}
+                        {{ field(class_="input") }}
+                        {% for err in field.errors %}<div class="field-error">{{ err }}</div>{% endfor %}
+                    </div>
+                    {% endfor %}
+                </div>
+                <div class="field-hint">
+                    Пустое поле — не менять. Параметры <strong>общие для всего сервера</strong>:
+                    изменения применяются сразу ко всем последующим анализам, включая другие бэкенды и других клиентов.
+                    {% if card.name == 'vllm' %}Размер контекста (num_ctx) для vLLM задаётся при запуске сервера.{% endif %}
+                </div>
+                <div><button type="submit" class="btn btn-secondary">Сохранить параметры</button></div>
+            </form>
+        </div>
+        {% elif can_configure and not card.available %}
+        <p class="field-hint">Настройки станут доступны, когда бэкенд заработает.</p>
+        {% endif %}
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
+{% endblock %}

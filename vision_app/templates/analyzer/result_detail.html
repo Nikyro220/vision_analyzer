@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+{% block title %}Результат анализа{% endblock %}
+{% block content %}
+<div class="page-header">
+    <h1>{{ result.original_name or "Результат анализа" }}</h1>
+    <p class="page-sub">Загружено {{ result.created_at|localdt('%d.%m.%Y %H:%M') }}{% if result.user_id != current_user.id %} · пользователь {{ result.user.username }}{% endif %}</p>
+</div>
+
+<div class="result-layout">
+    <div class="card result-image-card">
+        {% if result.image_path %}
+        <img src="{{ url_for('analyzer.media', filename=result.image_path) }}" alt="{{ result.original_name }}" class="result-image">
+        {% endif %}
+    </div>
+
+    <div class="card result-report-card">
+        {% if result.is_error %}
+            <div class="report-error">
+                <h2 class="card-title">Ошибка анализа</h2>
+                <p>{{ result.error }}</p>
+            </div>
+        {% else %}
+            <div class="risk-header">
+                <span class="risk-pill risk-pill-{{ result.risk_level }} risk-pill-lg">{{ result.risk_level_display }}</span>
+                {% if result.needs_human_review %}
+                    <span class="tag tag-warn">Требует проверки человеком</span>
+                {% endif %}
+                {% if result.backend %}<span class="tag">бэкенд: {{ result.backend }}</span>{% endif %}
+            </div>
+
+            {% if raw_text %}
+            <h2 class="card-title">Ответ модели (не JSON)</h2>
+            <pre class="raw-block">{{ raw_text }}</pre>
+            {% else %}
+            <h2 class="card-title">Описание</h2>
+            <p class="report-text">{{ result.description or "—" }}</p>
+
+            {% if text_on_image %}
+            <h2 class="card-title">Текст на изображении</h2>
+            <p class="report-text">{{ text_on_image }}</p>
+            {% endif %}
+
+            {% if context_text %}
+            <h2 class="card-title">Контекст</h2>
+            <p class="report-text">{{ context_text }}</p>
+            {% endif %}
+
+            {% if signals %}
+            <h2 class="card-title">Сигналы</h2>
+            <ul class="signal-list">
+                {% for s in signals %}
+                <li><strong>{{ s.id or "?" }}</strong> · {{ s.category or "—" }} — {{ s.detail }}</li>
+                {% endfor %}
+            </ul>
+            {% endif %}
+
+            {% if rationale %}
+            <h2 class="card-title">Обоснование</h2>
+            <p class="report-text">{{ rationale }}</p>
+            {% endif %}
+
+            {% if recommendation %}
+            <h2 class="card-title">Рекомендация</h2>
+            <p class="report-text">{{ recommendation }}</p>
+            {% endif %}
+            {% endif %}
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

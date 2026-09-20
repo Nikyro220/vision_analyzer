@@ -1,0 +1,8 @@
+{# Выводит все видимые поля формы (без скрытого csrf_token) с подписями и ошибками. #}
+{% for field in form if field.widget.input_type != 'hidden' %}
+<div class="field">
+    {{ field.label }}
+    {{ field() }}
+    {% for error in field.errors %}<div class="field-error">{{ error }}</div>{% endfor %}
+</div>
+{% endfor %}

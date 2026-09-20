@@ -4,4 +4,7 @@ db.sqlite3
 media/
 staticfiles/
 venv/
+.venv/
 .env
+instance/
+.pytest_cache/

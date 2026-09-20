@@ -1,0 +1,11 @@
+{% if page.pages > 1 %}
+<nav class="pagination">
+    {% if page.has_prev %}
+        <a href="{{ page_url(page.prev_num) }}" class="page-link">← Назад</a>
+    {% endif %}
+    <span class="page-current">Страница {{ page.page }} из {{ page.pages }}</span>
+    {% if page.has_next %}
+        <a href="{{ page_url(page.next_num) }}" class="page-link">Вперёд →</a>
+    {% endif %}
+</nav>
+{% endif %}

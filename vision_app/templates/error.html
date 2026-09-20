@@ -1,0 +1,8 @@
+{% extends "base.html" %}
+{% block title %}{{ title }}{% endblock %}
+{% block content %}
+{% include "partials/error_card.html" %}
+{% endblock %}
+{% block guest_content %}
+<div class="auth-screen">{% include "partials/error_card.html" %}</div>
+{% endblock %}

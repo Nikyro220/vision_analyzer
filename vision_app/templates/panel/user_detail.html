@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% block title %}{{ target.username }}{% endblock %}
+{% block content %}
+<div class="page-header">
+    <h1>{{ target.username }}</h1>
+    <p class="page-sub">{{ target.email or "Email не указан" }} · зарегистрирован {{ target.created_at|localdt('%d.%m.%Y %H:%M') }}</p>
+</div>
+
+<div class="panel-grid">
+    <div class="card">
+        <h2 class="card-title">Текущая роль</h2>
+        <p><span class="role-badge role-{{ target.role }} role-badge-lg">{{ target.role_display_ru }}</span></p>
+
+        {% if can_manage and assignable_roles %}
+        <form method="post" action="{{ url_for('panel.user_set_role', pk=target.id) }}" class="form form-inline">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <select name="role" class="input">
+                {% for role, label in all_roles %}
+                    {% if role in assignable_roles %}
+                    <option value="{{ role }}" {% if role == target.role %}selected{% endif %}>{{ label }}</option>
+                    {% endif %}
+                {% endfor %}
+            </select>
+            <button type="submit" class="btn btn-primary">Сохранить роль</button>
+        </form>
+        {% elif not can_manage %}
+        <p class="empty-hint">У вас нет прав на изменение этого пользователя.</p>
+        {% endif %}
+
+        {% if can_manage %}
+        <form method="post" action="{{ url_for('panel.user_toggle_block', pk=target.id) }}" class="form-inline form-block-toggle">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            {% if target.role == "blocked" %}
+            <button type="submit" class="btn btn-secondary">Разблокировать</button>
+            {% else %}
+            <button type="submit" class="btn btn-danger">Заблокировать</button>
+            {% endif %}
+        </form>
+        {% endif %}
+    </div>
+
+    <div class="card">
+        <h2 class="card-title">Последние анализы</h2>
+        {% if analyses %}
+        <ul class="mini-list">
+            {% for item in analyses %}
+            <li>
+                <a href="{{ url_for('analyzer.result_detail', pk=item.id) }}" class="mini-list-row">
+                    <span class="risk-dot risk-{{ item.risk_level }}"></span>
+                    <span class="mini-list-name">{{ (item.original_name or 'без имени')|trunc(28) }}</span>
+                    <span class="mini-list-date">{{ item.created_at|localdt('%d.%m %H:%M') }}</span>
+                </a>
+            </li>
+            {% endfor %}
+        </ul>
+        {% else %}
+        <p class="empty-hint">Этот пользователь ещё не отправлял изображения.</p>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

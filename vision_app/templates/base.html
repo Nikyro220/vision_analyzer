@@ -1,0 +1,83 @@
+{% macro flashes(extra_class='') %}
+{% with msgs = get_flashed_messages(with_categories=true) %}
+{% if msgs %}
+<div class="messages {{ extra_class }}">
+    {% for category, message in msgs %}
+    <div class="msg msg-{{ category }}">{{ message }}</div>
+    {% endfor %}
+</div>
+{% endif %}
+{% endwith %}
+{% endmacro -%}
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Vision Triage{% endblock %} · Панель анализа</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link rel="icon" href="data:,">
+</head>
+<body class="{% if not current_user.is_authenticated %}is-guest{% endif %}">
+
+{% if current_user.is_authenticated and current_user.role != 'blocked' %}
+{% set ep = request.endpoint %}
+<div class="shell">
+    <aside class="sidebar">
+        <div class="brand">
+            <span class="brand-mark">◈</span>
+            <span class="brand-name">Vision&nbsp;Triage</span>
+        </div>
+
+        <nav class="nav">
+            <a class="nav-link {% if ep == 'analyzer.dashboard' %}is-active{% endif %}" href="{{ url_for('analyzer.dashboard') }}">
+                <span class="nav-ic">▣</span> Новый анализ
+            </a>
+            <a class="nav-link {% if ep == 'analyzer.history' %}is-active{% endif %}" href="{{ url_for('analyzer.history') }}">
+                <span class="nav-ic">≡</span> История
+            </a>
+            <a class="nav-link {% if ep == 'analyzer.health' %}is-active{% endif %}" href="{{ url_for('analyzer.health') }}">
+                <span class="nav-ic">◐</span> Статус сервера
+            </a>
+
+            {% if current_user.is_panel_staff %}
+            <div class="nav-divider">Панель управления</div>
+            {% if current_user.is_head_admin %}
+            <a class="nav-link {% if ep == 'panel.stats' %}is-active{% endif %}" href="{{ url_for('panel.stats') }}">
+                <span class="nav-ic">◆</span> Обзор
+            </a>
+            {% endif %}
+            <a class="nav-link {% if ep in ('panel.users_list', 'panel.user_detail') %}is-active{% endif %}" href="{{ url_for('panel.users_list') }}">
+                <span class="nav-ic">◎</span> Пользователи
+            </a>
+            <a class="nav-link {% if ep == 'panel.analyses_list' %}is-active{% endif %}" href="{{ url_for('panel.analyses_list') }}">
+                <span class="nav-ic">▤</span> Все анализы
+            </a>
+            {% endif %}
+        </nav>
+
+        <div class="sidebar-footer">
+            <a class="nav-link" href="{{ url_for('accounts.profile') }}">
+                <span class="nav-ic">●</span> {{ current_user.username }}
+            </a>
+            <span class="role-badge role-{{ current_user.role }}">{{ current_user.role_display_ru }}</span>
+            <form method="post" action="{{ url_for('accounts.logout') }}" class="logout-form">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button type="submit" class="logout-link">Выйти</button>
+            </form>
+        </div>
+    </aside>
+
+    <main class="content">
+        {{ flashes() }}
+        {% block content %}{% endblock %}
+    </main>
+</div>
+{% else %}
+    {{ flashes('messages-standalone') }}
+    {% block guest_content %}{% endblock %}
+{% endif %}
+
+<script src="{{ url_for('static', filename='js/main.js') }}"></script>
+</body>
+</html>
