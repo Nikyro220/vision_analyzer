@@ -112,7 +112,7 @@ A person in the child or teen age bracket who is in the same frame as a signal f
 </risk_signals>
 
 <context_classification>
-Write one short label for the overall scene, for example "casual/social", "religious or devotional attire", "military or law-enforcement styled", "sports/hunting/outdoor recreation", "costume, theatrical, or artistic", "workplace/professional". Base it on clothing, setting, symbols, and objects you already described. The label is metadata for the moderator; risk_level comes from signals only, with the single exception in context_escalation_guidance.
+Write one short label for the overall scene in __OUTPUT_LANGUAGE__. Label options: __CONTEXT_LABELS__. Use the __OUTPUT_LANGUAGE__ wording of the closest option, or a similarly short label of your own when none fits. Base it on clothing, setting, symbols, and objects you already described. The label is metadata for the moderator; risk_level comes from signals only, with the single exception in context_escalation_guidance.
 </context_classification>
 
 <context_escalation_guidance>
@@ -147,7 +147,7 @@ Respond with one valid JSON object and nothing else: no markdown fences, no text
   "rationale": "the feature codes or overrides that lead to the risk_level below",
   "risk_level": "exactly one of: low, medium, high",
   "needs_human_review": true or false (a JSON boolean),
-  "recommendation": "one sentence in __OUTPUT_LANGUAGE__ naming the check for the moderator; for a weapons signal the sentence asks the moderator to verify whether the object is a real weapon, a replica, or a prop"
+  "recommendation": "one sentence in __OUTPUT_LANGUAGE__ naming the check for the moderator; for a weapons signal the sentence asks the moderator to verify whether the object is a real weapon, a replica, or a prop, and these three options are the complete list"
 }
 
 Use an empty array for "signals" when no signal is registered.
@@ -222,6 +222,19 @@ Scene C: a man in a gray sweater at an office desk, holding a smartphone with a 
 
 EXAMPLES = {"ru": EXAMPLES_RU, "en": EXAMPLES_EN}
 
+CONTEXT_LABELS = {
+    "ru": (
+        '"повседневное/социальное", "религиозная или молитвенная одежда", '
+        '"военный или силовой стиль", "спорт/охота/активный отдых", '
+        '"костюм, театр или искусство", "работа/профессиональная среда"'
+    ),
+    "en": (
+        '"casual/social", "religious or devotional attire", '
+        '"military or law-enforcement styled", "sports/hunting/outdoor recreation", '
+        '"costume, theatrical, or artistic", "workplace/professional"'
+    ),
+}
+
 # Имя языка, которое подставляется в __OUTPUT_LANGUAGE__ — модель ориентируется
 # на название языка по-английски, это надёжнее ведёт guided-decoding/чат-модели,
 # чем аббревиатура кода локали (ru/en).
@@ -240,7 +253,9 @@ def get_system_prompt(lang: str = "ru") -> str:
     """
     language_name = LANGUAGE_NAMES.get(lang, lang)
     examples = EXAMPLES.get(lang, EXAMPLES_EN)
+    labels = CONTEXT_LABELS.get(lang, CONTEXT_LABELS["en"])
     text = SYSTEM_PROMPT_TEMPLATE.replace("__EXAMPLES__", examples)
+    text = text.replace("__CONTEXT_LABELS__", labels)
     return text.replace("__OUTPUT_LANGUAGE__", language_name)
 
 
