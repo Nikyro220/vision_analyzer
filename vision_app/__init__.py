@@ -12,6 +12,7 @@ from flask_wtf.csrf import CSRFError
 
 from .config import Config
 from .extensions import csrf, db, login_manager, migrate
+from .logging_setup import setup_logging
 from .models import ROLE_CHOICES, ROLE_LABELS, RISK_LABELS, Role, User
 from .utils import local_dt, page_url, truncate_chars
 
@@ -21,6 +22,7 @@ _BLOCKED_ALLOWED = {"accounts.blocked", "accounts.logout", "static"}
 
 def create_app(config: dict | None = None) -> Flask:
     app = Flask(__name__)
+    setup_logging(app)
     app.config.from_object(Config)
     if config:
         app.config.update(config)

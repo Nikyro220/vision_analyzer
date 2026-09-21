@@ -21,8 +21,54 @@ SAMPLING_DEFAULTS этой проблемы не имеет — это обыч�
 
 import logging
 import os
+from logging.handlers import TimedRotatingFileHandler
+from pathlib import Path
 
 import aiohttp
+
+# ---------------------------------------------------------------------------
+# Логирование: консоль + файлы в logs/ в корне проекта
+#   logs/analyzer.log        — всё (INFO и выше), ротация в полночь,
+#                              старые файлы: analyzer.log.YYYY-MM-DD, хранится 14 дней
+#   logs/analyzer.error.log  — только WARNING/ERROR/CRITICAL, хранится 60 дней
+# Папку можно поменять переменной окружения VISION_LOG_DIR.
+#
+# Настраивается ДО импорта опциональных модулей ниже: их logging.warning()
+# при ImportError иначе неявно вызвал бы basicConfig() с дефолтами, и
+# наша конфигурация после этого молча не применилась бы.
+# ---------------------------------------------------------------------------
+
+LOG_DIR = Path(
+    os.environ.get("VISION_LOG_DIR", Path(__file__).resolve().parent.parent / "logs")
+)
+
+
+def _setup_logging() -> None:
+    LOG_DIR.mkdir(parents=True, exist_ok=True)
+    fmt = logging.Formatter("%(asctime)s [%(levelname)s] %(name)s: %(message)s")
+
+    console = logging.StreamHandler()
+
+    everything = TimedRotatingFileHandler(
+        LOG_DIR / "analyzer.log", when="midnight", backupCount=14,
+        encoding="utf-8", delay=True,
+    )
+    errors = TimedRotatingFileHandler(
+        LOG_DIR / "analyzer.error.log", when="midnight", backupCount=60,
+        encoding="utf-8", delay=True,
+    )
+    errors.setLevel(logging.WARNING)
+
+    for h in (console, everything, errors):
+        h.setFormatter(fmt)
+
+    # force=True — снять хендлеры, добавленные раньше, и не задвоить вывод.
+    logging.basicConfig(
+        level=logging.INFO, handlers=[console, everything, errors], force=True,
+    )
+
+
+_setup_logging()
 
 try:
     import prompt as prompt
@@ -122,9 +168,3 @@ RISK_EMOJI = {
     "medium": "🟡",
     "high": "🔴",
 }
-
-
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s [%(levelname)s] %(message)s",
-)
