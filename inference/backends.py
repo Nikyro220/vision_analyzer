@@ -295,12 +295,8 @@ async def _analyze_ollama(
         "top_p": config.SAMPLING_DEFAULTS["top_p"],
         "top_k": config.SAMPLING_DEFAULTS["top_k"],
         "seed": config.SAMPLING_DEFAULTS["seed"],
+        #"num_predict": config.SAMPLING_DEFAULTS.get("num_predict", 2048),  # ← новое
     }
-    # num_ctx добавляем в options, только если его реально задали (через
-    # env или POST /sampling) — иначе Ollama берёт дефолт модели, как и
-    # было до появления /sampling. Не подставляем сюда никакое своё
-    # число "на всякий случай": слишком большой num_ctx заметно замедляет
-    # prefill и может привести к таймауту (REQUEST_TIMEOUT).
     if config.SAMPLING_DEFAULTS["num_ctx"] is not None:
         options["num_ctx"] = config.SAMPLING_DEFAULTS["num_ctx"]
 
@@ -310,8 +306,8 @@ async def _analyze_ollama(
         "format": "json",
         "messages": messages,
         "options": options,
+        "think": False,   # ← новое: глушим reasoning-режим qwen3.5
     }
-
     async with aiohttp.ClientSession(timeout=config.REQUEST_TIMEOUT) as session:
         async with session.post(f"{config.OLLAMA_HOST}/api/chat", json=payload) as resp:
             resp.raise_for_status()
