@@ -252,6 +252,8 @@ async def handle_config(request: web.Request) -> web.Response:
     return _json({"ok": True, "backend": config.BACKEND, "ollama_host": config.OLLAMA_HOST, "vllm_url": config.VLLM_URL})
 
 
+_SAMPLING_KEYS = ("temperature", "top_p", "top_k", "seed", "num_ctx", "num_predict", "think")
+
 async def handle_sampling(request: web.Request) -> web.Response:
     """GET — вернуть текущие temperature/top_p/top_k/seed/num_ctx, а также
     реально обнаруженный (если получилось) контекст vLLM.
@@ -281,7 +283,7 @@ async def handle_sampling(request: web.Request) -> web.Response:
         return _json({**config.SAMPLING_DEFAULTS, "vllm_context_window": vllm_context_window})
 
     raw_values = {}
-    for key in ("temperature", "top_p", "top_k", "seed", "num_ctx"):
+    for key in _SAMPLING_KEYS:
         v = request.query.get(key)
         if v is not None:
             raw_values[key] = v
@@ -291,7 +293,7 @@ async def handle_sampling(request: web.Request) -> web.Response:
             body = await request.json() or {}
         else:
             body = await request.post()
-        for key in ("temperature", "top_p", "top_k", "seed", "num_ctx"):
+        for key in _SAMPLING_KEYS:
             if key in body:
                 raw_values[key] = body[key]
 
@@ -313,6 +315,14 @@ async def handle_sampling(request: web.Request) -> web.Response:
                 config.SAMPLING_DEFAULTS["num_ctx"] = None  # вернуться к дефолту модели
             else:
                 config.SAMPLING_DEFAULTS["num_ctx"] = int(v)
+        if "num_predict" in raw_values:
+            v = raw_values["num_predict"]
+            if v is None or (isinstance(v, str) and v.strip().lower() in ("", "auto", "none", "default")):
+                config.SAMPLING_DEFAULTS["num_predict"] = None
+            else:
+                config.SAMPLING_DEFAULTS["num_predict"] = int(v)
+        if "think" in raw_values:
+            config.SAMPLING_DEFAULTS["think"] = config.parse_think(raw_values["think"])
     except (TypeError, ValueError):
         return _json(
             {"error": config._t("error.sampling_invalid_value", value=str(raw_values))},

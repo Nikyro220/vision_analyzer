@@ -299,6 +299,9 @@ async def _analyze_ollama(
     }
     if config.SAMPLING_DEFAULTS["num_ctx"] is not None:
         options["num_ctx"] = config.SAMPLING_DEFAULTS["num_ctx"]
+    if config.SAMPLING_DEFAULTS["num_predict"] is not None:
+        options["num_predict"] = config.SAMPLING_DEFAULTS["num_predict"]
+
 
     payload = {
         "model": model,
@@ -306,7 +309,7 @@ async def _analyze_ollama(
         "format": "json",
         "messages": messages,
         "options": options,
-        "think": False,   # ← новое: глушим reasoning-режим qwen3.5
+        "think": config.SAMPLING_DEFAULTS["think"],   # ← новое: глушим reasoning-режим qwen3.5
     }
     async with aiohttp.ClientSession(timeout=config.REQUEST_TIMEOUT) as session:
         async with session.post(f"{config.OLLAMA_HOST}/api/chat", json=payload) as resp:

@@ -118,6 +118,21 @@ def _get_system_prompt(lang: str | None = None) -> str:
 # Конфигурация бэкендов
 # ---------------------------------------------------------------------------
 
+THINK_LEVELS = ("low", "medium", "high")
+
+def parse_think(v):
+    """True / False / 'low' / 'medium' / 'high'; иначе ValueError."""
+    if isinstance(v, bool):        # JSON-тело: true/false приходят как bool
+        return v
+    s = str(v).strip().lower()
+    if s in ("1", "true", "yes", "on"):
+        return True
+    if s in ("0", "false", "no", "off"):
+        return False
+    if s in THINK_LEVELS:
+        return s
+    raise ValueError(v)
+
 # Значения по умолчанию — можно переопределить переменными окружения при
 # запуске (VISION_ANALYZER_BACKEND / _OLLAMA_HOST / _VLLM_URL), а также
 # "на лету", без перезапуска сервера, через GET/POST /config (см. server.py).
@@ -131,32 +146,22 @@ VLLM_URL = os.environ.get("VISION_ANALYZER_VLLM_URL", "http://host.docker.intern
 SERVER_HOST = "0.0.0.0"
 SERVER_PORT = 6769
 
-# Параметры сэмплинга модели — стартовые значения тоже можно задать через
-# окружение, а поменять "на лету" (без перезапуска) через GET/POST /sampling.
-# Это обычный dict, а не отдельные переменные: /sampling мутирует его на
-# месте (SAMPLING_DEFAULTS[...] = ...), никакой пересборки не требуется.
 SAMPLING_DEFAULTS = {
     "temperature": float(os.environ.get("VISION_ANALYZER_TEMPERATURE", 0)),
     "top_p": float(os.environ.get("VISION_ANALYZER_TOP_P", 1.0)),
     "top_k": int(os.environ.get("VISION_ANALYZER_TOP_K", 1)),
     "seed": int(os.environ.get("VISION_ANALYZER_SEED", 42)),
-    # num_ctx — размер контекстного окна, актуален ТОЛЬКО для Ollama (у
-    # vLLM размер контекста фиксирован при запуске сервера, per-request
-    # не передаётся). По умолчанию — None, т.е. вообще не переопределяем:
-    # Ollama использует дефолт модели из её Modelfile, как было и до
-    # появления /sampling. Поднимать num_ctx стоит только осознанно —
-    # это увеличивает объём KV-cache и заметно увеличивает время prefill
-    # (вплоть до частичного оффлоада на CPU, если не хватает VRAM), так
-    # что задавать большое значение "на всякий случай" не стоит — только
-    # когда реально нужна длинная история (/analyze -> history) и есть
-    # запас по VRAM. Задать явно можно через VISION_ANALYZER_NUM_CTX или
-    # POST /sampling; вернуть обратно на "не переопределять" — передать
-    # num_ctx="auto" (или "none"/"default"/"").
     "num_ctx": (
         int(os.environ["VISION_ANALYZER_NUM_CTX"])
         if os.environ.get("VISION_ANALYZER_NUM_CTX")
         else None
     ),
+    "num_predict": (
+        int(os.environ["VISION_ANALYZER_NUM_PREDICT"])
+        if os.environ.get("VISION_ANALYZER_NUM_PREDICT")
+        else None          # None = не переопределять, как num_ctx
+    ),
+    "think": parse_think(os.environ.get("VISION_ANALYZER_THINK", "false")),
 }
 
 
