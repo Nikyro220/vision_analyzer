@@ -15,7 +15,7 @@ backends.py — всё, что говорит с моделью напрямую
 import asyncio
 import json
 import logging
-
+import re
 import aiohttp
 
 import config
@@ -316,6 +316,13 @@ async def _analyze_ollama(
         async with session.post(f"{config.OLLAMA_HOST}/api/chat", json=payload) as resp:
             resp.raise_for_status()
             data = await resp.json()
+            msg = data.get("message", {})
+            logging.info(
+                "Ollama: prompt_tokens=%s gen_tokens=%s done_reason=%s content_chars=%d thinking_chars=%d load=%.1fs total=%.1fs",
+                data.get("prompt_eval_count"), data.get("eval_count"), data.get("done_reason"),
+                len(msg.get("content") or ""), len(msg.get("thinking") or ""),
+                data.get("load_duration", 0) / 1e9, data.get("total_duration", 0) / 1e9,
+            )
 
     return data.get("message", {}).get("content", "").strip()
 
@@ -375,6 +382,44 @@ async def _analyze_vllm(
     return data["choices"][0]["message"]["content"].strip()
 
 
+_RU_TO_EN = {"низкий": "low", "средний": "medium", "высокий": "high"}
+_ORDER = {"low": 0, "medium": 1, "high": 2}
+
+
+def _finalize_report(report, lang: str | None = None):
+    if not isinstance(report, dict) or "_raw" in report:
+        return report
+
+    raw_level = str(report.get("risk_level", "")).strip().lower()
+    level = _RU_TO_EN.get(raw_level, raw_level)
+    if level not in _ORDER:
+        level = "medium"
+
+    for s in report.get("signals") or []:
+        if not isinstance(s, dict) or s.get("category") != "weapons_and_dangerous_objects":
+            continue
+        codes = set(re.findall(r"W[1-6]", s.get("detail", "")))
+        if not codes & {"W1", "W4", "W5", "W6"}:
+            continue
+
+        floor = "high" if codes & {"W2", "W3"} else "medium"
+        if _ORDER[floor] > _ORDER[level]:
+            level = floor
+
+        rec = config._t("rec.verify_weapon", lang=lang)
+        if not rec.startswith("???"):
+            report["recommendation"] = rec
+
+        note = config._t("rationale.authenticity_unconfirmed", lang=lang)
+        rationale = report.get("rationale", "")
+        if not note.startswith("???") and note.split()[0].lower() not in rationale.lower():
+            report["rationale"] = f"{rationale.rstrip()} {note}".strip()
+
+    report["risk_level"] = level
+    if report.get("signals"):
+        report["needs_human_review"] = True
+    return report
+
 async def _analyze_image(
     image_b64: str,
     image_mime: str = "image/jpeg",
@@ -407,7 +452,9 @@ async def _analyze_image(
         )
 
     try:
-        return json.loads(content), backend
+        report = json.loads(content)
     except (json.JSONDecodeError, TypeError):
         logging.warning("vision_analyzer: модель (%s/%s) вернула невалидный JSON", backend, resolved_model)
         return {"_raw": content or config._t("model.empty_response", lang=lang)}, backend
+
+    return _finalize_report(report, lang), backend

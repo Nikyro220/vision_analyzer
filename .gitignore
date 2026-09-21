@@ -8,3 +8,6 @@ venv/
 .env
 instance/
 .pytest_cache/
+inference/upscaler/*.pth
+inference/upscaler/*.pt
+inference/upscaler/*.part

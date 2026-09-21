@@ -1,28 +1,71 @@
 """Точка входа для разработки: python run.py"""
+
 import atexit
 import logging
 import os
 import subprocess
 import sys
+from pathlib import Path
 
 from vision_app import create_app
+
 
 logging.basicConfig(level=logging.INFO)
 
 app = create_app()
 
+
 # --- vision_analyzer (аналайзер картинок) поднимается рядом, подпроцессом ---
+#
 # aiohttp живёт в своём event loop, Flask dev-сервер — обычный WSGI,
 # совмещать их в одном процессе/одном loop смысла нет — проще и надёжнее
 # просто запустить `python server.py` отдельным процессом и следить за ним.
 #
-# Поправь пути под себя (или задай переменными окружения):
-VISION_ANALYZER_DIR = os.environ.get(
-    "VISION_ANALYZER_DIR", r"D:\vision_analyzer\inference"
-)
-VISION_ANALYZER_PYTHON = os.environ.get(
-    "VISION_ANALYZER_PYTHON", r"D:\vision_analyzer\.venv\Scripts\python.exe"
-)
+# Пути по умолчанию определяются относительно расположения run.py.
+# При необходимости их можно переопределить через переменные окружения.
+
+BASE_DIR = Path(__file__).resolve().parent
+
+
+VISION_ANALYZER_DIR = Path(
+    os.environ.get(
+        "VISION_ANALYZER_DIR",
+        BASE_DIR / "inference",
+    )
+).resolve()
+
+
+def find_venv_python(directory: Path) -> Path | None:
+    candidates = []
+
+    if os.name == "nt":
+        # Windows
+        candidates = [
+            directory / "venv" / "Scripts" / "python.exe",
+            directory / ".venv" / "Scripts" / "python.exe",
+        ]
+    else:
+        # Linux / macOS
+        candidates = [
+            directory / "venv" / "bin" / "python",
+            directory / ".venv" / "bin" / "python",
+        ]
+
+    for candidate in candidates:
+        if candidate.is_file():
+            return candidate
+
+    return None
+
+
+found_python = find_venv_python(VISION_ANALYZER_DIR)
+
+VISION_ANALYZER_PYTHON = Path(
+    os.environ.get(
+        "VISION_ANALYZER_PYTHON",
+        found_python if found_python else sys.executable,
+    )
+).resolve()
 
 _vision_analyzer_proc: subprocess.Popen | None = None
 
@@ -30,10 +73,15 @@ _vision_analyzer_proc: subprocess.Popen | None = None
 def _start_vision_analyzer() -> None:
     global _vision_analyzer_proc
 
-    entrypoint = os.path.join(VISION_ANALYZER_DIR, "server.py")
-    python_exe = VISION_ANALYZER_PYTHON if os.path.isfile(VISION_ANALYZER_PYTHON) else sys.executable
+    entrypoint = VISION_ANALYZER_DIR / "server.py"
 
-    if not os.path.isfile(entrypoint):
+    python_exe = (
+        VISION_ANALYZER_PYTHON
+        if VISION_ANALYZER_PYTHON.is_file()
+        else Path(sys.executable)
+    )
+
+    if not entrypoint.is_file():
         logging.warning(
             "run.py: не нашёл %s — vision_analyzer не запущен "
             "(поправь VISION_ANALYZER_DIR / переменную окружения)",
@@ -41,15 +89,29 @@ def _start_vision_analyzer() -> None:
         )
         return
 
-    logging.info("run.py: запускаю vision_analyzer (%s, python=%s)", entrypoint, python_exe)
-    _vision_analyzer_proc = subprocess.Popen([python_exe, entrypoint], cwd=VISION_ANALYZER_DIR)
+    logging.info(
+        "run.py: запускаю vision_analyzer (%s, python=%s)",
+        entrypoint,
+        python_exe,
+    )
+
+    _vision_analyzer_proc = subprocess.Popen(
+        [str(python_exe), str(entrypoint)],
+        cwd=str(VISION_ANALYZER_DIR),
+    )
+
     atexit.register(_stop_vision_analyzer)
 
 
 def _stop_vision_analyzer() -> None:
-    if _vision_analyzer_proc is not None and _vision_analyzer_proc.poll() is None:
+    if (
+        _vision_analyzer_proc is not None
+        and _vision_analyzer_proc.poll() is None
+    ):
         logging.info("run.py: останавливаю vision_analyzer")
+
         _vision_analyzer_proc.terminate()
+
         try:
             _vision_analyzer_proc.wait(timeout=5)
         except subprocess.TimeoutExpired:
@@ -63,6 +125,7 @@ if __name__ == "__main__":
     # дважды: в процессе-наблюдателе и в реальном рабочем процессе.
     # Запускаем подпроцесс только в настоящем воркере — иначе
     # vision_analyzer поднимется дважды и второй упадёт на занятом порту.
+
     if not debug or os.environ.get("WERKZEUG_RUN_MAIN") == "true":
         _start_vision_analyzer()
 

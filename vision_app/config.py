@@ -25,7 +25,7 @@ class Config:
 
     # --- Клиент vision_analyzer_server.py ---
     VISION_API_BASE_URL = os.environ.get("VISION_API_BASE_URL", "http://127.0.0.1:6769")
-    VISION_API_TIMEOUT = int(os.environ.get("VISION_API_TIMEOUT", "300"))
+    VISION_API_TIMEOUT = int(os.environ.get("VISION_API_TIMEOUT", "500"))
 
     # Часовой пояс для отображения дат (в БД всё хранится в UTC).
     TIMEZONE = os.environ.get("APP_TIMEZONE", "Asia/Aqtobe")

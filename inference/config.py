@@ -114,7 +114,7 @@ SAMPLING_DEFAULTS = {
 }
 
 
-REQUEST_TIMEOUT = aiohttp.ClientTimeout(total=300)
+REQUEST_TIMEOUT = aiohttp.ClientTimeout(total=500)
 DISCOVERY_TIMEOUT = aiohttp.ClientTimeout(total=10)
 
 RISK_EMOJI = {
