@@ -402,6 +402,8 @@ def _render_health(bound_forms: dict | None = None, status_code: int = 200):
                 form = bound_forms.get(name)
                 if form is None:
                     initial = {k: v for k, v in sampling.items() if v is not None and k in SAMPLING_FORMS[name].SPEC}
+                    if sampling.get("think") is not None:
+                        initial["think"] = str(sampling["think"]).lower()   # True→"true", "high"→"high"
                     form = SAMPLING_FORMS[name](formdata=None, prefix=name, data=initial)
                 card["form"] = form
             cards.append(card)

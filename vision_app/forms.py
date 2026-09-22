@@ -13,7 +13,7 @@ from flask_wtf import FlaskForm
 from flask_wtf.file import FileRequired, MultipleFileField
 from PIL import Image
 from sqlalchemy import func, select
-from wtforms import BooleanField, PasswordField, SelectField, StringField
+from wtforms import PasswordField, SelectField, StringField
 from wtforms.fields import EmailField
 from wtforms.validators import (
     DataRequired,
@@ -257,7 +257,6 @@ class _SamplingForm(FlaskForm):
         validators=[Optional(), Length(max=32)],
         render_kw={"placeholder": "1–1048576", "inputmode": "numeric", "autocomplete": "off"},
     )
-    reset_num_predict = BooleanField("num_predict: сбросить (без лимита)")
     think = SelectField(
         "think",
         choices=[
@@ -274,13 +273,7 @@ class _SamplingForm(FlaskForm):
     def validate(self, extra_validators=None):
         ok = super().validate(extra_validators)
         self.values = {}
-
         for name, (kind, lo, hi, lo_excl) in self.SPEC.items():
-            reset = getattr(self, f"reset_{name}", None)
-            if reset is not None and reset.data:
-                self.values[name] = "auto"
-                continue
-
             field = getattr(self, name)
             raw = (field.data or "").strip().replace(",", ".")
             if not raw:
@@ -296,7 +289,6 @@ class _SamplingForm(FlaskForm):
             self.values["think"] = {"true": True, "false": False}.get(think, think)
 
         return ok
-
 
 _COMMON_SPEC = {
     "temperature": ("float", 0, 2, False),
@@ -321,7 +313,7 @@ class OllamaSamplingForm(_SamplingForm):
         validators=[Optional(), Length(max=32)],
         render_kw={"placeholder": "128–1048576", "inputmode": "numeric", "autocomplete": "off"},
     )
-    reset_num_ctx = BooleanField("num_ctx: сбросить (дефолт модели)")
+    
 
 
 SAMPLING_FORMS = {"vllm": VllmSamplingForm, "ollama": OllamaSamplingForm}
