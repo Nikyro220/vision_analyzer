@@ -1,4 +1,4 @@
-"""Загрузка изображений, история, детальный результат, статус сервера анализа."""
+"""Загрузка изображений (очередь), история, детальный результат, статус сервера анализа."""
 
 import uuid
 from datetime import datetime, timezone
@@ -9,6 +9,7 @@ from flask import (
     abort,
     current_app,
     flash,
+    jsonify,
     redirect,
     render_template,
     request,
@@ -16,31 +17,35 @@ from flask import (
     url_for,
 )
 from flask_login import current_user, login_required
-from sqlalchemy import select
+from sqlalchemy import delete, func, select
 
 from ..decorators import staff_required
 from ..extensions import db
 from ..forms import SAMPLING_FORMS, ImageUploadForm
-from ..models import AnalysisResult
+from ..history import delete_finished, remove_image_files
+from ..models import RISK_LABELS, STATUS_LABELS, AnalysisResult, Status
+from ..queue_worker import wake_worker
 from ..services import (
     BACKENDS,
     VisionApiError,
-    analyze_image,
     check_health,
     get_models,
     get_sampling,
     set_sampling,
 )
 from ..settings_store import clear_analysis_target, get_analysis_target, set_analysis_target
-from ..utils import paginate
+from ..utils import is_safe_next, local_dt, paginate, plural
 
 bp = Blueprint("analyzer", __name__)
 
+_FILES = ("файл", "файла", "файлов")
+
 
 def _own_results():
+    """История пользователя — только ЗАВЕРШЁННЫЕ анализы (очередь показывается отдельно)."""
     return (
         select(AnalysisResult)
-        .where(AnalysisResult.user_id == current_user.id)
+        .where(AnalysisResult.user_id == current_user.id, AnalysisResult.status == Status.DONE)
         .order_by(AnalysisResult.created_at.desc(), AnalysisResult.id.desc())
     )
 
@@ -49,68 +54,203 @@ def _can_view(result: AnalysisResult) -> bool:
     return result.user_id == current_user.id or current_user.is_panel_staff
 
 
+def _redirect_back(default_endpoint: str, **values):
+    """Возврат на страницу, откуда пришёл запрос (?next=/hidden next), только внутри сайта."""
+    target = request.form.get("next") or request.args.get("next")
+    return redirect(target if is_safe_next(target) else url_for(default_endpoint, **values))
+
+
+# ----------------------------------------------------------------------------
+# Очередь
+# ----------------------------------------------------------------------------
+def _as_utc(value: datetime) -> datetime:
+    return value if value.tzinfo else value.replace(tzinfo=timezone.utc)
+
+
+def queue_snapshot() -> dict:
+    """Очередь текущего пользователя и его последние завершённые анализы (для страницы и JSON)."""
+    # Очередь одна на всех (модель обрабатывает по одному изображению), поэтому позицию
+    # считаем среди ВСЕХ ожидающих, а показываем пользователю только его записи.
+    pending_ids = db.session.scalars(
+        select(AnalysisResult.id).where(AnalysisResult.status != Status.DONE).order_by(AnalysisResult.id)
+    ).all()
+    position = {pid: idx for idx, pid in enumerate(pending_ids)}
+
+    mine = db.session.scalars(
+        select(AnalysisResult)
+        .where(AnalysisResult.user_id == current_user.id, AnalysisResult.status != Status.DONE)
+        .order_by(AnalysisResult.id)
+    ).all()
+
+    now = datetime.now(timezone.utc)
+    pending = []
+    for row in mine:
+        since = row.started_at if row.status == Status.PROCESSING and row.started_at else row.created_at
+        pending.append(
+            {
+                "id": row.id,
+                "name": row.original_name or "без имени",
+                "status": row.status,
+                "status_label": STATUS_LABELS.get(row.status, row.status),
+                "ahead": position.get(row.id, 0),
+                "elapsed": max(int((now - _as_utc(since)).total_seconds()), 0),
+                "cancel_url": url_for("analyzer.cancel_queued", pk=row.id) if row.status == Status.QUEUED else "",
+            }
+        )
+
+    recent = [
+        {
+            "id": row.id,
+            "name": row.original_name or "без имени",
+            "risk_level": row.risk_level,
+            "risk_label": RISK_LABELS.get(row.risk_level, row.risk_level),
+            "error": row.is_error,
+            "date": local_dt(row.created_at, "%d.%m %H:%M"),
+            "url": url_for("analyzer.result_detail", pk=row.id),
+        }
+        for row in db.session.scalars(_own_results().limit(6)).all()
+    ]
+    return {"pending": pending, "recent": recent, "queue_total": len(pending_ids)}
+
+
+def _enqueue_uploads(form: ImageUploadForm):
+    """Кладёт проверенные файлы в очередь и сразу возвращает пользователя на страницу."""
+    limit = current_app.config.get("QUEUE_MAX_PENDING_PER_USER", 30)
+    pending_now = db.session.scalar(
+        select(func.count(AnalysisResult.id)).where(
+            AnalysisResult.user_id == current_user.id, AnalysisResult.status != Status.DONE
+        )
+    )
+    if pending_now + len(form.accepted) > limit:
+        flash(
+            f"В вашей очереди уже {pending_now}, максимум — {limit}. Дождитесь обработки и повторите.",
+            "error",
+        )
+        return redirect(url_for("analyzer.dashboard"))
+
+    now = datetime.now(timezone.utc)
+    root = Path(current_app.config["UPLOAD_FOLDER"])
+    written: list[Path] = []
+    try:
+        for item in form.accepted:
+            # Файл на диске хранится под случайным именем, оригинальное имя — только в БД.
+            rel_path = f"uploads/{now:%Y/%m/%d}/{uuid.uuid4().hex}{item.ext}"
+            abs_path = root / rel_path
+            abs_path.parent.mkdir(parents=True, exist_ok=True)
+            abs_path.write_bytes(item.data)
+            written.append(abs_path)
+            db.session.add(
+                AnalysisResult(
+                    user_id=current_user.id,
+                    image_path=rel_path,
+                    original_name=item.filename[:255],
+                    image_mime=item.mime,
+                    status=Status.QUEUED,
+                )
+            )
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+        for path in written:
+            path.unlink(missing_ok=True)
+        raise
+
+    wake_worker(current_app)
+    flash(f"Добавлено в очередь: {plural(len(form.accepted), _FILES)}.", "success")
+    for name, reason in form.rejected[:5]:
+        flash(f"Пропущен файл «{name}»: {reason}.", "warning")
+    if len(form.rejected) > 5:
+        flash(f"…и ещё пропущено: {len(form.rejected) - 5}.", "warning")
+    return redirect(url_for("analyzer.dashboard"))
+
+
 @bp.route("/", methods=["GET", "POST"])
 @login_required
 def dashboard():
     form = ImageUploadForm()
-
     if form.validate_on_submit():
-        upload = form.image.data
-        now = datetime.now(timezone.utc)
+        return _enqueue_uploads(form)
 
-        # Файл на диске хранится под случайным именем, оригинальное имя — только в БД.
-        rel_path = f"uploads/{now:%Y/%m/%d}/{uuid.uuid4().hex}{form.image_ext}"
-        abs_path = Path(current_app.config["UPLOAD_FOLDER"]) / rel_path
-        abs_path.parent.mkdir(parents=True, exist_ok=True)
-        abs_path.write_bytes(form.image_bytes)
-
-        result = AnalysisResult(
-            user_id=current_user.id,
-            image_path=rel_path,
-            original_name=(upload.filename or "")[:255],
-        )
-        db.session.add(result)
-        db.session.commit()
-
-        try:
-            target_backend, target_model = get_analysis_target()
-            outcome = analyze_image(
-                form.image_bytes,
-                form.image_mime,
-                lang="ru",
-                backend=target_backend,
-                model=target_model,
-            )
-            result.backend = outcome.backend
-            result.risk_level = outcome.risk_level
-            result.needs_human_review = outcome.needs_human_review
-            result.description = outcome.description
-            result.raw_report = outcome.raw_report
-            db.session.commit()
-            flash("Изображение проанализировано.", "success")
-        except VisionApiError as exc:
-            result.error = str(exc)
-            db.session.commit()
-            flash(str(exc), "error")
-
-        return redirect(url_for("analyzer.result_detail", pk=result.id))
-
-    recent = db.session.scalars(_own_results().limit(6)).all()
+    snapshot = queue_snapshot()
     target_backend, target_model = get_analysis_target()
     return render_template(
         "analyzer/dashboard.html",
         form=form,
-        recent=recent,
+        pending=snapshot["pending"],
+        recent=snapshot["recent"],
+        queue_total=snapshot["queue_total"],
         target_backend=target_backend,
         target_model=target_model,
     )
 
 
+@bp.route("/queue/status")
+@login_required
+def queue_status():
+    """JSON для окна очереди: страница опрашивает его, пока есть незавершённые анализы."""
+    response = jsonify(queue_snapshot())
+    response.headers["Cache-Control"] = "no-store"
+    return response
+
+
+@bp.route("/queue/<int:pk>/cancel", methods=["POST"])
+@login_required
+def cancel_queued(pk: int):
+    """Убрать запись из очереди. Только пока она не начала обрабатываться."""
+    row = db.get_or_404(AnalysisResult, pk)
+    if not _can_view(row):
+        abort(404)
+    image_path = row.image_path
+
+    result = db.session.execute(
+        delete(AnalysisResult)
+        .where(AnalysisResult.id == pk, AnalysisResult.status == Status.QUEUED)
+        .execution_options(synchronize_session=False)
+    )
+    db.session.commit()
+
+    if result.rowcount:
+        remove_image_files([image_path])
+        flash("Убрано из очереди.", "success")
+    else:
+        flash("Анализ уже обрабатывается или завершён — отменить его нельзя.", "info")
+    return _redirect_back("analyzer.dashboard")
+
+
+# ----------------------------------------------------------------------------
+# История
+# ----------------------------------------------------------------------------
 @bp.route("/history/")
 @login_required
 def history():
     page = paginate(_own_results(), per_page=12)
     return render_template("analyzer/history.html", page=page)
+
+
+@bp.route("/history/delete/", methods=["POST"])
+@staff_required
+def delete_selected():
+    """Удалить выбранные записи истории (только админы)."""
+    ids = [int(x) for x in request.form.getlist("ids") if x.isdigit()][:1000]
+    if not ids:
+        flash("Ничего не выбрано.", "info")
+    else:
+        count = delete_finished(AnalysisResult.id.in_(ids))
+        flash(f"Удалено записей: {count}." if count else "Нечего удалять.", "success" if count else "info")
+    return _redirect_back("analyzer.history")
+
+
+@bp.route("/result/<int:pk>/delete/", methods=["POST"])
+@staff_required
+def delete_result(pk: int):
+    """Удалить один результат вместе с изображением (только админы)."""
+    result = db.get_or_404(AnalysisResult, pk)
+    if result.is_pending:
+        flash("Анализ ещё не завершён — дождитесь результата или отмените его в очереди.", "error")
+        return redirect(url_for("analyzer.result_detail", pk=pk))
+    delete_finished(AnalysisResult.id == pk)
+    flash("Результат удалён.", "success")
+    return _redirect_back("analyzer.history")
 
 
 def _normalize_signals(raw) -> list[dict]:

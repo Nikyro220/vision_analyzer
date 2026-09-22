@@ -9,9 +9,10 @@ from sqlalchemy.orm import joinedload
 
 from ..decorators import head_admin_required, staff_required
 from ..extensions import db
-from ..models import ROLE_CHOICES, ROLE_LABELS, AnalysisResult, Role, User
+from ..history import delete_finished
+from ..models import ROLE_CHOICES, ROLE_LABELS, AnalysisResult, Role, Status, User
 from ..services import VisionApiError, check_health
-from ..utils import paginate
+from ..utils import paginate, plural
 
 bp = Blueprint("panel", __name__, url_prefix="/panel")
 
@@ -33,12 +34,13 @@ def stats():
     counts = dict(db.session.execute(select(User.role, func.count(User.id)).group_by(User.role)).all())
     role_counts = [(role, label, counts.get(role, 0)) for role, label in ROLE_CHOICES]
 
-    total_analyses = db.session.scalar(select(func.count(AnalysisResult.id)))
+    done = AnalysisResult.status == Status.DONE
+    total_analyses = db.session.scalar(select(func.count(AnalysisResult.id)).where(done))
     high_risk = db.session.scalar(
-        select(func.count(AnalysisResult.id)).where(AnalysisResult.risk_level == "high")
+        select(func.count(AnalysisResult.id)).where(done, AnalysisResult.risk_level == "high")
     )
     needs_review = db.session.scalar(
-        select(func.count(AnalysisResult.id)).where(AnalysisResult.needs_human_review.is_(True))
+        select(func.count(AnalysisResult.id)).where(done, AnalysisResult.needs_human_review.is_(True))
     )
 
     try:
@@ -88,12 +90,14 @@ def user_detail(pk: int):
     target = db.get_or_404(User, pk)
     can_manage = current_user.can_manage(target)
     assignable = current_user.assignable_roles() if can_manage else []
+    finished = (AnalysisResult.user_id == target.id, AnalysisResult.status == Status.DONE)
     analyses = db.session.scalars(
         select(AnalysisResult)
-        .where(AnalysisResult.user_id == target.id)
+        .where(*finished)
         .order_by(AnalysisResult.created_at.desc(), AnalysisResult.id.desc())
         .limit(10)
     ).all()
+    history_count = db.session.scalar(select(func.count(AnalysisResult.id)).where(*finished))
 
     return render_template(
         "panel/user_detail.html",
@@ -101,6 +105,7 @@ def user_detail(pk: int):
         assignable_roles=assignable,
         can_manage=can_manage,
         analyses=analyses,
+        history_count=history_count,
         all_roles=ROLE_CHOICES,
     )
 
@@ -153,24 +158,54 @@ def user_toggle_block(pk: int):
     return redirect(_safe_referrer(url_for("panel.users_list")))
 
 
+def _analysis_filters() -> tuple[list, str, bool]:
+    """Условия фильтра для «Все анализы» (только завершённые) + значения для формы."""
+    risk_filter = request.args.get("risk", request.form.get("risk", "")).strip()
+    review_only = (request.args.get("review") or request.form.get("review")) == "1"
+
+    conditions = [AnalysisResult.status == Status.DONE]
+    if risk_filter:
+        conditions.append(AnalysisResult.risk_level == risk_filter)
+    if review_only:
+        conditions.append(AnalysisResult.needs_human_review.is_(True))
+    return conditions, risk_filter, review_only
+
+
 @bp.route("/analyses/")
 @staff_required
 def analyses_list():
-    """Все результаты анализа в системе — для модерации."""
-    risk_filter = request.args.get("risk", "").strip()
-    review_only = request.args.get("review") == "1"
-
+    """Все завершённые анализы в системе — для модерации."""
+    conditions, risk_filter, review_only = _analysis_filters()
     stmt = (
         select(AnalysisResult)
         .options(joinedload(AnalysisResult.user))
+        .where(*conditions)
         .order_by(AnalysisResult.created_at.desc(), AnalysisResult.id.desc())
     )
-    if risk_filter:
-        stmt = stmt.where(AnalysisResult.risk_level == risk_filter)
-    if review_only:
-        stmt = stmt.where(AnalysisResult.needs_human_review.is_(True))
-
     page = paginate(stmt, per_page=20)
     return render_template(
         "panel/analyses.html", page=page, risk_filter=risk_filter, review_only=review_only
     )
+
+
+@bp.route("/analyses/delete-filtered/", methods=["POST"])
+@staff_required
+def analyses_delete_filtered():
+    """Удалить ВСЕ завершённые анализы, подходящие под текущий фильтр (не только с этой страницы)."""
+    conditions, risk_filter, review_only = _analysis_filters()
+    count = delete_finished(*conditions[1:])  # первый пункт (status=done) delete_finished добавляет сам
+    flash(f"Удалено записей: {count}." if count else "Нечего удалять.", "success" if count else "info")
+    return redirect(url_for("panel.analyses_list", risk=risk_filter or None, review="1" if review_only else None))
+
+
+@bp.route("/users/<int:pk>/clear-history/", methods=["POST"])
+@staff_required
+def user_clear_history(pk: int):
+    """Удалить всю завершённую историю пользователя (записи и изображения)."""
+    target = db.get_or_404(User, pk)
+    count = delete_finished(AnalysisResult.user_id == target.id)
+    if count:
+        flash(f"История пользователя «{target.username}» очищена: удалено {plural(count, ('запись', 'записи', 'записей'))}.", "success")
+    else:
+        flash(f"У пользователя «{target.username}» нет завершённых анализов.", "info")
+    return redirect(url_for("panel.user_detail", pk=target.id))

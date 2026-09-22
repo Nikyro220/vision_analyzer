@@ -161,7 +161,7 @@ SAMPLING_DEFAULTS = {
         if os.environ.get("VISION_ANALYZER_NUM_PREDICT")
         else None          # None = не переопределять, как num_ctx
     ),
-    "think": parse_think(os.environ.get("VISION_ANALYZER_THINK", "false")),
+    "think": parse_think(os.environ.get("VISION_ANALYZER_THINK", "true")),
 }
 
 

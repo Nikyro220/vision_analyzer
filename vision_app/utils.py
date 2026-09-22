@@ -50,3 +50,15 @@ def truncate_chars(value, length: int = 30) -> str:
     if len(text) <= length:
         return text
     return text[: max(length - 1, 0)] + "…"
+
+
+def plural(n: int, forms: tuple[str, str, str]) -> str:
+    """Русское склонение: plural(1, ("файл","файла","файлов")) -> "1 файл"."""
+    n_abs = abs(n)
+    if n_abs % 10 == 1 and n_abs % 100 != 11:
+        word = forms[0]
+    elif 2 <= n_abs % 10 <= 4 and not 12 <= n_abs % 100 <= 14:
+        word = forms[1]
+    else:
+        word = forms[2]
+    return f"{n} {word}"

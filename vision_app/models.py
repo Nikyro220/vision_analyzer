@@ -48,6 +48,21 @@ class RiskLevel:
     UNKNOWN = "unknown"
 
 
+class Status:
+    """Жизненный цикл анализа: очередь -> обработка -> готово (после этого запись попадает в историю)."""
+
+    QUEUED = "queued"
+    PROCESSING = "processing"
+    DONE = "done"
+
+
+STATUS_LABELS = {
+    Status.QUEUED: "В очереди",
+    Status.PROCESSING: "Обрабатывается",
+    Status.DONE: "Готово",
+}
+
+
 RISK_LABELS = {
     RiskLevel.LOW: "Низкий",
     RiskLevel.MEDIUM: "Средний",
@@ -157,9 +172,28 @@ class AnalysisResult(db.Model):
     error = db.Column(db.Text, nullable=False, default="")
     created_at = db.Column(db.DateTime, nullable=False, default=utcnow, index=True)
 
+    # --- очередь ---
+    # server_default нужен для уже существующих записей (их анализ давно выполнен): при
+    # автоматическом добавлении колонок они получают status='done'.
+    status = db.Column(
+        db.String(16), nullable=False, default=Status.QUEUED, server_default=Status.DONE
+    )
+    image_mime = db.Column(db.String(64), nullable=False, default="", server_default="")
+    started_at = db.Column(db.DateTime, nullable=True)
+    finished_at = db.Column(db.DateTime, nullable=True)
+
     @property
     def is_error(self) -> bool:
         return bool(self.error)
+
+    @property
+    def is_pending(self) -> bool:
+        """В очереди или обрабатывается — в историю такая запись ещё не попадает."""
+        return self.status != Status.DONE
+
+    @property
+    def status_display(self) -> str:
+        return STATUS_LABELS.get(self.status, self.status)
 
     @property
     def risk_level_display(self) -> str:

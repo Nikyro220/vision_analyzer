@@ -29,8 +29,7 @@ from flask import current_app
 BACKENDS = ("vllm", "ollama")
 
 # Параметры генерации, которыми управляет POST /sampling.
-SAMPLING_KEYS = ("temperature", "top_p", "top_k", "seed", "num_ctx")
-
+SAMPLING_KEYS = ("temperature", "top_p", "top_k", "seed", "num_ctx", "num_predict", "think")
 
 class VisionApiError(Exception):
     """Любая ошибка при обращении к API анализа изображений."""

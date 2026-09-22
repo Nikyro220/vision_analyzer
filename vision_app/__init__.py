@@ -12,9 +12,10 @@ from flask_wtf.csrf import CSRFError
 
 from .config import Config
 from .extensions import csrf, db, login_manager, migrate
-from .logging_setup import setup_logging
 from .models import ROLE_CHOICES, ROLE_LABELS, RISK_LABELS, Role, User
-from .utils import local_dt, page_url, truncate_chars
+from .queue_worker import ensure_worker, worker_enabled
+from .schema import ensure_schema
+from .utils import local_dt, page_url, plural, truncate_chars
 
 # Эндпоинты, доступные заблокированному пользователю.
 _BLOCKED_ALLOWED = {"accounts.blocked", "accounts.logout", "static"}
@@ -22,12 +23,15 @@ _BLOCKED_ALLOWED = {"accounts.blocked", "accounts.logout", "static"}
 
 def create_app(config: dict | None = None) -> Flask:
     app = Flask(__name__)
-    setup_logging(app)
     app.config.from_object(Config)
     if config:
         app.config.update(config)
 
     Path(app.config["UPLOAD_FOLDER"]).mkdir(parents=True, exist_ok=True)
+
+    # SQLite: обработчик очереди пишет в БД из отдельного потока — даём ждать блокировку дольше 5 с.
+    if app.config["SQLALCHEMY_DATABASE_URI"].startswith("sqlite") and "SQLALCHEMY_ENGINE_OPTIONS" not in app.config:
+        app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {"connect_args": {"timeout": 30}}
 
     # --- расширения ---
     db.init_app(app)
@@ -53,6 +57,7 @@ def create_app(config: dict | None = None) -> Flask:
     # --- Jinja ---
     app.jinja_env.filters["localdt"] = local_dt
     app.jinja_env.filters["trunc"] = truncate_chars
+    app.jinja_env.filters["plural"] = plural
 
     @app.context_processor
     def inject_globals():
@@ -63,6 +68,13 @@ def create_app(config: dict | None = None) -> Flask:
             "ROLE_CHOICES": ROLE_CHOICES,
             "RISK_LABELS": RISK_LABELS,
         }
+
+    # --- очередь анализов: поток-обработчик стартует лениво, при первом запросе ---
+    @app.before_request
+    def start_queue_worker():
+        if worker_enabled(app) and request.endpoint != "static":
+            ensure_worker(app)
+        return None
 
     # --- заблокированные пользователи видят только страницу блокировки ---
     @app.before_request
@@ -108,6 +120,7 @@ def create_app(config: dict | None = None) -> Flask:
     if app.config.get("AUTO_CREATE_DB", True):
         with app.app_context():
             db.create_all()
+            ensure_schema(db.engine)  # добавляет новые колонки в уже существующие таблицы
 
     _register_cli(app)
     return app

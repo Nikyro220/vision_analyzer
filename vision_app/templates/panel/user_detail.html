@@ -54,7 +54,14 @@
             {% endfor %}
         </ul>
         {% else %}
-        <p class="empty-hint">Этот пользователь ещё не отправлял изображения.</p>
+        <p class="empty-hint">У этого пользователя нет завершённых анализов.</p>
+        {% endif %}
+        {% if history_count %}
+        <form method="post" action="{{ url_for('panel.user_clear_history', pk=target.id) }}" class="form-inline"
+              onsubmit="return confirm('Удалить всю историю пользователя «{{ target.username }}» ({{ history_count }} шт.) вместе с изображениями? Это нельзя отменить.')">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button type="submit" class="btn btn-danger">Очистить историю ({{ history_count }})</button>
+        </form>
         {% endif %}
     </div>
 </div>

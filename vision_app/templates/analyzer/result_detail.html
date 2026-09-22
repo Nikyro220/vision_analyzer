@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% block title %}Результат анализа{% endblock %}
+{% block head_extra %}{% if result.is_pending %}<meta http-equiv="refresh" content="4">{% endif %}{% endblock %}
 {% block content %}
 <div class="page-header">
     <h1>{{ result.original_name or "Результат анализа" }}</h1>
@@ -14,7 +15,14 @@
     </div>
 
     <div class="card result-report-card">
-        {% if result.is_error %}
+        {% if result.is_pending %}
+            <div class="pending-note">
+                <span class="queue-icon queue-item--{{ result.status }}" aria-hidden="true"></span>
+                <h2 class="card-title">{{ result.status_display }}</h2>
+                <p class="report-text">Анализ ещё не завершён. Страница обновляется сама — результат появится здесь и в истории.</p>
+                <a href="{{ url_for('analyzer.dashboard') }}" class="link-more">← К очереди</a>
+            </div>
+        {% elif result.is_error %}
             <div class="report-error">
                 <h2 class="card-title">Ошибка анализа</h2>
                 <p>{{ result.error }}</p>
@@ -64,6 +72,14 @@
             <p class="report-text">{{ recommendation }}</p>
             {% endif %}
             {% endif %}
+        {% endif %}
+
+        {% if current_user.is_panel_staff and not result.is_pending %}
+        <form method="post" action="{{ url_for('analyzer.delete_result', pk=result.id) }}" class="result-delete"
+              onsubmit="return confirm('Удалить этот результат вместе с изображением? Это нельзя отменить.')">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button type="submit" class="btn btn-danger">Удалить результат</button>
+        </form>
         {% endif %}
     </div>
 </div>

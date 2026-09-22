@@ -20,10 +20,14 @@
     <button type="submit" class="btn btn-secondary">Фильтровать</button>
 </form>
 
+<form method="post" action="{{ url_for('analyzer.delete_selected') }}">
+<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+<input type="hidden" name="next" value="{{ request.full_path.rstrip('?') }}">
 <div class="table-wrap">
     <table class="data-table">
         <thead>
             <tr>
+                <th class="col-check"><input type="checkbox" data-select-all aria-label="Выбрать все на странице"></th>
                 <th>Файл</th>
                 <th>Пользователь</th>
                 <th>Риск</th>
@@ -34,6 +38,7 @@
         <tbody>
             {% for item in page.items %}
             <tr onclick="window.location='{{ url_for('analyzer.result_detail', pk=item.id) }}'">
+                <td class="col-check" onclick="event.stopPropagation()"><input type="checkbox" name="ids" value="{{ item.id }}" aria-label="Выбрать запись {{ item.id }}"></td>
                 <td>{{ (item.original_name or '—')|trunc(36) }}</td>
                 <td>{{ item.user.username }}</td>
                 <td><span class="risk-pill risk-pill-{{ item.risk_level }}">{{ item.risk_level_display }}</span></td>
@@ -41,11 +46,29 @@
                 <td>{{ item.created_at|localdt('%d.%m.%Y %H:%M') }}</td>
             </tr>
             {% else %}
-            <tr><td colspan="5" class="empty-hint">Ничего не найдено.</td></tr>
+            <tr><td colspan="6" class="empty-hint">Ничего не найдено.</td></tr>
             {% endfor %}
         </tbody>
     </table>
 </div>
+{% if page.items %}
+<div class="bulk-bar">
+    <button type="submit" class="btn btn-danger"
+            onclick="return confirm('Удалить выбранные записи вместе с изображениями? Это нельзя отменить.')">Удалить выбранные</button>
+</div>
+{% endif %}
+</form>
+
+{% if page.total %}
+<form method="post" action="{{ url_for('panel.analyses_delete_filtered') }}" class="bulk-bar bulk-bar-danger"
+      onsubmit="return confirm('Удалить ВСЕ найденные записи ({{ page.total }} шт.) вместе с изображениями — не только с этой страницы? Это нельзя отменить.')">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    {% if risk_filter %}<input type="hidden" name="risk" value="{{ risk_filter }}">{% endif %}
+    {% if review_only %}<input type="hidden" name="review" value="1">{% endif %}
+    <button type="submit" class="btn btn-danger">Удалить все найденные ({{ page.total }})</button>
+    <span class="field-hint">{% if risk_filter or review_only %}По текущему фильтру, со всех страниц.{% else %}Фильтр не задан — будет удалена вся история системы.{% endif %}</span>
+</form>
+{% endif %}
 
 {% include "partials/pagination.html" %}
 {% endblock %}

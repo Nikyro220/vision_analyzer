@@ -5,13 +5,15 @@ from __future__ import annotations
 import io
 import math
 import re
+from dataclasses import dataclass
 from difflib import SequenceMatcher
 
+from flask import current_app
 from flask_wtf import FlaskForm
-from flask_wtf.file import FileField, FileRequired
+from flask_wtf.file import FileRequired, MultipleFileField
 from PIL import Image
 from sqlalchemy import func, select
-from wtforms import PasswordField, StringField
+from wtforms import BooleanField, PasswordField, SelectField, StringField
 from wtforms.fields import EmailField
 from wtforms.validators import (
     DataRequired,
@@ -129,44 +131,68 @@ IMAGE_FORMATS = {
 }
 
 
+@dataclass
+class AcceptedImage:
+    filename: str
+    data: bytes
+    ext: str
+    mime: str
+
+
 class ImageUploadForm(FlaskForm):
-    image = FileField(
-        "Изображение",
-        validators=[FileRequired("Выберите файл изображения.")],
+    """Один или несколько файлов за раз. Годные файлы уходят в очередь,
+    негодные пропускаются с пояснением (form.rejected)."""
+
+    image = MultipleFileField(
+        "Изображения",
+        validators=[FileRequired("Выберите хотя бы один файл изображения.")],
     )
 
     # Заполняются в validate_image
-    image_bytes: bytes = b""
-    image_ext: str = ".jpg"
-    image_mime: str = "image/jpeg"
+    accepted: list[AcceptedImage]
+    rejected: list[tuple[str, str]]
 
     def validate_image(self, field):
-        """Проверяем, что загружено настоящее изображение (через Pillow),
-        а не просто файл с картинкой в расширении."""
-        upload = field.data
-        data = upload.read()
-        upload.stream.seek(0)
+        """Проверяем содержимое через Pillow, а не расширение файла."""
+        self.accepted, self.rejected = [], []
 
-        if not data:
-            raise ValidationError("Файл пуст.")
+        files = [f for f in (field.data or []) if getattr(f, "filename", "")]
+        max_files = current_app.config.get("QUEUE_MAX_FILES_PER_UPLOAD", 20)
+        if len(files) > max_files:
+            raise ValidationError(f"За один раз можно загрузить не больше {max_files} файлов.")
 
-        try:
-            with Image.open(io.BytesIO(data)) as img:
-                fmt = img.format
-                img.verify()
-        except Exception as exc:  # noqa: BLE001
+        for upload in files:
+            name = upload.filename
+            data = upload.read()
+            upload.stream.seek(0)
+
+            if not data:
+                self.rejected.append((name, "файл пуст"))
+                continue
+            try:
+                with Image.open(io.BytesIO(data)) as img:
+                    fmt = img.format
+                    img.verify()
+            except Exception:  # noqa: BLE001
+                self.rejected.append((name, "не является изображением или повреждён"))
+                continue
+            if fmt not in IMAGE_FORMATS:
+                self.rejected.append((name, "формат не поддерживается"))
+                continue
+
+            ext, mime = IMAGE_FORMATS[fmt]
+            self.accepted.append(AcceptedImage(name, data, ext, mime))
+
+        if not self.accepted:
+            reasons = "; ".join(f"«{n}»: {why}" for n, why in self.rejected[:5])
             raise ValidationError(
-                "Загрузите правильное изображение. Файл, который вы загрузили, "
-                "поврежден или не является изображением."
-            ) from exc
-
-        if fmt not in IMAGE_FORMATS:
-            raise ValidationError("Этот формат изображения не поддерживается.")
-
-        self.image_bytes = data
-        self.image_ext, self.image_mime = IMAGE_FORMATS[fmt]
+                "Загрузите правильное изображение. " + reasons if reasons else "Файлы не загружены."
+            )
 
 
+# ----------------------------------------------------------------------------
+# Параметры генерации (POST /sampling)
+# ----------------------------------------------------------------------------
 # ----------------------------------------------------------------------------
 # Параметры генерации (POST /sampling)
 # ----------------------------------------------------------------------------
@@ -192,7 +218,9 @@ def _parse_number(raw: str, kind: str, lo, hi, lo_exclusive: bool = False):
 
 
 class _SamplingForm(FlaskForm):
-    """Базовая форма. Пустое поле = «не менять»: на сервер уходят только заполненные."""
+    """Базовая форма. Пустое поле = «не менять»: на сервер уходят только заполненные.
+    Для num_ctx/num_predict есть чекбокс «сбросить» — явный способ вернуть null
+    (дефолт модели), в отличие от просто пустого поля."""
 
     class Meta:
         # Формы с prefix называют поле токена «<prefix>-csrf_token», а глобальный
@@ -224,11 +252,35 @@ class _SamplingForm(FlaskForm):
         validators=[Optional(), Length(max=32)],
         render_kw={"placeholder": "целое", "inputmode": "numeric", "autocomplete": "off"},
     )
+    num_predict = StringField(
+        "num_predict",
+        validators=[Optional(), Length(max=32)],
+        render_kw={"placeholder": "1–1048576", "inputmode": "numeric", "autocomplete": "off"},
+    )
+    reset_num_predict = BooleanField("num_predict: сбросить (без лимита)")
+    think = SelectField(
+        "think",
+        choices=[
+            ("", "— не менять —"),
+            ("false", "выкл"),
+            ("true", "вкл"),
+            ("low", "low (GPT-OSS)"),
+            ("medium", "medium (GPT-OSS)"),
+            ("high", "high (GPT-OSS)"),
+        ],
+        validators=[Optional()],
+    )
 
     def validate(self, extra_validators=None):
         ok = super().validate(extra_validators)
         self.values = {}
+
         for name, (kind, lo, hi, lo_excl) in self.SPEC.items():
+            reset = getattr(self, f"reset_{name}", None)
+            if reset is not None and reset.data:
+                self.values[name] = "auto"
+                continue
+
             field = getattr(self, name)
             raw = (field.data or "").strip().replace(",", ".")
             if not raw:
@@ -238,6 +290,11 @@ class _SamplingForm(FlaskForm):
             except ValueError as exc:
                 field.errors = [*field.errors, str(exc)]
                 ok = False
+
+        think = (self.think.data or "").strip()
+        if think:
+            self.values["think"] = {"true": True, "false": False}.get(think, think)
+
         return ok
 
 
@@ -246,6 +303,7 @@ _COMMON_SPEC = {
     "top_p": ("float", 0, 1, True),
     "top_k": ("int", -1, 100000, False),
     "seed": ("int", -(2**63), 2**63 - 1, False),
+    "num_predict": ("int", 1, 1048576, False),
 }
 
 
@@ -263,6 +321,7 @@ class OllamaSamplingForm(_SamplingForm):
         validators=[Optional(), Length(max=32)],
         render_kw={"placeholder": "128–1048576", "inputmode": "numeric", "autocomplete": "off"},
     )
+    reset_num_ctx = BooleanField("num_ctx: сбросить (дефолт модели)")
 
 
 SAMPLING_FORMS = {"vllm": VllmSamplingForm, "ollama": OllamaSamplingForm}

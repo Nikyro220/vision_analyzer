@@ -16,6 +16,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}Vision Triage{% endblock %} · Панель анализа</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/queue.css') }}">
+    {% block head_extra %}{% endblock %}
     <link rel="icon" href="data:,">
 </head>
 <body class="{% if not current_user.is_authenticated %}is-guest{% endif %}">
@@ -79,5 +81,6 @@
 {% endif %}
 
 <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+<script src="{{ url_for('static', filename='js/queue.js') }}"></script>
 </body>
 </html>

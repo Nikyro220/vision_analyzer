@@ -1,51 +1,83 @@
 {% extends "base.html" %}
 {% block title %}Новый анализ{% endblock %}
+
+{# Одна строка очереди. Разметку зеркалит функция renderQueueItem() в static/js/queue.js #}
+{% macro queue_row(item) %}
+<li class="queue-item queue-item--{{ item.status }}" data-id="{{ item.id }}">
+    <span class="queue-icon" aria-hidden="true"></span>
+    <span class="queue-name" title="{{ item.name }}">{{ item.name|trunc(30) }}</span>
+    <span class="queue-status">
+        {% if item.status == 'processing' %}Обрабатывается · {{ '%d:%02d' % (item.elapsed // 60, item.elapsed % 60) }}
+        {% elif item.ahead > 0 %}В очереди · перед вами: {{ item.ahead }}
+        {% else %}В очереди · следующий{% endif %}
+    </span>
+    {% if item.cancel_url %}
+    <form method="post" action="{{ item.cancel_url }}" class="queue-cancel">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button type="submit" class="queue-cancel-btn" title="Убрать из очереди" aria-label="Убрать из очереди">✕</button>
+    </form>
+    {% endif %}
+</li>
+{% endmacro %}
+
 {% block content %}
 <div class="page-header">
     <h1>Новый анализ изображения</h1>
-    <p class="page-sub">Загрузите файл — он будет отправлен на локальную vision-модель для риск-триажа.</p>
+    <p class="page-sub">Загрузите один или несколько файлов — они встанут в очередь и будут обработаны локальной vision-моделью по одному.</p>
 </div>
 
 <div class="panel-grid panel-grid-uneven">
-    <div class="card">
-        <h2 class="card-title">Загрузка</h2>
-        <p class="field-hint">
-            {% if target_backend %}Анализ на: <strong>{{ target_backend }}</strong> · модель: <strong>{{ target_model or 'авто' }}</strong>
-            {% else %}Анализ на бэкенде и модели по умолчанию.{% endif %}
-        </p>
-        <form method="post" enctype="multipart/form-data" class="form" id="upload-form" novalidate>
-            {{ form.hidden_tag() }}
-            <div class="dropzone" id="dropzone">
-                <input type="file" name="image" id="id_image" accept="image/*" required>
-                <div class="dropzone-hint">
-                    <span class="dropzone-ic">⇧</span>
-                    <span>Перетащите изображение сюда или нажмите, чтобы выбрать файл</span>
-                    <span class="dropzone-preview-name" id="file-name"></span>
+    <div class="stack">
+        <div class="card">
+            <h2 class="card-title">Загрузка</h2>
+            <p class="field-hint">
+                {% if target_backend %}Анализ на: <strong>{{ target_backend }}</strong> · модель: <strong>{{ target_model or 'авто' }}</strong>
+                {% else %}Анализ на бэкенде и модели по умолчанию.{% endif %}
+            </p>
+            <form method="post" enctype="multipart/form-data" class="form" id="upload-form" novalidate>
+                {{ form.hidden_tag() }}
+                <div class="dropzone" id="dropzone">
+                    <input type="file" name="image" id="id_image" accept="image/*" multiple required>
+                    <div class="dropzone-hint">
+                        <span class="dropzone-ic">⇧</span>
+                        <span>Перетащите изображения сюда или нажмите, чтобы выбрать файлы</span>
+                        <span class="dropzone-preview-name" id="file-name"></span>
+                    </div>
                 </div>
-            </div>
-            {% for error in form.image.errors %}<div class="field-error">{{ error }}</div>{% endfor %}
-            <button type="submit" class="btn btn-primary btn-block" id="submit-btn">Отправить на анализ</button>
-        </form>
+                {% for error in form.image.errors %}<div class="field-error">{{ error }}</div>{% endfor %}
+                <button type="submit" class="btn btn-primary btn-block" id="submit-btn">Добавить в очередь</button>
+            </form>
+        </div>
+
+        <div class="card" id="queue-root"
+             data-status-url="{{ url_for('analyzer.queue_status') }}"
+             data-csrf="{{ csrf_token() }}"
+             data-pending="{{ pending|length }}">
+            <h2 class="card-title">Очередь <span class="queue-count" id="queue-count" {% if not pending %}hidden{% endif %}>{{ pending|length }}</span></h2>
+            <ul class="queue-list" id="queue-list">
+                {% for item in pending %}{{ queue_row(item) }}{% endfor %}
+            </ul>
+            <p class="empty-hint" id="queue-empty" {% if pending %}hidden{% endif %}>Очередь пуста — загруженные файлы появятся здесь.</p>
+            <p class="field-hint">Обработка идёт в фоне: страницу можно перезагрузить или закрыть, очередь не потеряется. Готовые результаты появляются в «Последних загрузках».</p>
+            <p class="field-hint queue-error" id="queue-error" hidden>Не удаётся обновить очередь — повторяю попытку…</p>
+        </div>
     </div>
 
     <div class="card">
         <h2 class="card-title">Последние загрузки</h2>
-        {% if recent %}
-        <ul class="mini-list">
+        <ul class="mini-list" id="recent-list" {% if not recent %}hidden{% endif %}>
             {% for item in recent %}
             <li>
-                <a href="{{ url_for('analyzer.result_detail', pk=item.id) }}" class="mini-list-row">
+                <a href="{{ item.url }}" class="mini-list-row">
                     <span class="risk-dot risk-{{ item.risk_level }}"></span>
-                    <span class="mini-list-name">{{ (item.original_name or 'без имени')|trunc(28) }}</span>
-                    <span class="mini-list-date">{{ item.created_at|localdt('%d.%m %H:%M') }}</span>
+                    <span class="mini-list-name">{{ item.name|trunc(28) }}</span>
+                    <span class="mini-list-date">{{ item.date }}</span>
                 </a>
             </li>
             {% endfor %}
         </ul>
-        <a href="{{ url_for('analyzer.history') }}" class="link-more">Вся история →</a>
-        {% else %}
-        <p class="empty-hint">Пока нет ни одного анализа. Загрузите первое изображение слева.</p>
-        {% endif %}
+        <a href="{{ url_for('analyzer.history') }}" class="link-more" id="recent-more" {% if not recent %}hidden{% endif %}>Вся история →</a>
+        <p class="empty-hint" id="recent-empty" {% if recent %}hidden{% endif %}>Пока нет завершённых анализов. Загрузите первое изображение слева.</p>
     </div>
 </div>
 {% endblock %}

@@ -1,16 +1,23 @@
 {% extends "base.html" %}
 {% block title %}История{% endblock %}
 {% block content %}
+{% set can_delete = current_user.is_panel_staff %}
 <div class="page-header">
     <h1>История анализов</h1>
-    <p class="page-sub">Все изображения, которые вы отправляли на проверку.</p>
+    <p class="page-sub">Все завершённые анализы ваших изображений. Файлы в очереди показываются на странице «Новый анализ».</p>
 </div>
 
 {% if page.items %}
+{% if can_delete %}
+<form method="post" action="{{ url_for('analyzer.delete_selected') }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <input type="hidden" name="next" value="{{ request.full_path.rstrip('?') }}">
+{% endif %}
 <div class="table-wrap">
     <table class="data-table">
         <thead>
             <tr>
+                {% if can_delete %}<th class="col-check"><input type="checkbox" data-select-all aria-label="Выбрать все на странице"></th>{% endif %}
                 <th>Файл</th>
                 <th>Риск</th>
                 <th>Проверка человеком</th>
@@ -21,8 +28,9 @@
         <tbody>
             {% for item in page.items %}
             <tr onclick="window.location='{{ url_for('analyzer.result_detail', pk=item.id) }}'">
+                {% if can_delete %}<td class="col-check" onclick="event.stopPropagation()"><input type="checkbox" name="ids" value="{{ item.id }}" aria-label="Выбрать запись {{ item.id }}"></td>{% endif %}
                 <td>{{ (item.original_name or '—')|trunc(40) }}</td>
-                <td><span class="risk-pill risk-pill-{{ item.risk_level }}">{{ item.risk_level_display }}</span></td>
+                <td><span class="risk-pill risk-pill-{{ item.risk_level }}">{{ item.risk_level_display }}</span>{% if item.is_error %} <span class="tag tag-warn">ошибка</span>{% endif %}</td>
                 <td>{% if item.needs_human_review %}<span class="tag tag-warn">да</span>{% else %}<span class="tag">нет</span>{% endif %}</td>
                 <td>{{ item.backend or '—' }}</td>
                 <td>{{ item.created_at|localdt('%d.%m.%Y %H:%M') }}</td>
@@ -31,10 +39,17 @@
         </tbody>
     </table>
 </div>
+{% if can_delete %}
+    <div class="bulk-bar">
+        <button type="submit" class="btn btn-danger"
+                onclick="return confirm('Удалить выбранные записи вместе с изображениями? Это нельзя отменить.')">Удалить выбранные</button>
+    </div>
+</form>
+{% endif %}
 
 {% include "partials/pagination.html" %}
 
 {% else %}
-<p class="empty-hint">История пуста — вы ещё не отправляли изображения на анализ.</p>
+<p class="empty-hint">История пуста — завершённых анализов пока нет.</p>
 {% endif %}
 {% endblock %}
