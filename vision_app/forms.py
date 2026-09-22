@@ -260,7 +260,6 @@ class _SamplingForm(FlaskForm):
     think = SelectField(
         "think",
         choices=[
-            ("", "— не менять —"),
             ("false", "выкл"),
             ("true", "вкл"),
             ("low", "low (GPT-OSS)"),
@@ -286,7 +285,7 @@ class _SamplingForm(FlaskForm):
 
         think = (self.think.data or "").strip()
         if think:
-            self.values["think"] = {"true": True, "false": False}.get(think, think)
+            self.values["think"] = {"true": True, "false": False}.get(self.think.data, self.think.data)
 
         return ok
 
