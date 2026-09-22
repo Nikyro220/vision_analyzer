@@ -283,9 +283,7 @@ class _SamplingForm(FlaskForm):
                 field.errors = [*field.errors, str(exc)]
                 ok = False
 
-        think = (self.think.data or "").strip()
-        if think:
-            self.values["think"] = {"true": True, "false": False}.get(self.think.data, self.think.data)
+        self.values["think"] = {"true": True, "false": False}.get(self.think.data, self.think.data)
 
         return ok
 
