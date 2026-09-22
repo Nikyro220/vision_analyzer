@@ -368,6 +368,7 @@ async def handle_analyze(request: web.Request) -> web.Response:
     override_model = request.query.get("model")
     override_lang = request.query.get("lang")
     override_history = request.query.get("history")
+    override_caption = request.query.get("caption")
 
     # --- Новый путь: сырое изображение прямо в теле запроса ---
     if content_type.startswith("image/"):
@@ -387,6 +388,7 @@ async def handle_analyze(request: web.Request) -> web.Response:
         image_b64 = base64.b64encode(data).decode("utf-8")
         tasks = [(image_b64, real_mime)]
         names = ["body"]
+        captions = [override_caption]
 
     # --- Путь для UI/ботов: всё одним JSON-телом, включая историю ---
     elif content_type == "application/json":
@@ -395,6 +397,7 @@ async def handle_analyze(request: web.Request) -> web.Response:
         override_model = override_model or body.get("model")
         override_lang = override_lang or body.get("lang")
         override_history = override_history or body.get("history")
+        override_caption = override_caption or body.get("caption")
 
         raw_images = body.get("images")
         if not raw_images:
@@ -406,7 +409,18 @@ async def handle_analyze(request: web.Request) -> web.Response:
 
         tasks = []
         names = []
-        for idx, img in enumerate(raw_images):
+        captions = []
+        for idx, item in enumerate(raw_images):
+            # Элемент — либо просто строка с картинкой (старый формат,
+            # caption общий на весь батч из override_caption), либо объект
+            # {"image": "...", "caption": "..."} — свой caption на картинку.
+            if isinstance(item, dict):
+                img = item.get("image")
+                item_caption = item.get("caption") or override_caption
+            else:
+                img = item
+                item_caption = override_caption
+
             try:
                 data = base64.b64decode(backends._strip_data_url(img))
             except Exception:
@@ -424,6 +438,7 @@ async def handle_analyze(request: web.Request) -> web.Response:
 
             tasks.append((base64.b64encode(data).decode("utf-8"), real_mime))
             names.append(source_name)
+            captions.append(item_caption)
 
     # --- Старый путь: multipart/form-data ---
     elif content_type.startswith("multipart/"):
@@ -443,6 +458,9 @@ async def handle_analyze(request: web.Request) -> web.Response:
                 continue
             if part.name == "history":
                 override_history = (await part.read(decode=True)).decode("utf-8").strip()
+                continue
+            if part.name == "caption":
+                override_caption = (await part.read(decode=True)).decode("utf-8")
                 continue
             if part.name not in ("images", "image"):
                 continue
@@ -469,6 +487,7 @@ async def handle_analyze(request: web.Request) -> web.Response:
                 {"error": config._t("error.no_images_multipart", lang=override_lang)},
                 status=400,
             )
+        captions = [override_caption] * len(tasks)
 
     else:
         return _json(
@@ -518,8 +537,9 @@ async def handle_analyze(request: web.Request) -> web.Response:
                 backend=backend, model=override_model,
                 allow_fallback=not backend_was_explicit,
                 lang=resolved_lang, history=resolved_history,
+                caption=cap,
             )
-            for img_b64, img_mime in tasks
+            for (img_b64, img_mime), cap in zip(tasks, captions)
         ])
     except aiohttp.ClientConnectorError:
         endpoint = config.VLLM_URL if backend == "vllm" else config.OLLAMA_HOST

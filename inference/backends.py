@@ -133,11 +133,15 @@ async def _ping_backend(backend: str) -> dict:
 
 _USER_PROMPT = "Проанализируй это изображение и верни JSON по заданной схеме."
 
-def _user_prompt(lang: str | None) -> str:
-    """Пользовательское сообщение с правилом языка вывода (prompt.get_user_prompt)."""
+def _user_prompt(lang: str | None, caption: str | None = None) -> str:
+    """Пользовательское сообщение с правилом языка вывода (prompt.get_user_prompt).
+
+    caption — необязательный сопроводительный текст к конкретному изображению
+    (например, подпись поста), добавляется как контекст, см. prompt.py.
+    """
     if config.prompt is None:
         return _USER_PROMPT
-    return config.prompt.get_user_prompt(lang or config._current_lang())
+    return config.prompt.get_user_prompt(lang or config._current_lang(), caption=caption)
 
 def _strip_data_url(img: str) -> str:
     """Убирает 'data:...;base64,' префикс, если есть — Ollama ждёт чистый base64."""
@@ -285,10 +289,11 @@ def _truncate_history_for_vllm(
 
 async def _analyze_ollama(
     image_b64: str, model: str, lang: str | None = None, history: list | None = None,
+    caption: str | None = None,
 ) -> str:
     messages = [{"role": "system", "content": config._get_system_prompt(lang)}]
     messages.extend(_history_to_ollama_messages(history or []))
-    messages.append({"role": "user", "content": _user_prompt(lang), "images": [image_b64]})
+    messages.append({"role": "user", "content": _user_prompt(lang, caption), "images": [image_b64]})
 
     options = {
         "temperature": config.SAMPLING_DEFAULTS["temperature"],
@@ -328,6 +333,7 @@ async def _analyze_ollama(
 
 async def _analyze_vllm(
     image_b64: str, image_mime: str, model: str, lang: str | None = None, history: list | None = None,
+    caption: str | None = None,
 ) -> str:
     history = history or []
 
@@ -347,7 +353,7 @@ async def _analyze_vllm(
     messages.append({
         "role": "user",
         "content": [
-            {"type": "text", "text": _user_prompt(lang)},
+            {"type": "text", "text": _user_prompt(lang, caption)},
             {
                 "type": "image_url",
                 "image_url": {"url": f"data:{image_mime};base64,{image_b64}"},
@@ -427,14 +433,15 @@ async def _analyze_image(
     allow_fallback: bool = True,
     lang: str | None = None,
     history: list | None = None,
+    caption: str | None = None,
 ) -> tuple[dict, str]:
     try:
         resolved_model = model or await _discover_model(backend)
 
         if backend == "vllm":
-            content = await _analyze_vllm(image_b64, image_mime, resolved_model, lang=lang, history=history)
+            content = await _analyze_vllm(image_b64, image_mime, resolved_model, lang=lang, history=history, caption=caption)
         elif backend == "ollama":
-            content = await _analyze_ollama(image_b64, resolved_model, lang=lang, history=history)
+            content = await _analyze_ollama(image_b64, resolved_model, lang=lang, history=history, caption=caption)
         else:
             raise ValueError(config._t("error.unknown_backend", backend=backend, lang=lang))
     except aiohttp.ClientConnectorError:
@@ -447,7 +454,7 @@ async def _analyze_image(
         )
         return await _analyze_image(
             image_b64, image_mime,
-            backend=fallback_backend, model=None, allow_fallback=False, lang=lang, history=history,
+            backend=fallback_backend, model=None, allow_fallback=False, lang=lang, history=history, caption=caption,
         )
 
     try:
