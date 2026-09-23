@@ -17,7 +17,7 @@ import json
 import logging
 import re
 import aiohttp
-
+import uuid
 import config
 
 
@@ -300,35 +300,67 @@ async def _analyze_ollama(
         "top_p": config.SAMPLING_DEFAULTS["top_p"],
         "top_k": config.SAMPLING_DEFAULTS["top_k"],
         "seed": config.SAMPLING_DEFAULTS["seed"],
-        #"num_predict": config.SAMPLING_DEFAULTS.get("num_predict", 2048),  # ← новое
     }
     if config.SAMPLING_DEFAULTS["num_ctx"] is not None:
         options["num_ctx"] = config.SAMPLING_DEFAULTS["num_ctx"]
     if config.SAMPLING_DEFAULTS["num_predict"] is not None:
         options["num_predict"] = config.SAMPLING_DEFAULTS["num_predict"]
 
-
+    # stream=True — чтобы видеть 'thinking' модели в реальном времени в
+    # консоли сервера, а не ждать молча всю генерацию (может занимать
+    # много минут при включённом think). ВНИМАНИЕ: если /analyze гонит
+    # несколько картинок параллельно (asyncio.gather), вывод нескольких
+    # запросов будет перемежаться в одной консоли — тег [xxxxxx] перед
+    # каждым куском (первые 6 символов image_b64) нужен, чтобы отличить,
+    # какой поток что печатает.
     payload = {
         "model": model,
-        "stream": False,
+        "stream": True,
         "format": "json",
         "messages": messages,
         "options": options,
-        "think": config.SAMPLING_DEFAULTS["think"],   # ← новое: глушим reasoning-режим qwen3.5
+        "think": config.SAMPLING_DEFAULTS["think"],
     }
+
+    tag = uuid.uuid4().hex[:6]
+    content_parts: list[str] = []
+    thinking_open = False
+    final: dict = {}
+
     async with aiohttp.ClientSession(timeout=config.REQUEST_TIMEOUT) as session:
         async with session.post(f"{config.OLLAMA_HOST}/api/chat", json=payload) as resp:
             resp.raise_for_status()
-            data = await resp.json()
-            msg = data.get("message", {})
-            logging.info(
-                "Ollama: prompt_tokens=%s gen_tokens=%s done_reason=%s content_chars=%d thinking_chars=%d load=%.1fs total=%.1fs",
-                data.get("prompt_eval_count"), data.get("eval_count"), data.get("done_reason"),
-                len(msg.get("content") or ""), len(msg.get("thinking") or ""),
-                data.get("load_duration", 0) / 1e9, data.get("total_duration", 0) / 1e9,
-            )
+            async for raw_line in resp.content:
+                line = raw_line.strip()
+                if not line:
+                    continue
+                chunk = json.loads(line)
 
-    return data.get("message", {}).get("content", "").strip()
+                msg = chunk.get("message", {})
+                thinking = msg.get("thinking")
+                if thinking:
+                    if not thinking_open:
+                        print(f"\n[{tag}] --- think ---", flush=True)
+                        thinking_open = True
+                    print(thinking, end="", flush=True)
+
+                piece = msg.get("content")
+                if piece:
+                    content_parts.append(piece)
+
+                if chunk.get("done"):
+                    final = chunk
+
+    if thinking_open:
+        print(f"\n[{tag}] --- /think ---", flush=True)
+
+    content = "".join(content_parts).strip()
+    logging.info(
+        "Ollama: prompt_tokens=%s gen_tokens=%s done_reason=%s content_chars=%d load=%.1fs total=%.1fs",
+        final.get("prompt_eval_count"), final.get("eval_count"), final.get("done_reason"),
+        len(content), final.get("load_duration", 0) / 1e9, final.get("total_duration", 0) / 1e9,
+    )
+    return content
 
 
 async def _analyze_vllm(
@@ -454,7 +486,8 @@ async def _analyze_image(
         )
         return await _analyze_image(
             image_b64, image_mime,
-            backend=fallback_backend, model=None, allow_fallback=False, lang=lang, history=history, caption=caption,
+            backend=fallback_backend, model=None, allow_fallback=False, lang=lang, history=history,
+            caption=caption,
         )
 
     try:
