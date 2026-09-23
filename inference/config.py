@@ -108,6 +108,7 @@ def _t(key: str, **kwargs) -> str:
     return locales.get_formatted(key, **kwargs)
 
 
+# не используется
 def _get_system_prompt(lang: str | None = None) -> str:
     if prompt is None:
         return ""

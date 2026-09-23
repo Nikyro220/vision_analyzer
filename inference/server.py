@@ -58,7 +58,7 @@ def _json(data, status: int = 200) -> web.Response:
         dumps=lambda obj: json.dumps(obj, ensure_ascii=False, indent=2),
     )
 
-
+# не используется
 def _format_report(report: dict, source_name: str = "", lang: str | None = None) -> str:
     header = (
         config._t("report.header_named", source_name=source_name, lang=lang)
@@ -126,7 +126,7 @@ def _detect_image_mime_sync(data: bytes) -> str | None:
             "Pillow не смог распознать содержимое как изображение (%d байт): %s",
             len(data), e,
         )
-        return None
+        return None # оно итак возвращает None, нафиг return None?
 
 
 async def _detect_image_mime(data: bytes) -> str | None:
@@ -246,7 +246,7 @@ async def handle_config(request: web.Request) -> web.Response:
     backends._vllm_context_cache.clear()
 
     logging.info(
-        "Конфигурация обновлена извне: backend=%s ollama_host=%s vllm_url=%s",
+        "Конфигурация обновлена извне: backend=%s ollama_host=%s vllm_url=%s", # f строки кому придумали
         config.BACKEND, config.OLLAMA_HOST, config.VLLM_URL,
     )
     return _json({"ok": True, "backend": config.BACKEND, "ollama_host": config.OLLAMA_HOST, "vllm_url": config.VLLM_URL})
@@ -300,7 +300,7 @@ async def handle_sampling(request: web.Request) -> web.Response:
     if not raw_values:
         return _json({"error": config._t("error.sampling_missing_fields")}, status=400)
 
-    try:
+    try: # match case кому придумали?
         if "temperature" in raw_values:
             config.SAMPLING_DEFAULTS["temperature"] = float(raw_values["temperature"])
         if "top_p" in raw_values:
@@ -446,8 +446,8 @@ async def handle_analyze(request: web.Request) -> web.Response:
         tasks = []
         names = []
 
-        async for part in reader:
-            if part.name == "backend":
+        async for part in reader: # match case кому придумали?
+            if part.name == "backend": # просто хранить все эти overrive_* данные в overrive: dict[string, Any] нельзя? чтобы потом как kwargs если надо юзать
                 override_backend = (await part.read(decode=True)).decode("utf-8").strip()
                 continue
             if part.name == "model":

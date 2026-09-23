@@ -214,7 +214,7 @@ def _download_weights() -> None:
                     done += len(chunk)
                     if total and done * 100 // total >= next_pct:
                         logging.info(
-                            "image_upscaler: скачано %d%% (%d из %d МБ)",
+                            "image_upscaler: скачано %d%% (%d из %d МБ)", # f строки кому придумали
                             done * 100 // total, done >> 20, total >> 20,
                         )
                         next_pct += 25
@@ -229,12 +229,12 @@ def _download_weights() -> None:
             digest = sha.hexdigest()
             if WEIGHTS_SHA256 and digest != WEIGHTS_SHA256:
                 raise WeightsIntegrityError(
-                    f"sha256 не совпал: получен {digest}, ожидался {WEIGHTS_SHA256}"
+                    f"sha256 не совпал: получен {digest}, ожидался {WEIGHTS_SHA256}" # а че тут f строки используешь?
                 )
 
             os.replace(tmp_path, MODEL_PATH)
             logging.info(
-                "image_upscaler: веса сохранены: %s (%d байт, sha256=%s)",
+                "image_upscaler: веса сохранены: %s (%d байт, sha256=%s)", # f строки кому придумали
                 MODEL_PATH, done, digest,
             )
             return
@@ -245,7 +245,7 @@ def _download_weights() -> None:
             last_err = e
             _remove_quietly(tmp_path)
             logging.warning(
-                "image_upscaler: попытка %d/%d не удалась: %s",
+                "image_upscaler: попытка %d/%d не удалась: %s", # f строки кому придумали
                 attempt, DOWNLOAD_ATTEMPTS, e,
             )
             if attempt < DOWNLOAD_ATTEMPTS:
