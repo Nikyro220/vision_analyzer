@@ -38,9 +38,6 @@ import config
 from config import image_upscaler, locales
 
 
-def _risk_label(risk_level: str, lang: str | None = None) -> str:
-    label = config._t(f"risk.{risk_level}", lang=lang)
-    return risk_level if label.startswith("???") else label
 
 
 def _json(data, status: int = 200) -> web.Response:
@@ -57,54 +54,6 @@ def _json(data, status: int = 200) -> web.Response:
         status=status,
         dumps=lambda obj: json.dumps(obj, ensure_ascii=False, indent=2),
     )
-
-# не используется
-def _format_report(report: dict, source_name: str = "", lang: str | None = None) -> str:
-    header = (
-        config._t("report.header_named", source_name=source_name, lang=lang)
-        if source_name else config._t("report.header_default", lang=lang)
-    )
-
-    if "_raw" in report:
-        return config._t("report.raw_fallback", header=header, raw=report["_raw"], lang=lang)
-
-    risk_level = report.get("risk_level", "low")
-    emoji = config.RISK_EMOJI.get(risk_level, "⚪️")
-    risk_label = _risk_label(risk_level, lang=lang)
-    needs_review = report.get("needs_human_review", False)
-
-    lines = [
-        header,
-        config._t("report.risk_level_line", emoji=emoji, risk_label=risk_label, lang=lang),
-        config._t("report.needs_review_yes", lang=lang) if needs_review else config._t("report.needs_review_no", lang=lang),
-        "",
-        config._t("report.description_label", lang=lang),
-        report.get("description", "—"),
-    ]
-
-    text_on_image = report.get("text_on_image", "")
-    if text_on_image:
-        lines += ["", config._t("report.text_on_image_label", lang=lang), text_on_image]
-
-    context = report.get("context", "")
-    if context:
-        lines += ["", config._t("report.context_label", lang=lang), context]
-
-    signals = report.get("signals", [])
-    if signals:
-        lines += ["", config._t("report.signals_label", lang=lang)]
-        for s in signals:
-            lines.append(f"{s.get('id', '?')}: {s.get('category', '—')} — {s.get('detail', '')}")
-
-    rationale = report.get("rationale", "")
-    if rationale:
-        lines += ["", config._t("report.rationale_label", lang=lang), rationale]
-
-    recommendation = report.get("recommendation", "")
-    if recommendation:
-        lines += ["", config._t("report.recommendation_label", lang=lang), recommendation]
-
-    return "\n".join(lines)
 
 
 # ---------------------------------------------------------------------------
@@ -127,6 +76,7 @@ def _detect_image_mime_sync(data: bytes) -> str | None:
             len(data), e,
         )
         return None # оно итак возвращает None, нафиг return None?
+
 
 
 async def _detect_image_mime(data: bytes) -> str | None:
@@ -252,32 +202,24 @@ async def handle_config(request: web.Request) -> web.Response:
     return _json({"ok": True, "backend": config.BACKEND, "ollama_host": config.OLLAMA_HOST, "vllm_url": config.VLLM_URL})
 
 
+_SAMPLING_PARSERS = {
+    "temperature": lambda v: float(v),
+    "top_p": lambda v: float(v),
+    "top_k": lambda v: int(v),
+    "seed": lambda v: int(v),
+    "num_ctx": lambda v: _parse_resettable_int(v),
+    "num_predict": lambda v: _parse_resettable_int(v),
+    "think": lambda v: config.parse_think(v),
+}
+
+def _parse_resettable_int(v):
+    if v is None or (isinstance(v, str) and v.strip().lower() in ("", "auto", "none", "default")):
+        return None
+    return int(v)
+
 _SAMPLING_KEYS = ("temperature", "top_p", "top_k", "seed", "num_ctx", "num_predict", "think")
 
 async def handle_sampling(request: web.Request) -> web.Response:
-    """GET — вернуть текущие temperature/top_p/top_k/seed/num_ctx, а также
-    реально обнаруженный (если получилось) контекст vLLM.
-
-    POST — изменить любое подмножество из temperature/top_p/top_k/seed/
-    num_ctx на лету, без перезапуска. Поля принимаются через query,
-    JSON-тело или form-поле, как и /config.
-
-    num_ctx — конфигурируемый дефолт, актуален ТОЛЬКО для backend=ollama
-    (это per-request параметр options.num_ctx). У vLLM размер контекста
-    фиксирован при запуске сервера (--max-model-len) и через POST
-    /sampling не меняется — значение num_ctx для vllm просто игнорируется
-    при реальном анализе. По умолчанию num_ctx = null — т.е. НЕ
-    переопределяется, Ollama использует дефолт модели из её Modelfile
-    (так было и до появления /sampling). Поднимать его стоит осознанно:
-    большой num_ctx заметно увеличивает объём KV-cache и время prefill —
-    вплоть до таймаута запроса (REQUEST_TIMEOUT), если не хватает VRAM.
-    Задать явно — POST num_ctx=<число>; вернуть обратно на дефолт модели —
-    POST num_ctx=auto (также подойдут "none"/"default"/"").
-    Вместо него в GET-ответе отдельным read-only-полем
-    'vllm_context_window' отдаётся то, что реально узнали у самой vLLM
-    (через GET /v1/models, поле max_model_len) — либо null, если бэкенд
-    недоступен или конкретная сборка это поле не отдаёт.
-    """
     if request.method == "GET":
         vllm_context_window = await backends._get_vllm_context_window()
         return _json({**config.SAMPLING_DEFAULTS, "vllm_context_window": vllm_context_window})
@@ -300,35 +242,15 @@ async def handle_sampling(request: web.Request) -> web.Response:
     if not raw_values:
         return _json({"error": config._t("error.sampling_missing_fields")}, status=400)
 
-    try: # match case кому придумали?
-        if "temperature" in raw_values:
-            config.SAMPLING_DEFAULTS["temperature"] = float(raw_values["temperature"])
-        if "top_p" in raw_values:
-            config.SAMPLING_DEFAULTS["top_p"] = float(raw_values["top_p"])
-        if "top_k" in raw_values:
-            config.SAMPLING_DEFAULTS["top_k"] = int(raw_values["top_k"])
-        if "seed" in raw_values:
-            config.SAMPLING_DEFAULTS["seed"] = int(raw_values["seed"])
-        if "num_ctx" in raw_values:
-            v = raw_values["num_ctx"]
-            if isinstance(v, str) and v.strip().lower() in ("", "auto", "none", "default"):
-                config.SAMPLING_DEFAULTS["num_ctx"] = None  # вернуться к дефолту модели
-            else:
-                config.SAMPLING_DEFAULTS["num_ctx"] = int(v)
-        if "num_predict" in raw_values:
-            v = raw_values["num_predict"]
-            if v is None or (isinstance(v, str) and v.strip().lower() in ("", "auto", "none", "default")):
-                config.SAMPLING_DEFAULTS["num_predict"] = None
-            else:
-                config.SAMPLING_DEFAULTS["num_predict"] = int(v)
-        if "think" in raw_values:
-            config.SAMPLING_DEFAULTS["think"] = config.parse_think(raw_values["think"])
+    try:
+        for key, parser in _SAMPLING_PARSERS.items():
+            if key in raw_values:
+                config.SAMPLING_DEFAULTS[key] = parser(raw_values[key])
     except (TypeError, ValueError):
         return _json(
             {"error": config._t("error.sampling_invalid_value", value=str(raw_values))},
             status=400,
         )
-
     logging.info("Параметры сэмплинга обновлены извне: %s", config.SAMPLING_DEFAULTS)
     return _json({"ok": True, **config.SAMPLING_DEFAULTS})
 
@@ -369,6 +291,8 @@ async def handle_analyze(request: web.Request) -> web.Response:
     override_lang = request.query.get("lang")
     override_history = request.query.get("history")
     override_caption = request.query.get("caption")
+
+    _MULTIPART_TEXT_FIELDS = {"backend": True, "model": True, "lang": True, "history": True, "caption": False}
 
     # --- Новый путь: сырое изображение прямо в теле запроса ---
     if content_type.startswith("image/"):
@@ -440,27 +364,17 @@ async def handle_analyze(request: web.Request) -> web.Response:
             names.append(source_name)
             captions.append(item_caption)
 
+
     # --- Старый путь: multipart/form-data ---
     elif content_type.startswith("multipart/"):
         reader = await request.multipart()
-        tasks = []
-        names = []
+        tasks, names = [], []
+        overrides: dict[str, Any] = {}
 
-        async for part in reader: # match case кому придумали?
-            if part.name == "backend": # просто хранить все эти overrive_* данные в overrive: dict[string, Any] нельзя? чтобы потом как kwargs если надо юзать
-                override_backend = (await part.read(decode=True)).decode("utf-8").strip()
-                continue
-            if part.name == "model":
-                override_model = (await part.read(decode=True)).decode("utf-8").strip()
-                continue
-            if part.name == "lang":
-                override_lang = (await part.read(decode=True)).decode("utf-8").strip()
-                continue
-            if part.name == "history":
-                override_history = (await part.read(decode=True)).decode("utf-8").strip()
-                continue
-            if part.name == "caption":
-                override_caption = (await part.read(decode=True)).decode("utf-8")
+        async for part in reader:
+            if part.name in _MULTIPART_TEXT_FIELDS:
+                raw = (await part.read(decode=True)).decode("utf-8")
+                overrides[part.name] = raw.strip() if _MULTIPART_TEXT_FIELDS[part.name] else raw
                 continue
             if part.name not in ("images", "image"):
                 continue
@@ -470,6 +384,7 @@ async def handle_analyze(request: web.Request) -> web.Response:
             if real_mime is None:
                 logging.warning("Пропускаю не-изображение: %s", part.filename)
                 continue
+            ...
 
             source_name = part.filename or f"image_{len(names) + 1}"
 

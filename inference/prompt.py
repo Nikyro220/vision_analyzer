@@ -317,7 +317,7 @@ def get_user_prompt(lang: str = "ru", caption: str | None = None) -> str:
         return base
 
     if len(caption) > _CAPTION_MAX_CHARS:
-        caption = caption[:_CAPTION_MAX_CHARS] + "…"
+        caption = f"{caption[:_CAPTION_MAX_CHARS]}…"
 
     block = _CAPTION_BLOCK.get(lang, _CAPTION_BLOCK["en"])
     return base + block.format(caption=caption)

@@ -26,17 +26,6 @@ from pathlib import Path
 
 import aiohttp
 
-# ---------------------------------------------------------------------------
-# Логирование: консоль + файлы в logs/ в корне проекта
-#   logs/analyzer.log        — всё (INFO и выше), ротация в полночь,
-#                              старые файлы: analyzer.log.YYYY-MM-DD, хранится 14 дней
-#   logs/analyzer.error.log  — только WARNING/ERROR/CRITICAL, хранится 60 дней
-# Папку можно поменять переменной окружения VISION_LOG_DIR.
-#
-# Настраивается ДО импорта опциональных модулей ниже: их logging.warning()
-# при ImportError иначе неявно вызвал бы basicConfig() с дефолтами, и
-# наша конфигурация после этого молча не применилась бы.
-# ---------------------------------------------------------------------------
 
 LOG_DIR = Path(
     os.environ.get("VISION_LOG_DIR", Path(__file__).resolve().parent.parent / "logs")
@@ -108,7 +97,9 @@ def _t(key: str, **kwargs) -> str:
     return locales.get_formatted(key, **kwargs)
 
 
-# не используется
+
+
+# Используется в backends.py: в _analyze_ollama (строка 294), в _analyze_vllm дважды — при обрезке истории (348) и при сборке сообщений (351)
 def _get_system_prompt(lang: str | None = None) -> str:
     if prompt is None:
         return ""
@@ -168,9 +159,3 @@ SAMPLING_DEFAULTS = {
 
 REQUEST_TIMEOUT = aiohttp.ClientTimeout(total=500)
 DISCOVERY_TIMEOUT = aiohttp.ClientTimeout(total=10)
-
-RISK_EMOJI = {
-    "low": "🟢",
-    "medium": "🟡",
-    "high": "🔴",
-}
