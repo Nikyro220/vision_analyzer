@@ -256,7 +256,7 @@ input:focus, select:focus {
     border: 1px dashed var(--border);
     border-radius: var(--radius);
     background: var(--bg-elevated);
-    padding: 34px 16px;
+    padding: 16px;
     text-align: center;
 }
 .dropzone.is-dragover { border-color: var(--accent); background: var(--accent-soft); }
@@ -268,16 +268,21 @@ input:focus, select:focus {
 }
 .dropzone-hint {
     display: flex;
-    flex-direction: column;
+    flex-direction: row;
     align-items: center;
-    gap: 6px;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 6px 8px;
     color: var(--text-muted);
-    font-size: 13.5px;
+    font-size: 13px;
     pointer-events: none;
 }
-.dropzone-ic { font-size: 20px; color: var(--accent-strong); }
+.dropzone-ic { font-size: 16px; color: var(--accent-strong); }
 .dropzone-preview-name { color: var(--text); font-family: var(--font-mono); font-size: 12.5px; }
 
+@media (max-width: 480px) {
+    .dropzone-hint { flex-direction: column; gap: 4px; }
+}
 /* ---------------- Mini list (recent items) ---------------- */
 
 .mini-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
