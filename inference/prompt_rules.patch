@@ -1,0 +1,216 @@
+diff --git a/inference/prompt.py b/inference/prompt.py
+index be065eb..10f053e 100644
+--- a/inference/prompt.py
++++ b/inference/prompt.py
+@@ -24,6 +24,8 @@ Design notes:
+     JSON literals in every output language, so the server can parse them.
+ """
+ 
++import prompt_rules
++
+ SYSTEM_PROMPT_TEMPLATE = """\
+ <role>
+ You are a visual risk-triage module in a content-moderation pipeline. You receive one image and return one JSON object. A human moderator reads your JSON to decide whether the image goes to the review queue. You work as a reporting instrument: you describe, register signals, and route.
+@@ -68,51 +70,7 @@ Fill "description" in this order, one sentence per item that has visible content
+ <risk_signals>
+ Record every instance found as a separate signal with its own id (S-1, S-2, ...).
+ 
+-<signal_category name="weapons_and_dangerous_objects">
+-Weapon features. Check every object that is in a hand, on a body, or in the foreground against this list:
+-W1 Tube shape: a dark or metallic body whose length is at least twice its width, or the same body seen end-on as a dark circle or ring.
+-W2 Grip: fingers wrapped around a handle-shaped part, or a finger laid along or inside the object.
+-W3 Aim: the arm is extended or raised, with the object pointing toward the camera, a person, or an animal.
+-W4 Blade: a flat metal edge with a point, or a straight or curved cutting edge, of any length, with or without a handle.
+-W5 Firearm parts: barrel, slide, revolver drum, magazine, stock, trigger guard, scope, suppressor.
+-W6 Other dangerous items: bat, club, chain, brass knuckles, axe, hammer raised toward a person, aerosol or gas canister with a nozzle pointing at a person, bottle with a cloth wick, pipe with end caps or wires.
+-
+-Registration rule: register a signal when a hand-held or worn object shows W1, W4, W5, or W6. One matching feature is enough. W2 and W3 raise the level (see routing).
+-Registration depends on features W1 to W6 only. Mood, smiles, clothing, and location are recorded in "description" and leave the signal decision unchanged.
+-
+-Routing: a registered weapons signal sets needs_human_review to true and risk_level to at least "medium" right away, so the moderator settles what the object is.
+-Level "high": W1, W4, W5, or W6 together with W2 (gripped) or W3 (aimed), or a blade or firearm part touching a person's body or head.
+-Level "medium": a single feature W1, W4, W5, or W6 without W2 and W3, for example a dark tube held at the side of the body or lying on a surface within reach.
+-
+-Overrides (closed list): (a) readable text or a logo on the object that names a specific different product; (b) a transparent or translucent housing that shows the contents; (c) the object is printed on packaging, artwork, or a game or app screen. When an override applies, write the text or the housing description in the rationale and assign "low" for that object.
+-
+-Wording for "detail": write it in __OUTPUT_LANGUAGE__; name the observed features and the feature codes (the codes W1-W6 stay as written), and name the weapon type when the shape matches one (pistol, revolver, rifle, knife). When the type is unclear, write the __OUTPUT_LANGUAGE__ equivalent of "weapon-like cylindrical object".
+-Wording for "rationale": write it in __OUTPUT_LANGUAGE__; list the feature codes observed and add one sentence stating that authenticity (real weapon, replica, or prop) is unconfirmed.
+-</signal_category>
+-
+-<signal_category name="extremist_or_hate_symbols">
+-A patch, tattoo, flag, gesture, or emblem that matches iconography of a designated extremist, hate, or terrorist group. A black background with white Arabic religious calligraphy and a horizontal sword or blade beneath the text matches this category, because it imitates the jihadist black-standard (raya) flag; register it from the visual composition alone, without identifying the group. A green or non-black background with the same elements is the national flag of Saudi Arabia and receives no signal.
+-</signal_category>
+-
+-<known_phrase_reference>
+-Before reading Arabic text letter by letter, compare it with these phrases and transcribe a close match as that phrase:
+-- the shahada (لا إله إلا الله محمد رسول الله)
+-- the takbir (الله أكبر)
+-- other common Quranic or devotional phrases
+-Read letter by letter only when the text differs from all of them, and prefix the result with "low legibility:" when the letters are hard to read.
+-</known_phrase_reference>
+-
+-<signal_category name="self_harm_or_violence_indicators">
+-Any of these visible: open wounds; blood on skin, clothes, or a surface; bruising or swelling on a face; a person held down or bound (rope, cable ties, handcuffs on a person without a uniform); a raised fist or object aimed at another person's head or body; several parallel cuts or scars on a forearm.
+-</signal_category>
+-
+-<signal_category name="illegal_activity_indicators">
+-Any of these visible: syringes; smoking pipes or rolled foil; pills or white powder in small bags; powder arranged in lines; cannabis leaves or hand-rolled cigarettes with cannabis; scales next to small bags; stacks of cash next to any of these items.
+-</signal_category>
+-
+-<signal_category name="minor_in_risk_context">
+-A person in the child or teen age bracket who is in the same frame as a signal from any other category, or who holds an object that triggered a signal.
+-</signal_category>
++__RISK_SIGNALS__
+ </risk_signals>
+ 
+ <context_classification>
+@@ -260,6 +218,7 @@ def get_system_prompt(lang: str = "ru") -> str:
+     labels = CONTEXT_LABELS.get(lang, CONTEXT_LABELS["en"])
+     text = SYSTEM_PROMPT_TEMPLATE.replace("__EXAMPLES__", examples)
+     text = text.replace("__CONTEXT_LABELS__", labels)
++    text = text.replace("__RISK_SIGNALS__", prompt_rules.RISK_SIGNALS_BLOCK)
+     return text.replace("__OUTPUT_LANGUAGE__", language_name)
+ 
+ 
+diff --git a/inference/prompt_rules/__init__.py b/inference/prompt_rules/__init__.py
+new file mode 100644
+index 0000000..5e42f8c
+--- /dev/null
++++ b/inference/prompt_rules/__init__.py
+@@ -0,0 +1,28 @@
++"""Реестр категорий сигналов для <risk_signals> системного промпта.
++
++Как добавить новую категорию:
++1. Создать файл rules_name.py с константой BLOCK — текст вида
++   \"\"\"<signal_category name="...">...текст правил...</signal_category>\"\"\",
++   ровно как сейчас пишутся остальные категории (см. weapons.py как
++   пример самой детализированной, self_harm.py — как пример простой).
++2. Импортировать модуль ниже и добавить его в REGISTRY, в том месте
++   списка, где категория должна появиться в промпте.
++3. Если категория должна влиять на "high"/"medium" в
++   <risk_level_guidance> — руками добавить формулировку в prompt.py
++   (RISK_LEVEL_GUIDANCE). Это НЕ автоматизировано специально: там
++   естественный язык с нюансами порядка фраз, автосклейка из метаданных
++   рискует дать корявый или неточный текст. Разбиение на файлы решает
++   проблему организации кода, не проблему подбора точных формулировок.
++
++Существующие категории трогать не нужно — добавление новой не требует
++редактировать чужие файлы.
++"""
++
++from . import extremist_symbols, illegal_activity, minor_in_risk, self_harm, weapons
++
++REGISTRY = [weapons, extremist_symbols, self_harm, illegal_activity, minor_in_risk]
++
++# Склейка блоков в текст <risk_signals> — простая конкатенация с пустой
++# строкой между блоками, порядок = порядок REGISTRY. Ничего не
++# "понимает" в содержимом блоков, поэтому безопасна для любого текста.
++RISK_SIGNALS_BLOCK = "\n\n".join(rule.BLOCK for rule in REGISTRY)
+diff --git a/inference/prompt_rules/extremist_symbols.py b/inference/prompt_rules/extremist_symbols.py
+new file mode 100644
+index 0000000..eb486cd
+--- /dev/null
++++ b/inference/prompt_rules/extremist_symbols.py
+@@ -0,0 +1,21 @@
++"""Категория extremist_or_hate_symbols.
++
++BLOCK включает в себя и <known_phrase_reference> — справочник по
++распознаванию арабского текста. Он в оригинальном промпте физически
++идёт сразу за этой категорией и тематически с ней связан (распознавание
++надписей на флагах/эмблемах), поэтому не выносится в отдельный файл.
++"""
++
++BLOCK = """\
++<signal_category name="extremist_or_hate_symbols">
++A patch, tattoo, flag, gesture, or emblem that matches iconography of a designated extremist, hate, or terrorist group. A black background with white Arabic religious calligraphy and a horizontal sword or blade beneath the text matches this category, because it imitates the jihadist black-standard (raya) flag; register it from the visual composition alone, without identifying the group. A green or non-black background with the same elements is the national flag of Saudi Arabia and receives no signal.
++</signal_category>
++
++<known_phrase_reference>
++Before reading Arabic text letter by letter, compare it with these phrases and transcribe a close match as that phrase:
++- the shahada (لا إله إلا الله محمد رسول الله)
++- the takbir (الله أكبر)
++- other common Quranic or devotional phrases
++Read letter by letter only when the text differs from all of them, and prefix the result with "low legibility:" when the letters are hard to read.
++</known_phrase_reference>\
++"""
+diff --git a/inference/prompt_rules/illegal_activity.py b/inference/prompt_rules/illegal_activity.py
+new file mode 100644
+index 0000000..30cd891
+--- /dev/null
++++ b/inference/prompt_rules/illegal_activity.py
+@@ -0,0 +1,7 @@
++"""Категория illegal_activity_indicators."""
++
++BLOCK = """\
++<signal_category name="illegal_activity_indicators">
++Any of these visible: syringes; smoking pipes or rolled foil; pills or white powder in small bags; powder arranged in lines; cannabis leaves or hand-rolled cigarettes with cannabis; scales next to small bags; stacks of cash next to any of these items.
++</signal_category>\
++"""
+diff --git a/inference/prompt_rules/minor_in_risk.py b/inference/prompt_rules/minor_in_risk.py
+new file mode 100644
+index 0000000..be9adde
+--- /dev/null
++++ b/inference/prompt_rules/minor_in_risk.py
+@@ -0,0 +1,12 @@
++"""Категория minor_in_risk_context.
++
++Не самостоятельный признак — перекрёстная ссылка на остальные
++категории (ребёнок/подросток в кадре вместе с любым другим сработавшим
++сигналом). Единственная категория такого рода в реестре.
++"""
++
++BLOCK = """\
++<signal_category name="minor_in_risk_context">
++A person in the child or teen age bracket who is in the same frame as a signal from any other category, or who holds an object that triggered a signal.
++</signal_category>\
++"""
+diff --git a/inference/prompt_rules/self_harm.py b/inference/prompt_rules/self_harm.py
+new file mode 100644
+index 0000000..c82a343
+--- /dev/null
++++ b/inference/prompt_rules/self_harm.py
+@@ -0,0 +1,7 @@
++"""Категория self_harm_or_violence_indicators."""
++
++BLOCK = """\
++<signal_category name="self_harm_or_violence_indicators">
++Any of these visible: open wounds; blood on skin, clothes, or a surface; bruising or swelling on a face; a person held down or bound (rope, cable ties, handcuffs on a person without a uniform); a raised fist or object aimed at another person's head or body; several parallel cuts or scars on a forearm.
++</signal_category>\
++"""
+diff --git a/inference/prompt_rules/weapons.py b/inference/prompt_rules/weapons.py
+new file mode 100644
+index 0000000..ff8d42a
+--- /dev/null
++++ b/inference/prompt_rules/weapons.py
+@@ -0,0 +1,31 @@
++"""Категория weapons_and_dangerous_objects.
++
++Самая детализированная категория: коды признаков W1-W6, overrides,
++пороги уровней. Именно поэтому она держится как цельный, вручную
++выверенный текст, а не собирается из отдельных полей — разбивать её на
++структурные "фичи в YAML" рискует потерять точные формулировки порогов.
++"""
++
++BLOCK = """\
++<signal_category name="weapons_and_dangerous_objects">
++Weapon features. Check every object that is in a hand, on a body, or in the foreground against this list:
++W1 Tube shape: a dark or metallic body whose length is at least twice its width, or the same body seen end-on as a dark circle or ring.
++W2 Grip: fingers wrapped around a handle-shaped part, or a finger laid along or inside the object.
++W3 Aim: the arm is extended or raised, with the object pointing toward the camera, a person, or an animal.
++W4 Blade: a flat metal edge with a point, or a straight or curved cutting edge, of any length, with or without a handle.
++W5 Firearm parts: barrel, slide, revolver drum, magazine, stock, trigger guard, scope, suppressor.
++W6 Other dangerous items: bat, club, chain, brass knuckles, axe, hammer raised toward a person, aerosol or gas canister with a nozzle pointing at a person, bottle with a cloth wick, pipe with end caps or wires.
++
++Registration rule: register a signal when a hand-held or worn object shows W1, W4, W5, or W6. One matching feature is enough. W2 and W3 raise the level (see routing).
++Registration depends on features W1 to W6 only. Mood, smiles, clothing, and location are recorded in "description" and leave the signal decision unchanged.
++
++Routing: a registered weapons signal sets needs_human_review to true and risk_level to at least "medium" right away, so the moderator settles what the object is.
++Level "high": W1, W4, W5, or W6 together with W2 (gripped) or W3 (aimed), or a blade or firearm part touching a person's body or head.
++Level "medium": a single feature W1, W4, W5, or W6 without W2 and W3, for example a dark tube held at the side of the body or lying on a surface within reach.
++
++Overrides (closed list): (a) readable text or a logo on the object that names a specific different product; (b) a transparent or translucent housing that shows the contents; (c) the object is printed on packaging, artwork, or a game or app screen. When an override applies, write the text or the housing description in the rationale and assign "low" for that object.
++
++Wording for "detail": write it in __OUTPUT_LANGUAGE__; name the observed features and the feature codes (the codes W1-W6 stay as written), and name the weapon type when the shape matches one (pistol, revolver, rifle, knife). When the type is unclear, write the __OUTPUT_LANGUAGE__ equivalent of "weapon-like cylindrical object".
++Wording for "rationale": write it in __OUTPUT_LANGUAGE__; list the feature codes observed and add one sentence stating that authenticity (real weapon, replica, or prop) is unconfirmed.
++</signal_category>\
++"""
