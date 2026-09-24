@@ -38,7 +38,7 @@ log = logging.getLogger("vision_app.queue")
 _PROCESS_STARTED = utcnow().replace(tzinfo=None)
 
 _registry_lock = threading.Lock()
-_workers: dict[int, "QueueWorker"] = {}
+_workers: dict[int, list["QueueWorker"]] = {}
 
 _MIME_BY_EXT = {
     ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png", ".gif": "image/gif",
@@ -76,7 +76,7 @@ def claim_next() -> int | None:
     return None
 
 
-def _run_analysis(app, image_path: str, image_mime: str):
+def _run_analysis(app, image_path: str, image_mime: str, caption: str = ""):
     """Возвращает (AnalysisOutcome | None, текст_ошибки)."""
     path = Path(app.config["UPLOAD_FOLDER"]) / image_path
     try:
@@ -91,7 +91,7 @@ def _run_analysis(app, image_path: str, image_mime: str):
     db.session.rollback()  # не держим транзакцию на время долгого HTTP-запроса
 
     try:
-        outcome = analyze_image(data, mime, lang="ru", backend=backend, model=model)
+        outcome = analyze_image(data, mime, lang="ru", backend=backend, model=model, caption=caption)
         return outcome, ""
     except VisionApiError as exc:
         return None, str(exc)
@@ -101,7 +101,7 @@ def _run_analysis(app, image_path: str, image_mime: str):
 
 
 def _finish(job_id: int, outcome, error: str) -> None:
-    values: dict = {"status": Status.DONE, "finished_at": utcnow()}
+    values: dict = {"status": Status.DONE, "finished_at": utcnow(), "is_new": True}
     if outcome is not None:
         values.update(
             backend=outcome.backend,
@@ -133,13 +133,14 @@ def process_next(app) -> bool:
             if job_id is None:
                 return False
             row = db.session.execute(
-                select(AnalysisResult.image_path, AnalysisResult.image_mime).where(AnalysisResult.id == job_id)
+                select(AnalysisResult.image_path, AnalysisResult.image_mime, AnalysisResult.caption)
+                .where(AnalysisResult.id == job_id)
             ).one()
             db.session.rollback()
 
             log.info("Очередь: начинаю анализ задачи %s (%s)", job_id, row.image_path)
             started = time.monotonic()
-            outcome, error = _run_analysis(app, row.image_path, row.image_mime)
+            outcome, error = _run_analysis(app, row.image_path, row.image_mime, row.caption)
             _finish(job_id, outcome, error)
             log.info(
                 "Очередь: задача %s завершена за %.1f с (%s)",
@@ -190,9 +191,10 @@ def requeue_interrupted(app, before=None) -> int:
 # Поток-обработчик
 # ----------------------------------------------------------------------------
 class QueueWorker(threading.Thread):
-    def __init__(self, app):
-        super().__init__(name="analysis-queue-worker", daemon=True)
+    def __init__(self, app, index: int = 1):
+        super().__init__(name=f"analysis-queue-worker-{index}", daemon=True)
         self.app = app
+        self.index = index
         self._wake = threading.Event()
         self._stop_requested = threading.Event()
 
@@ -205,26 +207,19 @@ class QueueWorker(threading.Thread):
 
     def run(self) -> None:
         poll = float(self.app.config.get("QUEUE_POLL_SECONDS", 5))
-        try:
-            n = requeue_interrupted(self.app)
-            if n:
-                log.info("Очередь: возвращено в очередь прерванных задач: %d", n)
-        except Exception:  # noqa: BLE001
-            log.exception("Очередь: не удалось вернуть прерванные задачи")
-        log.info("Очередь: обработчик запущен")
+        log.info("Очередь: обработчик #%d запущен", self.index)
 
         while not self._stop_requested.is_set():
             try:
                 busy = process_next(self.app)
             except Exception:  # noqa: BLE001 — поток не должен умирать из-за одной ошибки
-                log.exception("Очередь: ошибка цикла обработки")
+                log.exception("Очередь: обработчик #%d — ошибка цикла обработки", self.index)
                 busy = False
                 time.sleep(2)
             if not busy:
                 self._wake.wait(timeout=poll)
                 self._wake.clear()
-        log.info("Очередь: обработчик остановлен")
-
+        log.info("Очередь: обработчик #%d остановлен", self.index)
 
 def _real_app(app):
     """Из прокси current_app достаёт настоящий объект приложения (поток не живёт в контексте запроса)."""
@@ -237,33 +232,61 @@ def worker_enabled(app) -> bool:
     return bool(app.config.get("QUEUE_WORKER_ENABLED", True)) and not app.config.get("TESTING")
 
 
-def ensure_worker(app) -> QueueWorker:
-    """Гарантирует, что поток-обработчик запущен (и перезапускает его, если он умер)."""
+def worker_count(app) -> int:
+    """Сколько потоков-обработчиков держать одновременно (QUEUE_WORKERS, по умолчанию 1)."""
+    try:
+        n = int(app.config.get("QUEUE_WORKERS", 1))
+    except (TypeError, ValueError):
+        n = 1
+    return min(max(n, 1), 8)  # разумный потолок, чтобы опечатка в конфиге не завела 100 потоков
+
+
+def ensure_worker(app) -> list[QueueWorker]:
+    """Гарантирует, что запущено ровно worker_count(app) потоков (недостающие — стартует,
+    умершие — заменяет). Возвращает текущий список живых потоков."""
     app = _real_app(app)
     key = id(app)
-    worker = _workers.get(key)
-    if worker is not None and worker.is_alive():
-        return worker
+    target = worker_count(app)
+
+    workers = _workers.get(key) or []
+    if len(workers) == target and all(w.is_alive() for w in workers):
+        return workers
+
     with _registry_lock:
-        worker = _workers.get(key)
-        if worker is None or not worker.is_alive():
-            worker = QueueWorker(app)
-            _workers[key] = worker
+        workers = [w for w in _workers.get(key, []) if w.is_alive()]
+        if not workers and not _workers.get(key):
+            # Первый запуск для этого приложения — до старта потоков подчищаем задачи,
+            # оставшиеся «в обработке» от предыдущего запуска. Делаем это один раз,
+            # а не в каждом потоке, иначе при QUEUE_WORKERS > 1 лог засорился бы дублями.
+            try:
+                n = requeue_interrupted(app)
+                if n:
+                    log.info("Очередь: возвращено в очередь прерванных задач: %d", n)
+            except Exception:  # noqa: BLE001
+                log.exception("Очередь: не удалось вернуть прерванные задачи")
+
+        while len(workers) < target:
+            worker = QueueWorker(app, index=len(workers) + 1)
             worker.start()
-        return worker
+            workers.append(worker)
+
+        _workers[key] = workers
+        return workers
 
 
 def wake_worker(app) -> None:
-    """Будит обработчик после добавления задач (и запускает его, если он не запущен)."""
+    """Будит обработчиков после добавления задач (и запускает их, если они не запущены)."""
     app = _real_app(app)
     if worker_enabled(app):
-        ensure_worker(app).wake()
+        for worker in ensure_worker(app):
+            worker.wake()
 
 
 def stop_worker(app) -> None:
     app = _real_app(app)
     with _registry_lock:
-        worker = _workers.pop(id(app), None)
-    if worker is not None:
+        workers = _workers.pop(id(app), [])
+    for worker in workers:
         worker.shutdown()
+    for worker in workers:
         worker.join(timeout=5)

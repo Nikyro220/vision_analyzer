@@ -76,11 +76,13 @@ def analyze_image(
     lang: str = "ru",
     backend: str = "",
     model: str = "",
+    caption: str = "",
 ) -> AnalysisOutcome:
     """Отправляет одно изображение на /analyze и возвращает разобранный результат.
 
     backend/model — необязательные; если пусты, сервер выбирает бэкенд по умолчанию
-    и автоматически определяет модель.
+    и автоматически определяет модель. caption — необязательный контекст к конкретному
+    изображению (передаётся серверу как есть, влияет только на промпт модели).
     """
     url = f"{_base_url()}/analyze"
     headers = {"Content-Type": mime_type or "image/jpeg"}
@@ -89,6 +91,8 @@ def analyze_image(
         params["backend"] = backend
     if model:
         params["model"] = model
+    if caption:
+        params["caption"] = caption
 
     try:
         resp = requests.post(

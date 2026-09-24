@@ -8,7 +8,7 @@ import re
 from dataclasses import dataclass
 from difflib import SequenceMatcher
 
-from flask import current_app
+from flask import current_app, request
 from flask_wtf import FlaskForm
 from flask_wtf.file import FileRequired, MultipleFileField
 from PIL import Image
@@ -137,6 +137,7 @@ class AcceptedImage:
     data: bytes
     ext: str
     mime: str
+    caption: str = ""
 
 
 class ImageUploadForm(FlaskForm):
@@ -153,18 +154,26 @@ class ImageUploadForm(FlaskForm):
     rejected: list[tuple[str, str]]
 
     def validate_image(self, field):
-        """Проверяем содержимое через Pillow, а не расширение файла."""
+        """Проверяем содержимое через Pillow, а не расширение файла.
+
+        Подписи (caption) идут отдельным полем формы "captions", по одной на файл,
+        в ТОМ ЖЕ порядке, что и файлы (это обеспечивает static/js/queue.js — рисует
+        поле подписи сразу под каждым выбранным файлом). Если подписей меньше, чем
+        файлов (JS не сработал, форма отправлена без него), недостающие — пустые.
+        """
         self.accepted, self.rejected = [], []
 
         files = [f for f in (field.data or []) if getattr(f, "filename", "")]
+        raw_captions = request.form.getlist("captions")
         max_files = current_app.config.get("QUEUE_MAX_FILES_PER_UPLOAD", 20)
         if len(files) > max_files:
             raise ValidationError(f"За один раз можно загрузить не больше {max_files} файлов.")
 
-        for upload in files:
+        for idx, upload in enumerate(files):
             name = upload.filename
             data = upload.read()
             upload.stream.seek(0)
+            caption = raw_captions[idx].strip()[:500] if idx < len(raw_captions) else ""
 
             if not data:
                 self.rejected.append((name, "файл пуст"))
@@ -181,7 +190,7 @@ class ImageUploadForm(FlaskForm):
                 continue
 
             ext, mime = IMAGE_FORMATS[fmt]
-            self.accepted.append(AcceptedImage(name, data, ext, mime))
+            self.accepted.append(AcceptedImage(name, data, ext, mime, caption))
 
         if not self.accepted:
             reasons = "; ".join(f"«{n}»: {why}" for n, why in self.rejected[:5])
@@ -190,9 +199,6 @@ class ImageUploadForm(FlaskForm):
             )
 
 
-# ----------------------------------------------------------------------------
-# Параметры генерации (POST /sampling)
-# ----------------------------------------------------------------------------
 # ----------------------------------------------------------------------------
 # Параметры генерации (POST /sampling)
 # ----------------------------------------------------------------------------

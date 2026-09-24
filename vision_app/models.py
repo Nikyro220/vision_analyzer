@@ -181,6 +181,8 @@ class AnalysisResult(db.Model):
     image_mime = db.Column(db.String(64), nullable=False, default="", server_default="")
     started_at = db.Column(db.DateTime, nullable=True)
     finished_at = db.Column(db.DateTime, nullable=True)
+    caption = db.Column(db.Text, nullable=False, default="", server_default="")
+    is_new = db.Column(db.Boolean, nullable=False, default=False, server_default="0")
 
     @property
     def is_error(self) -> bool:

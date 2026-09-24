@@ -7,6 +7,14 @@
     <p class="page-sub">Все завершённые анализы ваших изображений. Файлы в очереди показываются на странице «Новый анализ».</p>
 </div>
 
+{% if new_count %}
+<form method="post" action="{{ url_for('analyzer.mark_seen') }}" class="bulk-bar" style="margin-bottom: 12px;">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <input type="hidden" name="next" value="{{ request.full_path.rstrip('?') }}">
+    <button type="submit" class="btn btn-secondary">Сбросить метки «новое» ({{ new_count }})</button>
+</form>
+{% endif %}
+
 {% if page.items %}
 {% if can_delete %}
 <form method="post" action="{{ url_for('analyzer.delete_selected') }}">
@@ -27,9 +35,9 @@
         </thead>
         <tbody>
             {% for item in page.items %}
-            <tr onclick="window.location='{{ url_for('analyzer.result_detail', pk=item.id) }}'">
+            <tr class="row-clickable" data-href="{{ url_for('analyzer.result_detail', pk=item.id) }}">
                 {% if can_delete %}<td class="col-check" onclick="event.stopPropagation()"><input type="checkbox" name="ids" value="{{ item.id }}" aria-label="Выбрать запись {{ item.id }}"></td>{% endif %}
-                <td>{{ (item.original_name or '—')|trunc(40) }}</td>
+                <td>{{ (item.original_name or '—')|trunc(40) }}{% if item.is_new %} <span class="tag tag-new">новое</span>{% endif %}</td>
                 <td><span class="risk-pill risk-pill-{{ item.risk_level }}">{{ item.risk_level_display }}</span>{% if item.is_error %} <span class="tag tag-warn">ошибка</span>{% endif %}</td>
                 <td>{% if item.needs_human_review %}<span class="tag tag-warn">да</span>{% else %}<span class="tag">нет</span>{% endif %}</td>
                 <td>{{ item.backend or '—' }}</td>

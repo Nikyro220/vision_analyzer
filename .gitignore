@@ -12,3 +12,4 @@ inference/upscaler/*.pth
 inference/upscaler/*.pt
 inference/upscaler/*.part
 logs/
+temp/

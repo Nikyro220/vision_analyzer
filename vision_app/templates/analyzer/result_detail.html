@@ -15,6 +15,12 @@
     </div>
 
     <div class="card result-report-card">
+        {% if result.caption %}
+        <div class="caption-note">
+            <h2 class="card-title">контекст</h2>
+            <p class="report-text">{{ result.caption }}</p>
+        </div>
+        {% endif %}
         {% if result.is_pending %}
             <div class="pending-note">
                 <span class="queue-icon queue-item--{{ result.status }}" aria-hidden="true"></span>

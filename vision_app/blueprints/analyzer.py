@@ -17,7 +17,7 @@ from flask import (
     url_for,
 )
 from flask_login import current_user, login_required
-from sqlalchemy import delete, func, select
+from sqlalchemy import delete, func, select, update
 
 from ..decorators import staff_required
 from ..extensions import db
@@ -105,6 +105,7 @@ def queue_snapshot() -> dict:
             "risk_level": row.risk_level,
             "risk_label": RISK_LABELS.get(row.risk_level, row.risk_level),
             "error": row.is_error,
+            "is_new": row.is_new,
             "date": local_dt(row.created_at, "%d.%m %H:%M"),
             "url": url_for("analyzer.result_detail", pk=row.id),
         }
@@ -118,7 +119,7 @@ def _enqueue_uploads(form: ImageUploadForm):
     limit = current_app.config.get("QUEUE_MAX_PENDING_PER_USER", 30)
     pending_now = db.session.scalar(
         select(func.count(AnalysisResult.id)).where(
-            AnalysisResult.user_id == current_user.id, AnalysisResult.status != Status.DONE
+            AnalysisResult.user_id == current_user.id, AnalysisResult.status != Status.DONE 
         )
     )
     if pending_now + len(form.accepted) > limit:
@@ -145,6 +146,7 @@ def _enqueue_uploads(form: ImageUploadForm):
                     image_path=rel_path,
                     original_name=item.filename[:255],
                     image_mime=item.mime,
+                    caption=item.caption,
                     status=Status.QUEUED,
                 )
             )
@@ -224,8 +226,31 @@ def cancel_queued(pk: int):
 @login_required
 def history():
     page = paginate(_own_results(), per_page=12)
-    return render_template("analyzer/history.html", page=page)
+    new_count = db.session.scalar(
+        select(func.count(AnalysisResult.id)).where(
+            AnalysisResult.user_id == current_user.id,
+            AnalysisResult.status == Status.DONE,
+            AnalysisResult.is_new.is_(True),
+        )
+    )
+    return render_template("analyzer/history.html", page=page, new_count=new_count)
 
+@bp.route("/history/mark-seen/", methods=["POST"])
+@login_required
+def mark_seen():
+    """Сбросить метку «новое» у ВСЕХ своих анализов сразу, без просмотра каждого."""
+    result = db.session.execute(
+        update(AnalysisResult)
+        .where(AnalysisResult.user_id == current_user.id, AnalysisResult.is_new.is_(True))
+        .values(is_new=False)
+        .execution_options(synchronize_session=False)
+    )
+    db.session.commit()
+    if result.rowcount:
+        flash(f"Метки «новое» сброшены: {plural(result.rowcount, ('запись', 'записи', 'записей'))}.", "success")
+    else:
+        flash("Новых меток нет.", "info")
+    return _redirect_back("analyzer.history")
 
 @bp.route("/history/delete/", methods=["POST"])
 @staff_required
@@ -278,6 +303,10 @@ def result_detail(pk: int):
     result = db.get_or_404(AnalysisResult, pk)
     if not _can_view(result):
         abort(404)
+
+    if result.is_new and result.user_id == current_user.id:
+        result.is_new = False
+        db.session.commit()
 
     signals, rationale, recommendation, text_on_image, context_text, raw_text = (
         [], "", "", "", "", ""

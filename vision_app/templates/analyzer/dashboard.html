@@ -45,6 +45,7 @@
                     </div>
                 </div>
                 {% for error in form.image.errors %}<div class="field-error">{{ error }}</div>{% endfor %}
+                <div class="caption-list" id="caption-list" hidden></div>
                 <button type="submit" class="btn btn-primary btn-block" id="submit-btn">Добавить в очередь</button>
             </form>
         </div>
@@ -70,7 +71,7 @@
             <li>
                 <a href="{{ item.url }}" class="mini-list-row">
                     <span class="risk-dot risk-{{ item.risk_level }}"></span>
-                    <span class="mini-list-name">{{ item.name|trunc(28) }}</span>
+                    <span class="mini-list-name">{{ item.name|trunc(28) }}</span>{% if item.is_new %} <span class="tag tag-new">новое</span>{% endif %}
                     <span class="mini-list-date">{{ item.date }}</span>
                 </a>
             </li>

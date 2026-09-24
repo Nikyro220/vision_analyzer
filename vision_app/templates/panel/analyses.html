@@ -37,7 +37,7 @@
         </thead>
         <tbody>
             {% for item in page.items %}
-            <tr onclick="window.location='{{ url_for('analyzer.result_detail', pk=item.id) }}'">
+            <tr class="row-clickable" data-href="{{ url_for('analyzer.result_detail', pk=item.id) }}">
                 <td class="col-check" onclick="event.stopPropagation()"><input type="checkbox" name="ids" value="{{ item.id }}" aria-label="Выбрать запись {{ item.id }}"></td>
                 <td>{{ (item.original_name or '—')|trunc(36) }}</td>
                 <td>{{ item.user.username }}</td>

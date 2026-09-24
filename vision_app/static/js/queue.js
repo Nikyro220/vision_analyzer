@@ -12,7 +12,7 @@
     }
   });
 
-  // ---------- загрузка: подпись кнопки и список выбранных файлов ----------
+  // ---------- загрузка: подпись кнопки ----------
   // main.js ставит «Анализируем…» на кнопку. Анализ теперь идёт в фоне, а на кнопке
   // отражается только отправка файлов — поэтому переопределяем подпись (наш обработчик
   // на document срабатывает после обработчиков самой формы).
@@ -30,19 +30,135 @@
     var names = Array.prototype.slice.call(files, 0, 3).map(function (f) { return f.name; }).join(", ");
     return "Файлов: " + files.length + " — " + names + (files.length > 3 ? "…" : "");
   }
-  document.addEventListener("change", function (e) {
-    if (e.target && e.target.id === "id_image") {
-      var el = document.getElementById("file-name");
-      if (el) el.textContent = describeFiles(e.target);
+
+  // ---------- список выбранных файлов: миниатюра + подпись + удаление ----------
+  // Подписи (caption) идут отдельным полем "captions", по одной на файл, в ТОМ ЖЕ
+  // порядке, что и файлы — forms.py.validate_image() сопоставляет их по индексу.
+  // Правка одного файла не должна стирать то, что уже введено для остальных, поэтому
+  // введённые подписи запоминаются в captionMap (File -> текст) и переживают
+  // перерисовку списка при добавлении/удалении файлов.
+  var captionMap = new WeakMap();
+  var thumbUrls = [];
+
+  function clearThumbUrls() {
+    thumbUrls.forEach(function (url) { URL.revokeObjectURL(url); });
+    thumbUrls = [];
+  }
+
+  function harvestCaptions(input) {
+    var rows = document.querySelectorAll("#caption-list .file-row");
+    Array.prototype.forEach.call(input.files, function (file, i) {
+      var row = rows[i];
+      var field = row && row.querySelector('input[name="captions"]');
+      if (field && field.value) captionMap.set(file, field.value);
+    });
+  }
+
+  function removeFileAt(input, index) {
+    harvestCaptions(input); // сохранить уже введённые подписи ДО того, как список изменится
+    var dt = new DataTransfer();
+    Array.prototype.forEach.call(input.files, function (file, i) {
+      if (i !== index) dt.items.add(file);
+    });
+    input.files = dt.files;
+    refreshSelection(input);
+  }
+
+  function clearAllFiles(input) {
+    input.files = new DataTransfer().files;
+    refreshSelection(input);
+  }
+
+  function renderSelectedFiles(input) {
+    var box = document.getElementById("caption-list");
+    if (!box) return;
+    var files = input.files;
+    clearThumbUrls();
+    box.textContent = "";
+
+    if (!files || files.length < 1) {
+      box.hidden = true;
+      return;
     }
+
+    var head = document.createElement("div");
+    head.className = "caption-list-head";
+    var count = document.createElement("span");
+    count.textContent = "Выбрано: " + files.length;
+    var clearBtn = document.createElement("button");
+    clearBtn.type = "button";
+    clearBtn.className = "caption-list-clear";
+    clearBtn.textContent = "Очистить всё";
+    clearBtn.addEventListener("click", function () { clearAllFiles(input); });
+    head.appendChild(count);
+    head.appendChild(clearBtn);
+    box.appendChild(head);
+
+    Array.prototype.forEach.call(files, function (file, i) {
+      var row = document.createElement("div");
+      row.className = "file-row";
+
+      var thumb = document.createElement("img");
+      thumb.className = "file-thumb";
+      thumb.alt = "";
+      var url = URL.createObjectURL(file);
+      thumbUrls.push(url);
+      thumb.src = url;
+
+      var name = document.createElement("span");
+      name.className = "caption-row-name";
+      name.textContent = file.name;
+      name.title = file.name;
+
+      var field = document.createElement("input");
+      field.type = "text";
+      field.name = "captions";
+      field.maxLength = 500;
+      field.placeholder = "Комментарий к этому изображению (необязательно)";
+      field.value = captionMap.get(file) || "";
+
+      var removeBtn = document.createElement("button");
+      removeBtn.type = "button";
+      removeBtn.className = "file-remove-btn";
+      removeBtn.title = "Убрать этот файл из выбора";
+      removeBtn.setAttribute("aria-label", "Убрать этот файл из выбора");
+      removeBtn.textContent = "✕";
+      removeBtn.addEventListener("click", function () { removeFileAt(input, i); });
+
+      row.appendChild(thumb);
+      row.appendChild(name);
+      row.appendChild(field);
+      row.appendChild(removeBtn);
+      box.appendChild(row);
+    });
+
+    box.hidden = false;
+  }
+
+  function refreshSelection(input) {
+    var el = document.getElementById("file-name");
+    if (el) el.textContent = describeFiles(input);
+    renderSelectedFiles(input);
+  }
+
+  document.addEventListener("change", function (e) {
+    if (e.target && e.target.id === "id_image") refreshSelection(e.target);
   });
   document.addEventListener("drop", function () {
-    // main.js кладёт файлы в input в своём обработчике drop; обновим подпись чуть позже
+    // main.js кладёт файлы в input в своём обработчике drop; обновим список чуть позже
     setTimeout(function () {
       var input = document.getElementById("id_image");
-      var el = document.getElementById("file-name");
-      if (input && el) el.textContent = describeFiles(input);
+      if (input) refreshSelection(input);
     }, 0);
+  });
+
+  // ---------- клик по строке таблицы (история, «Все анализы») открывает результат ----------
+  document.addEventListener("click", function (e) {
+    var row = e.target.closest(".row-clickable");
+    if (!row) return;
+    var interactive = e.target.closest("a, button, input, label");
+    if (interactive && row.contains(interactive)) return;
+    window.location = row.dataset.href;
   });
 
   // ---------- окно очереди ----------
@@ -115,6 +231,11 @@
     a.href = item.url;
     a.appendChild(el("span", "risk-dot risk-" + item.risk_level));
     a.appendChild(el("span", "mini-list-name", truncate(item.name, 28)));
+    if (item.is_new) {
+      var badge = el("span", "tag tag-new", "новое");
+      badge.style.marginLeft = "6px";
+      a.appendChild(badge);
+    }
     a.appendChild(el("span", "mini-list-date", item.date));
     li.appendChild(a);
     return li;
