@@ -14,24 +14,26 @@
     <div class="settings-row">
         <div class="settings-row-label">
             <label for="field-{{ spec.key }}">{{ spec.label }}</label>
-            {% if row.overridden %}
-                <button
-                    type="button"
-                    class="tag tag-accent tag-reset-btn"
-                    data-reset-for="{{ spec.key }}"
-                    data-kind="{{ spec.kind }}"
-                    data-default="{{ (row.default | int) if spec.kind == 'bool' else row.default }}"
-                >сбросить</button>
-            {% else %}
-                <span class="tag">значение по умолчанию</span>
-            {% endif %}
+            <span class="default-value-indicator" id="indicator-{{ spec.key }}">
+                {% if row.overridden %}
+                    <button
+                        type="button"
+                        class="tag tag-accent tag-reset-btn"
+                        data-reset-for="{{ spec.key }}"
+                        data-kind="{{ spec.kind }}"
+                        data-default="{{ (row.default | int) if spec.kind == 'bool' else row.default }}"
+                    >сбросить</button>
+                {% else %}
+                    <span class="tag">значение по умолчанию</span>
+                {% endif %}
+            </span>
             {% if spec.hint %}<p class="field-hint">{{ spec.hint }}</p>{% endif %}
         </div>
 
         <div class="settings-row-control">
             {% if spec.kind == "bool" %}
             <label class="checkbox-label">
-                <input type="checkbox" id="field-{{ spec.key }}" name="{{ spec.key }}" value="1" {% if row.value %}checked{% endif %}>
+                <input type="checkbox" id="field-{{ spec.key }}" name="{{ spec.key }}" value="1" {% if row.value %}checked{% endif %} data-default="{{ (row.default | int) }}">
                 включено
             </label>
             {% else %}
@@ -42,6 +44,7 @@
                 name="{{ spec.key }}"
                 value="{{ row.value }}"
                 class="input"
+                data-default="{{ row.default }}"
                 {% if spec.min is not none %}data-min="{{ spec.min }}"{% endif %}
                 {% if spec.max is not none %}data-max="{{ spec.max }}"{% endif %}
             >
@@ -66,8 +69,58 @@
 {% block scripts_extra %}
 <script>
 document.addEventListener("DOMContentLoaded", () => {
-    document.querySelectorAll(".tag-reset-btn").forEach((btn) => {
-        const key = btn.dataset.resetFor;
+    // Функция для создания кнопки сброса
+    const createResetButton = (key, kind, defaultValue) => {
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "tag tag-accent tag-reset-btn";
+        btn.dataset.resetFor = key;
+        btn.dataset.kind = kind;
+        btn.dataset.default = defaultValue;
+        btn.textContent = "сбросить";
+        return btn;
+    };
+
+    // Функция для создания статического спана "значение по умолчанию"
+    const createDefaultSpan = () => {
+        const span = document.createElement("span");
+        span.className = "tag";
+        span.textContent = "значение по умолчанию";
+        return span;
+    };
+
+    // Функция для проверки, изменилось ли значение
+    const isValueChanged = (field, defaultValue) => {
+        if (field.type === "checkbox") {
+            return (field.checked ? "1" : "0") !== defaultValue;
+        } else {
+            return field.value !== defaultValue;
+        }
+    };
+
+    // Функция для обновления индикатора
+    const updateIndicator = (key, kind, defaultValue, hasChanged) => {
+        const indicator = document.getElementById("indicator-" + key);
+        if (!indicator) return;
+
+        const existingBtn = indicator.querySelector(".tag-reset-btn");
+        const existingSpan = indicator.querySelector(".tag:not(.tag-reset-btn)");
+
+        if (hasChanged && !existingBtn) {
+            // Нужно показать кнопку
+            if (existingSpan) existingSpan.remove();
+            const btn = createResetButton(key, kind, defaultValue);
+            indicator.appendChild(btn);
+            attachResetButtonListener(btn, key, kind, defaultValue);
+        } else if (!hasChanged && existingBtn) {
+            // Нужно показать статический спан
+            existingBtn.remove();
+            indicator.appendChild(createDefaultSpan());
+        }
+    };
+
+    // Функция для присоединения слушателя к кнопке сброса
+    const attachResetButtonListener = (btn, key, kind, defaultValue) => {
         const field = document.getElementById("field-" + key);
         const resetFlag = document.getElementById("reset-" + key);
         if (!field) return;
@@ -76,35 +129,46 @@ document.addEventListener("DOMContentLoaded", () => {
             btn.classList.add("tag-reset-btn-pending");
             btn.textContent = "сброшено";
         };
-        const markCancelled = () => {
-            btn.classList.remove("tag-reset-btn-pending");
-            btn.textContent = "сбросить";
-        };
 
         btn.addEventListener("click", () => {
-            if (btn.dataset.kind === "bool") {
-                field.checked = btn.dataset.default === "1";
+            if (kind === "bool") {
+                field.checked = defaultValue === "1";
             } else {
-                field.value = btn.dataset.default;
+                field.value = defaultValue;
             }
             if (resetFlag) resetFlag.value = "1";
             markPending();
+            // После сброса обновляем индикатор
+            updateIndicator(key, kind, defaultValue, false);
         });
+    };
 
-        // Если после нажатия «сбросить» пользователь снова тронул поле руками —
-        // считаем, что он передумал, и просто сохраняем как обычное значение.
-        field.addEventListener("input", () => {
-            if (resetFlag && resetFlag.value === "1") {
+    // Инициализация для каждого поля
+    const allInputs = document.querySelectorAll(".settings-row-control input[data-default]");
+    allInputs.forEach((field) => {
+        const key = field.id.replace("field-", "");
+        const kind = field.type === "checkbox" ? "bool" : "text";
+        const defaultValue = field.dataset.default;
+
+        // Обработка изменений input и checkbox
+        const handleChange = () => {
+            const hasChanged = isValueChanged(field, defaultValue);
+            updateIndicator(key, kind, defaultValue, hasChanged);
+
+            const resetFlag = document.getElementById("reset-" + key);
+            if (!hasChanged && resetFlag) {
+                // Если значение вернулось к дефолту, очищаем флаг сброса
                 resetFlag.value = "";
-                markCancelled();
             }
-        });
-        field.addEventListener("change", () => {
-            if (resetFlag && resetFlag.value === "1" && btn.dataset.kind === "bool") {
-                resetFlag.value = "";
-                markCancelled();
-            }
-        });
+        };
+
+        field.addEventListener("input", handleChange);
+        field.addEventListener("change", handleChange);
+    });
+
+    // Инициализация существующих кнопок сброса
+    document.querySelectorAll(".tag-reset-btn").forEach((btn) => {
+        attachResetButtonListener(btn, btn.dataset.resetFor, btn.dataset.kind, btn.dataset.default);
     });
 });
 </script>

@@ -25,22 +25,18 @@
                 <th>Email</th>
                 <th>Роль</th>
                 <th>Регистрация</th>
-                <th></th>
             </tr>
         </thead>
         <tbody>
             {% for u in page.items %}
-            <tr>
-                <td><a href="{{ url_for('panel.user_detail', pk=u.id) }}">{{ u.username }}</a></td>
+            <tr onclick="window.location.href='{{ url_for('panel.user_detail', pk=u.id) }}';">
+                <td>{{ u.username }}</td>
                 <td>{{ u.email or "—" }}</td>
                 <td><span class="role-badge role-{{ u.role }}">{{ u.role_display_ru }}</span></td>
                 <td>{{ u.created_at|localdt('%d.%m.%Y') }}</td>
-                <td class="table-actions">
-                    <a href="{{ url_for('panel.user_detail', pk=u.id) }}" class="link-more">Открыть →</a>
-                </td>
             </tr>
             {% else %}
-            <tr><td colspan="5" class="empty-hint">Ничего не найдено.</td></tr>
+            <tr><td colspan="4" class="empty-hint">Ничего не найдено.</td></tr>
             {% endfor %}
         </tbody>
     </table>
