@@ -15,7 +15,13 @@
         <div class="settings-row-label">
             <label for="field-{{ spec.key }}">{{ spec.label }}</label>
             {% if row.overridden %}
-                <span class="tag tag-accent">переопределено</span>
+                <button
+                    type="button"
+                    class="tag tag-accent tag-reset-btn"
+                    data-reset-for="{{ spec.key }}"
+                    data-kind="{{ spec.kind }}"
+                    data-default="{{ (row.default | int) if spec.kind == 'bool' else row.default }}"
+                >сбросить</button>
             {% else %}
                 <span class="tag">значение по умолчанию</span>
             {% endif %}
@@ -47,10 +53,7 @@
             {% endif %}
 
             {% if row.overridden %}
-            <label class="checkbox-label checkbox-label-reset">
-                <input type="checkbox" name="reset_{{ spec.key }}" value="1">
-                сбросить дефолтному значению
-            </label>
+            <input type="hidden" id="reset-{{ spec.key }}" name="reset_{{ spec.key }}" value="">
             {% endif %}
         </div>
     </div>
@@ -58,4 +61,51 @@
 
     <button type="submit" class="btn btn-primary">Сохранить</button>
 </form>
+{% endblock %}
+
+{% block scripts_extra %}
+<script>
+document.addEventListener("DOMContentLoaded", () => {
+    document.querySelectorAll(".tag-reset-btn").forEach((btn) => {
+        const key = btn.dataset.resetFor;
+        const field = document.getElementById("field-" + key);
+        const resetFlag = document.getElementById("reset-" + key);
+        if (!field) return;
+
+        const markPending = () => {
+            btn.classList.add("tag-reset-btn-pending");
+            btn.textContent = "сброшено";
+        };
+        const markCancelled = () => {
+            btn.classList.remove("tag-reset-btn-pending");
+            btn.textContent = "сбросить";
+        };
+
+        btn.addEventListener("click", () => {
+            if (btn.dataset.kind === "bool") {
+                field.checked = btn.dataset.default === "1";
+            } else {
+                field.value = btn.dataset.default;
+            }
+            if (resetFlag) resetFlag.value = "1";
+            markPending();
+        });
+
+        // Если после нажатия «сбросить» пользователь снова тронул поле руками —
+        // считаем, что он передумал, и просто сохраняем как обычное значение.
+        field.addEventListener("input", () => {
+            if (resetFlag && resetFlag.value === "1") {
+                resetFlag.value = "";
+                markCancelled();
+            }
+        });
+        field.addEventListener("change", () => {
+            if (resetFlag && resetFlag.value === "1" && btn.dataset.kind === "bool") {
+                resetFlag.value = "";
+                markCancelled();
+            }
+        });
+    });
+});
+</script>
 {% endblock %}

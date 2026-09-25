@@ -134,6 +134,31 @@ def is_runtime_setting_overridden(key: str) -> bool:
     return row is not None and row.value != ""
 
 
+def runtime_setting_unchanged(key: str, raw_value: str) -> bool:
+    """True, если raw_value (как пришло из формы), приведённое к типу настройки,
+    совпадает с текущим действующим значением. Нужно, чтобы сохранение формы не
+    создавало переопределение для полей, которые пользователь не трогал — иначе
+    каждое сохранение помечает ВСЕ настройки как «переопределено», а не только
+    ту, что реально изменили."""
+    spec = RUNTIME_SETTINGS_BY_KEY[key]
+    current = get_runtime_setting(key)
+
+    if spec.kind == "bool":
+        return (raw_value == "1") == bool(current)
+
+    raw = raw_value.strip()
+    try:
+        if spec.kind in ("int", "float"):
+            value = _cast(spec, raw.replace(",", "."))
+        else:
+            value = raw
+    except ValueError:
+        # Невалидное значение — не «unchanged», пусть set_runtime_setting
+        # сообщит об ошибке валидации как обычно.
+        return False
+    return value == current
+
+
 def set_runtime_setting(key: str, raw_value: str) -> None:
     """Валидирует и сохраняет переопределение. Бросает ValueError с русским сообщением."""
     spec = RUNTIME_SETTINGS_BY_KEY[key]

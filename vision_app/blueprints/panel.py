@@ -2,7 +2,7 @@
 
 from urllib.parse import urlparse
 
-from flask import Blueprint, flash, redirect, render_template, request, url_for
+from flask import Blueprint, current_app, flash, redirect, render_template, request, url_for
 from flask_login import current_user
 from sqlalchemy import func, select
 from sqlalchemy.orm import joinedload
@@ -15,6 +15,7 @@ from ..settings_store import (
     get_runtime_setting,
     is_runtime_setting_overridden,
     reset_runtime_setting,
+    runtime_setting_unchanged,
     set_runtime_setting,
 )
 from ..models import ROLE_CHOICES, ROLE_LABELS, AnalysisResult, Role, Status, User
@@ -235,6 +236,11 @@ def settings():
             # Невыбранный чекбокс браузер вообще не отправляет — это и есть "выключено",
             # поэтому дефолт при отсутствии ключа в форме — пустая строка, а не "1".
             raw = request.form.get(spec.key, "")
+            if runtime_setting_unchanged(spec.key, raw):
+                # Поле не трогали — не создаём/не трогаем переопределение. Иначе
+                # сохранение формы помечало бы «переопределено» вообще всё сразу,
+                # а не только реально изменённую настройку.
+                continue
             try:
                 set_runtime_setting(spec.key, raw)
             except ValueError as exc:
@@ -254,6 +260,7 @@ def settings():
             "spec": spec,
             "value": get_runtime_setting(spec.key),
             "overridden": is_runtime_setting_overridden(spec.key),
+            "default": current_app.config.get(spec.key),
         }
         for spec in RUNTIME_SETTINGS
     ]
