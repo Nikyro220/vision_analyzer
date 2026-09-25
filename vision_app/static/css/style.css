@@ -154,6 +154,7 @@ h1, h2, h3 {
     gap: 18px;
 }
 .panel-grid-uneven { grid-template-columns: 1.3fr 1fr; }
+.panel-grid-3 { grid-template-columns: repeat(3, 1fr); }
 
 .card {
     background: var(--bg-panel);
@@ -300,6 +301,30 @@ input:focus, select:focus {
 .link-more { display: inline-block; margin-top: 12px; font-size: 13px; }
 .empty-hint { color: var(--text-dim); font-size: 13.5px; }
 
+/* ---------------- Удаление аккаунта ---------------- */
+
+.danger-zone { margin-top: 18px; border-top: 1px dashed var(--border-soft); padding-top: 16px; }
+.danger-zone summary { cursor: pointer; color: var(--danger-strong); font-size: 13.5px; font-weight: 600; }
+.danger-zone[open] summary { margin-bottom: 12px; }
+.danger-zone-body { display: flex; flex-direction: column; gap: 10px; }
+.danger-zone-hint { font-size: 12.5px; color: var(--text-dim); }
+.sql-prompt {
+    display: block;
+    font-family: var(--font-mono);
+    font-size: 12.5px;
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 8px 10px;
+    word-break: break-all;
+}
+.no-select {
+    user-select: none;
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+}
+
 /* ---------------- Risk indicators ---------------- */
 
 .risk-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
@@ -434,7 +459,7 @@ input:focus, select:focus {
     .nav { flex-direction: row; flex-wrap: wrap; }
     .nav-divider { width: 100%; }
     .content { padding: 20px; }
-    .panel-grid, .panel-grid-uneven, .result-layout, .stat-grid { grid-template-columns: 1fr; }
+    .panel-grid, .panel-grid-uneven, .panel-grid-3, .result-layout, .stat-grid { grid-template-columns: 1fr; }
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -106,17 +106,54 @@ class LoginForm(FlaskForm):
     )
 
 
-class ProfileForm(FlaskForm):
+class AccountForm(FlaskForm):
+    """Редактирование данных аккаунта: свой профиль или (для админа) карточка пользователя."""
+
+    username = StringField(
+        "Ник",
+        validators=[
+            DataRequired("Введите логин."),
+            Length(max=150, message="Не более 150 символов."),
+            Regexp(r"^[\w.@+-]+$", message="Допустимы только буквы, цифры и символы @/./+/-/_"),
+        ],
+        render_kw={"placeholder": "Логин", "autocomplete": "username"},
+    )
     email = EmailField(
         "Email",
         validators=[Optional(), Email("Введите корректный адрес электронной почты."), Length(max=254)],
-        render_kw={"placeholder": "you@example.com"},
+        render_kw={"placeholder": "you@example.com", "autocomplete": "email"},
     )
     first_name = StringField(
         "Имя", validators=[Length(max=150)], render_kw={"placeholder": "Имя"}
     )
     last_name = StringField(
         "Фамилия", validators=[Length(max=150)], render_kw={"placeholder": "Фамилия"}
+    )
+
+    def __init__(self, *args, current_id: int | None = None, **kwargs):
+        """current_id — id редактируемого пользователя, чтобы не спотыкаться о его же логин."""
+        self._current_id = current_id
+        super().__init__(*args, **kwargs)
+
+    def validate_username(self, field):
+        stmt = select(func.count(User.id)).where(func.lower(User.username) == field.data.strip().lower())
+        if self._current_id is not None:
+            stmt = stmt.where(User.id != self._current_id)
+        if db.session.scalar(stmt):
+            raise ValidationError("Пользователь с таким логином уже существует.")
+
+
+# Обратная совместимость на случай, если что-то ещё импортирует старое имя.
+ProfileForm = AccountForm
+
+
+class DeleteAccountForm(FlaskForm):
+    """Подтверждение удаления аккаунта — тупо по приколу просим вручную ввести SQL-запрос."""
+
+    confirm_sql = StringField(
+        "Подтверждение",
+        validators=[DataRequired("Введите команду подтверждения.")],
+        render_kw={"placeholder": "DELETE FROM users WHERE id = ...;", "autocomplete": "off"},
     )
 
 

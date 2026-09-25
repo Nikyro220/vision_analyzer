@@ -9,7 +9,8 @@ from sqlalchemy.orm import joinedload
 
 from ..decorators import head_admin_required, staff_required
 from ..extensions import db
-from ..history import delete_finished
+from ..forms import AccountForm, DeleteAccountForm
+from ..history import delete_finished, delete_user_account
 from ..settings_store import (
     RUNTIME_SETTINGS,
     get_runtime_setting,
@@ -107,6 +108,10 @@ def user_detail(pk: int):
     ).all()
     history_count = db.session.scalar(select(func.count(AnalysisResult.id)).where(*finished))
 
+    edit_form = AccountForm(obj=target, current_id=target.id)
+    delete_form = DeleteAccountForm()
+    delete_sql = f"DELETE FROM users WHERE id = {target.id};"
+
     return render_template(
         "panel/user_detail.html",
         target=target,
@@ -115,7 +120,59 @@ def user_detail(pk: int):
         analyses=analyses,
         history_count=history_count,
         all_roles=ROLE_CHOICES,
+        edit_form=edit_form,
+        delete_form=delete_form,
+        delete_sql=delete_sql,
     )
+
+
+@bp.route("/users/<int:pk>/edit/", methods=["POST"])
+@staff_required
+def user_edit(pk: int):
+    """Изменение данных аккаунта (логин/email/имя/фамилия) со стороны админа."""
+    target = db.get_or_404(User, pk)
+
+    if not current_user.can_manage(target):
+        flash("У вас нет прав на изменение этого пользователя.", "error")
+        return redirect(url_for("panel.user_detail", pk=target.id))
+
+    form = AccountForm(current_id=target.id)
+    if form.validate_on_submit():
+        target.username = form.username.data.strip()
+        target.email = (form.email.data or "").strip()
+        target.first_name = (form.first_name.data or "").strip()
+        target.last_name = (form.last_name.data or "").strip()
+        db.session.commit()
+        flash(f"Данные пользователя «{target.username}» обновлены.", "success")
+    else:
+        for field_errors in form.errors.values():
+            for error in field_errors:
+                flash(error, "error")
+
+    return redirect(url_for("panel.user_detail", pk=target.id))
+
+
+@bp.route("/users/<int:pk>/delete/", methods=["POST"])
+@staff_required
+def user_delete(pk: int):
+    """Удаление аккаунта пользователя админом — с ручным подтверждением SQL-командой."""
+    target = db.get_or_404(User, pk)
+
+    if not current_user.can_manage(target):
+        flash("У вас нет прав на удаление этого пользователя.", "error")
+        return redirect(url_for("panel.user_detail", pk=target.id))
+
+    delete_sql = f"DELETE FROM users WHERE id = {target.id};"
+    form = DeleteAccountForm()
+
+    if form.validate_on_submit() and (form.confirm_sql.data or "").strip() == delete_sql:
+        username = target.username
+        delete_user_account(target)
+        flash(f"Аккаунт «{username}» удалён.", "success")
+        return redirect(url_for("panel.users_list"))
+
+    flash("Команда подтверждения введена неверно. Аккаунт не удалён.", "error")
+    return redirect(url_for("panel.user_detail", pk=target.id))
 
 
 @bp.route("/users/<int:pk>/set-role/", methods=["POST"])

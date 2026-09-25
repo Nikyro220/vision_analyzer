@@ -6,7 +6,7 @@
     <p class="page-sub">Основные данные вашего аккаунта.</p>
 </div>
 
-<div class="panel-grid">
+<div class="panel-grid panel-grid-3">
     <div class="card">
         <h2 class="card-title">Данные аккаунта</h2>
         <dl class="def-list">
@@ -18,11 +18,50 @@
 
     <div class="card">
         <h2 class="card-title">Изменить данные</h2>
-        <form method="post" class="form" novalidate>
+        <form method="post" action="{{ url_for('accounts.profile') }}" class="form" novalidate>
             {{ form.hidden_tag() }}
             {% include "partials/form_fields.html" %}
             <button type="submit" class="btn btn-primary">Сохранить</button>
         </form>
+
+        <details class="danger-zone">
+            <summary>Удалить аккаунт</summary>
+            <div class="danger-zone-body">
+                <p class="danger-zone-hint">Это необратимо: аккаунт и вся ваша история анализов будут удалены. Для подтверждения введите команду ниже вручную (скопировать её нельзя):</p>
+                <code class="sql-prompt no-select">{{ delete_sql }}</code>
+                <form method="post" action="{{ url_for('accounts.delete_own_account') }}" class="form"
+                      onsubmit="return confirm('Точно удалить аккаунт «{{ current_user.username }}»? Это нельзя отменить.')">
+                    {{ delete_form.hidden_tag() }}
+                    <div class="field">
+                        {{ delete_form.confirm_sql.label }}
+                        {{ delete_form.confirm_sql(autocomplete="off") }}
+                    </div>
+                    <button type="submit" class="btn btn-danger">Удалить аккаунт</button>
+                </form>
+            </div>
+        </details>
+    </div>
+
+    <div class="card">
+        <h2 class="card-title">История</h2>
+        {% if analyses %}
+        <ul class="mini-list">
+            {% for item in analyses %}
+            <li>
+                <a href="{{ url_for('analyzer.result_detail', pk=item.id) }}" class="mini-list-row">
+                    <span class="risk-dot risk-{{ item.risk_level }}"></span>
+                    <span class="mini-list-name">{{ (item.original_name or 'без имени')|trunc(28) }}</span>
+                    <span class="mini-list-date">{{ item.created_at|localdt('%d.%m %H:%M') }}</span>
+                </a>
+            </li>
+            {% endfor %}
+        </ul>
+        {% if history_count %}
+        <a href="{{ url_for('analyzer.history') }}" class="link-more">Вся история →</a>
+        {% endif %}
+        {% else %}
+        <p class="empty-hint">У вас пока нет завершённых анализов.</p>
+        {% endif %}
     </div>
 </div>
 {% endblock %}

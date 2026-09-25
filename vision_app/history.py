@@ -9,7 +9,7 @@ from flask import current_app
 from sqlalchemy import delete, func, select
 
 from .extensions import db
-from .models import AnalysisResult, Status
+from .models import AnalysisResult, Status, User
 
 log = logging.getLogger("vision_app.history")
 
@@ -73,3 +73,20 @@ def delete_finished(*conditions) -> int:
     # файлы удаляем только после успешного коммита
     remove_image_files([r.image_path for r in rows])
     return len(ids)
+
+
+def delete_user_account(user: User) -> None:
+    """Удаляет пользователя целиком: все его анализы (любого статуса) вместе с
+    файлами изображений, а затем саму учётную запись.
+
+    Записи AnalysisResult удалились бы каскадом на уровне БД (ondelete="CASCADE"),
+    но файлы изображений так не подчистить — поэтому собираем пути заранее.
+    """
+    paths = db.session.scalars(
+        select(AnalysisResult.image_path).where(AnalysisResult.user_id == user.id)
+    ).all()
+
+    db.session.delete(user)
+    db.session.commit()
+
+    remove_image_files([p for p in paths if p])

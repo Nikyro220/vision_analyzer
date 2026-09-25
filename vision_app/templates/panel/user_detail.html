@@ -6,10 +6,21 @@
     <p class="page-sub">{{ target.email or "Email не указан" }} · зарегистрирован {{ target.created_at|localdt('%d.%m.%Y %H:%M') }}</p>
 </div>
 
-<div class="panel-grid">
+<div class="panel-grid panel-grid-3">
     <div class="card">
-        <h2 class="card-title">Текущая роль</h2>
-        <p><span class="role-badge role-{{ target.role }} role-badge-lg">{{ target.role_display_ru }}</span></p>
+        <h2 class="card-title">Данные аккаунта</h2>
+        <dl class="def-list">
+            <dt>Логин</dt><dd>{{ target.username }}</dd>
+            <dt>Роль</dt><dd><span class="role-badge role-{{ target.role }}">{{ target.role_display_ru }}</span></dd>
+            <dt>Email</dt><dd>{{ target.email or "—" }}</dd>
+            <dt>Имя</dt><dd>{{ target.first_name or "—" }}</dd>
+            <dt>Фамилия</dt><dd>{{ target.last_name or "—" }}</dd>
+            <dt>Дата регистрации</dt><dd>{{ target.created_at|localdt('%d.%m.%Y %H:%M') }}</dd>
+        </dl>
+    </div>
+
+    <div class="card">
+        <h2 class="card-title">Изменить данные</h2>
 
         {% if can_manage and assignable_roles %}
         <form method="post" action="{{ url_for('panel.user_set_role', pk=target.id) }}" class="form form-inline">
@@ -37,10 +48,37 @@
             {% endif %}
         </form>
         {% endif %}
+
+        {% if can_manage %}
+        <h2 class="card-title">Данные профиля</h2>
+        <form method="post" action="{{ url_for('panel.user_edit', pk=target.id) }}" class="form" novalidate>
+            {{ edit_form.hidden_tag() }}
+            {% set form = edit_form %}
+            {% include "partials/form_fields.html" %}
+            <button type="submit" class="btn btn-primary">Сохранить</button>
+        </form>
+
+        <details class="danger-zone">
+            <summary>Удалить аккаунт</summary>
+            <div class="danger-zone-body">
+                <p class="danger-zone-hint">Это необратимо: аккаунт и вся история анализов пользователя «{{ target.username }}» будут удалены. Для подтверждения введите команду ниже вручную (скопировать её нельзя):</p>
+                <code class="sql-prompt no-select">{{ delete_sql }}</code>
+                <form method="post" action="{{ url_for('panel.user_delete', pk=target.id) }}" class="form"
+                      onsubmit="return confirm('Точно удалить аккаунт «{{ target.username }}»? Это нельзя отменить.')">
+                    {{ delete_form.hidden_tag() }}
+                    <div class="field">
+                        {{ delete_form.confirm_sql.label }}
+                        {{ delete_form.confirm_sql(autocomplete="off") }}
+                    </div>
+                    <button type="submit" class="btn btn-danger">Удалить аккаунт</button>
+                </form>
+            </div>
+        </details>
+        {% endif %}
     </div>
 
     <div class="card">
-        <h2 class="card-title">Последние анализы</h2>
+        <h2 class="card-title">История</h2>
         {% if analyses %}
         <ul class="mini-list">
             {% for item in analyses %}

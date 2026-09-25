@@ -134,11 +134,15 @@ class User(UserMixin, db.Model):
         return False
 
     def assignable_roles(self) -> list[str]:
-        """Какие роли self может назначать другим (в рамках can_manage)."""
+        """Какие роли self может назначать другим (в рамках can_manage).
+
+        «Заблокирован» сюда не входит — для блокировки есть отдельная
+        кнопка (toggle-block), а не выпадающий список ролей.
+        """
         if self.role == Role.HEAD_ADMIN:
-            return [Role.BLOCKED, Role.USER, Role.ADMIN, Role.HEAD_ADMIN]
+            return [Role.USER, Role.ADMIN, Role.HEAD_ADMIN]
         if self.role == Role.ADMIN:
-            return [Role.BLOCKED, Role.USER]
+            return [Role.USER]
         return []
 
     def __repr__(self) -> str:

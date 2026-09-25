@@ -5,8 +5,9 @@ from flask_login import current_user, login_required, login_user, logout_user
 from sqlalchemy import func, select
 
 from ..extensions import db
-from ..forms import LoginForm, ProfileForm, RegisterForm
-from ..models import Role, User
+from ..forms import AccountForm, DeleteAccountForm, LoginForm, RegisterForm
+from ..history import delete_user_account
+from ..models import AnalysisResult, Role, Status, User
 from ..utils import is_safe_next
 
 bp = Blueprint("accounts", __name__, url_prefix="/accounts")
@@ -95,12 +96,52 @@ def blocked():
 @bp.route("/profile/", methods=["GET", "POST"])
 @login_required
 def profile():
-    form = ProfileForm(obj=current_user)
+    form = AccountForm(obj=current_user, current_id=current_user.id)
+    delete_form = DeleteAccountForm()
+
     if form.validate_on_submit():
+        current_user.username = form.username.data.strip()
         current_user.email = (form.email.data or "").strip()
         current_user.first_name = (form.first_name.data or "").strip()
         current_user.last_name = (form.last_name.data or "").strip()
         db.session.commit()
-        flash("Профиль обновлён.", "success")
+        flash("Данные аккаунта обновлены.", "success")
         return redirect(url_for("accounts.profile"))
-    return render_template("accounts/profile.html", form=form)
+
+    finished = (AnalysisResult.user_id == current_user.id, AnalysisResult.status == Status.DONE)
+    analyses = db.session.scalars(
+        select(AnalysisResult)
+        .where(*finished)
+        .order_by(AnalysisResult.created_at.desc(), AnalysisResult.id.desc())
+        .limit(10)
+    ).all()
+    history_count = db.session.scalar(select(func.count(AnalysisResult.id)).where(*finished))
+
+    delete_sql = f"DELETE FROM users WHERE id = {current_user.id};"
+
+    return render_template(
+        "accounts/profile.html",
+        form=form,
+        delete_form=delete_form,
+        delete_sql=delete_sql,
+        analyses=analyses,
+        history_count=history_count,
+    )
+
+
+@bp.route("/profile/delete/", methods=["POST"])
+@login_required
+def delete_own_account():
+    form = DeleteAccountForm()
+    delete_sql = f"DELETE FROM users WHERE id = {current_user.id};"
+
+    if form.validate_on_submit() and (form.confirm_sql.data or "").strip() == delete_sql:
+        username = current_user.username
+        user = current_user._get_current_object()
+        logout_user()
+        delete_user_account(user)
+        flash(f"Аккаунт «{username}» удалён.", "success")
+        return redirect(url_for("accounts.login"))
+
+    flash("Команда подтверждения введена неверно. Аккаунт не удалён.", "error")
+    return redirect(url_for("accounts.profile"))

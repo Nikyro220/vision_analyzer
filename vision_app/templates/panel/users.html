@@ -28,7 +28,7 @@
             </tr>
         </thead>
         <tbody>
-            {% for u in page.items %}
+            {% for u in page.items %}rwwww
             <tr onclick="window.location.href='{{ url_for('panel.user_detail', pk=u.id) }}';">
                 <td>{{ u.username }}</td>
                 <td>{{ u.email or "—" }}</td>
@@ -40,7 +40,7 @@
             {% endfor %}
         </tbody>
     </table>
-</div>
+</div>  
 
 {% include "partials/pagination.html" %}
 {% endblock %}
