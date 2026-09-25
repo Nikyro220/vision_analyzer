@@ -10,6 +10,13 @@ from sqlalchemy.orm import joinedload
 from ..decorators import head_admin_required, staff_required
 from ..extensions import db
 from ..history import delete_finished
+from ..settings_store import (
+    RUNTIME_SETTINGS,
+    get_runtime_setting,
+    is_runtime_setting_overridden,
+    reset_runtime_setting,
+    set_runtime_setting,
+)
 from ..models import ROLE_CHOICES, ROLE_LABELS, AnalysisResult, Role, Status, User
 from ..services import VisionApiError, check_health
 from ..utils import paginate, plural
@@ -209,3 +216,45 @@ def user_clear_history(pk: int):
     else:
         flash(f"У пользователя «{target.username}» нет завершённых анализов.", "info")
     return redirect(url_for("panel.user_detail", pk=target.id))
+
+
+@bp.route("/settings/", methods=["GET", "POST"])
+@head_admin_required
+def settings():
+    """Настройки очереди и клиента vision-сервера — меняются на ходу, без перезапуска.
+
+    Хранятся в БД (см. settings_store.py); значение по умолчанию берётся из .env/Config,
+    пока главный админ явно его не переопределит здесь.
+    """
+    if request.method == "POST":
+        errors = []
+        for spec in RUNTIME_SETTINGS:
+            if request.form.get(f"reset_{spec.key}"):
+                reset_runtime_setting(spec.key)
+                continue
+            # Невыбранный чекбокс браузер вообще не отправляет — это и есть "выключено",
+            # поэтому дефолт при отсутствии ключа в форме — пустая строка, а не "1".
+            raw = request.form.get(spec.key, "")
+            try:
+                set_runtime_setting(spec.key, raw)
+            except ValueError as exc:
+                errors.append(str(exc))
+
+        if errors:
+            db.session.rollback()
+            for message in errors:
+                flash(message, "error")
+        else:
+            db.session.commit()
+            flash("Настройки сохранены.", "success")
+        return redirect(url_for("panel.settings"))
+
+    rows = [
+        {
+            "spec": spec,
+            "value": get_runtime_setting(spec.key),
+            "overridden": is_runtime_setting_overridden(spec.key),
+        }
+        for spec in RUNTIME_SETTINGS
+    ]
+    return render_template("panel/settings.html", rows=rows)

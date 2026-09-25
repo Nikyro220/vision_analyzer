@@ -27,6 +27,16 @@ class Config:
     VISION_API_BASE_URL = os.environ.get("VISION_API_BASE_URL", "http://127.0.0.1:6769")
     VISION_API_TIMEOUT = int(os.environ.get("VISION_API_TIMEOUT", "500"))
 
+    # --- Очередь анализов ---
+    # Это дефолты уровня .env/окружения. Главный админ может переопределить их на
+    # ходу в /panel/settings/ (settings_store.py) — тогда в дело идёт значение из БД,
+    # а эти остаются запасным вариантом, если переопределения ещё/уже нет.
+    QUEUE_WORKER_ENABLED = os.environ.get("QUEUE_WORKER_ENABLED", "1") == "1"
+    QUEUE_WORKERS = int(os.environ.get("QUEUE_WORKERS", "1"))
+    QUEUE_POLL_SECONDS = float(os.environ.get("QUEUE_POLL_SECONDS", "5"))
+    QUEUE_MAX_FILES_PER_UPLOAD = int(os.environ.get("QUEUE_MAX_FILES_PER_UPLOAD", "20"))
+    QUEUE_MAX_PENDING_PER_USER = int(os.environ.get("QUEUE_MAX_PENDING_PER_USER", "30"))
+
     # Часовой пояс для отображения дат (в БД всё хранится в UTC).
     TIMEZONE = os.environ.get("APP_TIMEZONE", "Asia/Aqtobe")
 

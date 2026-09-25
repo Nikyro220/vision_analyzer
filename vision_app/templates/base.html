@@ -48,6 +48,9 @@
             <a class="nav-link {% if ep == 'panel.stats' %}is-active{% endif %}" href="{{ url_for('panel.stats') }}">
                 <span class="nav-ic">◆</span> Обзор
             </a>
+            <a class="nav-link {% if ep == 'panel.settings' %}is-active{% endif %}" href="{{ url_for('panel.settings') }}">
+                <span class="nav-ic">⚙</span> Настройки
+            </a>
             {% endif %}
             <a class="nav-link {% if ep in ('panel.users_list', 'panel.user_detail') %}is-active{% endif %}" href="{{ url_for('panel.users_list') }}">
                 <span class="nav-ic">◎</span> Пользователи

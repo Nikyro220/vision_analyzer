@@ -8,12 +8,15 @@
   Только после этого запись появляется в истории.
 * Очередь хранится в БД, поэтому переживает перезагрузку страницы, закрытие вкладки
   и перезапуск приложения (прерванные задачи при старте возвращаются в очередь).
-* Обрабатывается ОДНО изображение за раз — локальная модель всё равно не потянет параллельно.
+* Обрабатывается по одной задаче на КАЖДЫЙ поток-обработчик; их количество задаёт
+  QUEUE_WORKERS (по умолчанию 1). QUEUE_WORKERS, QUEUE_WORKER_ENABLED и QUEUE_POLL_SECONDS
+  можно менять на ходу в /panel/settings/ (главный админ) — без перезапуска приложения.
 
-Запуск: поток стартует лениво, при первом запросе к приложению (ensure_worker), поэтому
-не мешает служебным командам flask и родительскому процессу перезагрузчика Werkzeug.
+Запуск: потоки стартуют лениво, при первом запросе к приложению (ensure_worker), поэтому
+не мешают служебным командам flask и родительскому процессу перезагрузчика Werkzeug.
 Приложение рассчитано на ОДИН процесс (например, gunicorn -w 1 --threads 4). При нескольких
-процессах задачи не задвоятся (захват атомарный), но обрабатываться будут параллельно.
+процессах задачи не задвоятся (захват атомарный), но обрабатываться будут параллельно и
+между процессами — суммарное число одновременных задач тогда будет больше, чем QUEUE_WORKERS.
 """
 
 from __future__ import annotations
@@ -29,7 +32,7 @@ from sqlalchemy import or_, select, update
 from .extensions import db
 from .models import AnalysisResult, Status, utcnow
 from .services import VisionApiError, analyze_image
-from .settings_store import get_analysis_target
+from .settings_store import get_analysis_target, get_runtime_setting
 
 log = logging.getLogger("vision_app.queue")
 
@@ -206,7 +209,6 @@ class QueueWorker(threading.Thread):
         self._wake.set()
 
     def run(self) -> None:
-        poll = float(self.app.config.get("QUEUE_POLL_SECONDS", 5))
         log.info("Очередь: обработчик #%d запущен", self.index)
 
         while not self._stop_requested.is_set():
@@ -217,6 +219,11 @@ class QueueWorker(threading.Thread):
                 busy = False
                 time.sleep(2)
             if not busy:
+                # Читаем интервал заново на каждом холостом цикле (а не один раз при
+                # запуске потока) — так изменение в /panel/settings/ действует сразу,
+                # а не только для новых потоков.
+                with self.app.app_context():
+                    poll = float(get_runtime_setting("QUEUE_POLL_SECONDS"))
                 self._wake.wait(timeout=poll)
                 self._wake.clear()
         log.info("Очередь: обработчик #%d остановлен", self.index)
@@ -228,44 +235,71 @@ def _real_app(app):
 
 
 def worker_enabled(app) -> bool:
-    """Обработчик выключен в тестах и при QUEUE_WORKER_ENABLED=False."""
-    return bool(app.config.get("QUEUE_WORKER_ENABLED", True)) and not app.config.get("TESTING")
+    """Обработчик выключен в тестах и при QUEUE_WORKER_ENABLED=False (.env или /panel/settings/)."""
+    if app.config.get("TESTING"):
+        return False
+    with app.app_context():
+        return bool(get_runtime_setting("QUEUE_WORKER_ENABLED"))
 
 
 def worker_count(app) -> int:
-    """Сколько потоков-обработчиков держать одновременно (QUEUE_WORKERS, по умолчанию 1)."""
+    """Сколько потоков-обработчиков держать одновременно (QUEUE_WORKERS: .env или /panel/settings/)."""
+    with app.app_context():
+        try:
+            n = int(get_runtime_setting("QUEUE_WORKERS"))
+        except (TypeError, ValueError):
+            n = 1
+    return min(max(n, 1), 8)  # разумный потолок, чтобы опечатка в настройке не завела 100 потоков
+
+
+# Приложения, для которых уже когда-либо выполнялся _bootstrap_once (возврат в очередь
+# задач, прерванных предыдущим запуском). Делается один раз за всё время жизни процесса,
+# а не при каждом включении QUEUE_WORKER_ENABLED через /panel/settings/.
+_bootstrapped: set[int] = set()
+
+
+def _bootstrap_once(app, key: int) -> None:
+    if key in _bootstrapped:
+        return
+    _bootstrapped.add(key)
     try:
-        n = int(app.config.get("QUEUE_WORKERS", 1))
-    except (TypeError, ValueError):
-        n = 1
-    return min(max(n, 1), 8)  # разумный потолок, чтобы опечатка в конфиге не завела 100 потоков
+        n = requeue_interrupted(app)
+        if n:
+            log.info("Очередь: возвращено в очередь прерванных задач: %d", n)
+    except Exception:  # noqa: BLE001
+        log.exception("Очередь: не удалось вернуть прерванные задачи")
 
 
 def ensure_worker(app) -> list[QueueWorker]:
-    """Гарантирует, что запущено ровно worker_count(app) потоков (недостающие — стартует,
-    умершие — заменяет). Возвращает текущий список живых потоков."""
+    """Приводит число живых потоков к worker_count(app): запускает недостающие,
+    останавливает лишние (например, после уменьшения QUEUE_WORKERS в настройках),
+    заменяет умершие. Если обработка выключена (QUEUE_WORKER_ENABLED=False) —
+    останавливает все потоки и возвращает пустой список. Ничего не блокирует:
+    остановка — это только сигнал потоку, без ожидания его завершения, поэтому
+    вызов из обработчика HTTP-запроса не подвисает."""
     app = _real_app(app)
     key = id(app)
-    target = worker_count(app)
 
+    if not worker_enabled(app):
+        with _registry_lock:
+            workers = _workers.pop(key, [])
+        for worker in workers:
+            worker.shutdown()
+        return []
+
+    target = worker_count(app)
     workers = _workers.get(key) or []
     if len(workers) == target and all(w.is_alive() for w in workers):
         return workers
 
     with _registry_lock:
         workers = [w for w in _workers.get(key, []) if w.is_alive()]
-        if not workers and not _workers.get(key):
-            # Первый запуск для этого приложения — до старта потоков подчищаем задачи,
-            # оставшиеся «в обработке» от предыдущего запуска. Делаем это один раз,
-            # а не в каждом потоке, иначе при QUEUE_WORKERS > 1 лог засорился бы дублями.
-            try:
-                n = requeue_interrupted(app)
-                if n:
-                    log.info("Очередь: возвращено в очередь прерванных задач: %d", n)
-            except Exception:  # noqa: BLE001
-                log.exception("Очередь: не удалось вернуть прерванные задачи")
+        _bootstrap_once(app, key)
 
-        while len(workers) < target:
+        while len(workers) > target:  # QUEUE_WORKERS уменьшили — лишним просто говорим остановиться
+            workers.pop().shutdown()
+
+        while len(workers) < target:  # QUEUE_WORKERS увеличили (или первый запуск) — стартуем недостающих
             worker = QueueWorker(app, index=len(workers) + 1)
             worker.start()
             workers.append(worker)
@@ -276,10 +310,8 @@ def ensure_worker(app) -> list[QueueWorker]:
 
 def wake_worker(app) -> None:
     """Будит обработчиков после добавления задач (и запускает их, если они не запущены)."""
-    app = _real_app(app)
-    if worker_enabled(app):
-        for worker in ensure_worker(app):
-            worker.wake()
+    for worker in ensure_worker(app):
+        worker.wake()
 
 
 def stop_worker(app) -> None:

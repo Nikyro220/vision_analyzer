@@ -116,7 +116,9 @@ def queue_snapshot() -> dict:
 
 def _enqueue_uploads(form: ImageUploadForm):
     """Кладёт проверенные файлы в очередь и сразу возвращает пользователя на страницу."""
-    limit = current_app.config.get("QUEUE_MAX_PENDING_PER_USER", 30)
+    from ..settings_store import get_runtime_setting
+
+    limit = get_runtime_setting("QUEUE_MAX_PENDING_PER_USER") or 30
     pending_now = db.session.scalar(
         select(func.count(AnalysisResult.id)).where(
             AnalysisResult.user_id == current_user.id, AnalysisResult.status != Status.DONE 

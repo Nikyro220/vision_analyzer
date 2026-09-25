@@ -46,11 +46,15 @@ class AnalysisOutcome:
 
 
 def _base_url() -> str:
-    return current_app.config.get("VISION_API_BASE_URL", "http://127.0.0.1:6769").rstrip("/")
+    from .settings_store import get_runtime_setting  # локальный импорт — settings_store импортирует BACKENDS отсюда
+
+    return (get_runtime_setting("VISION_API_BASE_URL") or "http://127.0.0.1:6769").rstrip("/")
 
 
 def _timeout() -> int:
-    return current_app.config.get("VISION_API_TIMEOUT", 120)
+    from .settings_store import get_runtime_setting
+
+    return get_runtime_setting("VISION_API_TIMEOUT") or 120
 
 
 def check_health() -> dict:

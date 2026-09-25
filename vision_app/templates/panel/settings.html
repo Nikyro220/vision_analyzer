@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% block title %}Настройки{% endblock %}
+{% block content %}
+<div class="page-header">
+    <h1>Настройки</h1>
+    <p class="page-sub">Очередь анализов и клиент сервера анализа. Действуют сразу, без перезапуска приложения.</p>
+</div>
+
+<form method="post" class="card settings-form" novalidate>
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+    {% for row in rows %}
+    {% set spec = row.spec %}
+    <div class="settings-row">
+        <div class="settings-row-label">
+            <label for="field-{{ spec.key }}">{{ spec.label }}</label>
+            {% if row.overridden %}
+                <span class="tag tag-accent">переопределено</span>
+            {% else %}
+                <span class="tag">значение по умолчанию</span>
+            {% endif %}
+            {% if spec.hint %}<p class="field-hint">{{ spec.hint }}</p>{% endif %}
+        </div>
+
+        <div class="settings-row-control">
+            {% if spec.kind == "bool" %}
+            <label class="checkbox-label">
+                <input type="checkbox" id="field-{{ spec.key }}" name="{{ spec.key }}" value="1" {% if row.value %}checked{% endif %}>
+                включено
+            </label>
+            {% else %}
+            <input
+                type="text"
+                inputmode="{{ 'decimal' if spec.kind in ('int', 'float') else 'text' }}"
+                id="field-{{ spec.key }}"
+                name="{{ spec.key }}"
+                value="{{ row.value }}"
+                class="input"
+                {% if spec.min is not none %}data-min="{{ spec.min }}"{% endif %}
+                {% if spec.max is not none %}data-max="{{ spec.max }}"{% endif %}
+            >
+            {% if spec.min is not none or spec.max is not none %}
+            <span class="field-hint">
+                Допустимо: {% if spec.min is not none %}от {{ spec.min }}{% endif %}{% if spec.max is not none %} до {{ spec.max }}{% endif %}
+            </span>
+            {% endif %}
+            {% endif %}
+
+            {% if row.overridden %}
+            <label class="checkbox-label checkbox-label-reset">
+                <input type="checkbox" name="reset_{{ spec.key }}" value="1">
+                сбросить дефолтному значению
+            </label>
+            {% endif %}
+        </div>
+    </div>
+    {% endfor %}
+
+    <button type="submit" class="btn btn-primary">Сохранить</button>
+</form>
+{% endblock %}

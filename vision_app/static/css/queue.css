@@ -120,3 +120,24 @@
     .file-row { flex-wrap: wrap; }
     .file-row input[type="text"] { flex-basis: 100%; order: 3; }
 }
+
+/* страница /panel/settings/ */
+.settings-form { display: flex; flex-direction: column; gap: 18px; }
+.settings-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 320px);
+    gap: 16px;
+    align-items: start;
+    padding-bottom: 16px;
+    border-bottom: 1px solid var(--border-soft);
+}
+.settings-row:last-of-type { border-bottom: 0; padding-bottom: 0; }
+.settings-row-label label { font-weight: 600; }
+.settings-row-label .tag { margin-top: 6px; display: inline-block; }
+.settings-row-label .field-hint { margin-top: 6px; }
+.settings-row-control { display: flex; flex-direction: column; gap: 6px; }
+.checkbox-label-reset { color: var(--text-dim); font-size: 12.5px; }
+
+@media (max-width: 640px) {
+    .settings-row { grid-template-columns: 1fr; }
+}

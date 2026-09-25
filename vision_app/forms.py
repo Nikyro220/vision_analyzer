@@ -164,8 +164,10 @@ class ImageUploadForm(FlaskForm):
         self.accepted, self.rejected = [], []
 
         files = [f for f in (field.data or []) if getattr(f, "filename", "")]
+        from .settings_store import get_runtime_setting
+
         raw_captions = request.form.getlist("captions")
-        max_files = current_app.config.get("QUEUE_MAX_FILES_PER_UPLOAD", 20)
+        max_files = get_runtime_setting("QUEUE_MAX_FILES_PER_UPLOAD") or 20
         if len(files) > max_files:
             raise ValidationError(f"За один раз можно загрузить не больше {max_files} файлов.")
 
