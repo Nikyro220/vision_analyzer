@@ -1,0 +1,54 @@
+<form method="post" action="{{ url_for('analyzer.delete_selected') }}" id="bulk-delete-form" data-bulk-delete-form>
+<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+<input type="hidden" name="next" value="{{ request.full_path.rstrip('?') }}">
+<div class="table-wrap">
+    <table class="data-table">
+        <thead>
+            <tr>
+                <th class="col-check"><input type="checkbox" data-select-all aria-label="Выбрать все на странице"></th>
+                <th>Файл</th>
+                <th>Пользователь</th>
+                <th>Риск</th>
+                <th>Проверка</th>
+                <th>Дата</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for item in page.items %}
+            <tr class="row-clickable" data-href="{{ url_for('analyzer.result_detail', pk=item.id) }}">
+                <td class="col-check" onclick="event.stopPropagation()"><input type="checkbox" name="ids" value="{{ item.id }}" aria-label="Выбрать запись {{ item.id }}"></td>
+                <td>{{ (item.original_name or '—')|trunc(36) }}</td>
+                <td>{{ item.user.username }}</td>
+                <td><span class="risk-pill risk-pill-{{ item.risk_level }}">{{ item.risk_level_display }}</span></td>
+                <td>{% if item.needs_human_review %}<span class="tag tag-warn">да</span>{% else %}<span class="tag">нет</span>{% endif %}</td>
+                <td>{{ item.created_at|localdt('%d.%m.%Y %H:%M') }}</td>
+            </tr>
+            {% else %}
+            <tr><td colspan="6" class="empty-hint">Ничего не найдено.</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% if page.items %}
+<div class="bulk-bar">
+    <button type="submit" class="btn btn-danger" data-bulk-delete-btn
+            onclick="return confirm('Удалить выбранные записи вместе с изображениями? Это нельзя отменить.')">Удалить выбранные</button>
+    <span class="field-hint" data-selected-hint hidden></span>
+</div>
+{% endif %}
+</form>
+
+{% if page.total %}
+<form method="post" action="{{ url_for('panel.analyses_delete_filtered') }}" class="bulk-bar bulk-bar-danger" data-delete-filtered-form
+      onsubmit="return confirm('Удалить ВСЕ найденные записи ({{ page.total }} шт.) вместе с изображениями — не только с этой страницы? Это нельзя отменить.')">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <input type="hidden" name="risk" value="{{ request.args.get('risk', '') }}" data-filter-mirror="risk">
+    <input type="hidden" name="review" value="{{ request.args.get('review', '') }}" data-filter-mirror="review">
+    <input type="hidden" name="q" value="{{ request.args.get('q', '') }}" data-filter-mirror="q">
+    <input type="hidden" name="user" value="{{ request.args.get('user', '') }}" data-filter-mirror="user">
+    <button type="submit" class="btn btn-danger">Удалить все найденные ({{ page.total }})</button>
+    <span class="field-hint" data-filtered-hint>{% if request.args.get('risk') or request.args.get('review') or request.args.get('q') or request.args.get('user') %}По текущему фильтру, со всех страниц.{% else %}Фильтр не задан — будет удалена вся история системы.{% endif %}</span>
+</form>
+{% endif %}
+
+{% include "partials/pagination.html" %}

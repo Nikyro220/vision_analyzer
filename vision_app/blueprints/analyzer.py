@@ -41,13 +41,17 @@ bp = Blueprint("analyzer", __name__)
 _FILES = ("файл", "файла", "файлов")
 
 
-def _own_results():
-    """История пользователя — только ЗАВЕРШЁННЫЕ анализы (очередь показывается отдельно)."""
-    return (
-        select(AnalysisResult)
-        .where(AnalysisResult.user_id == current_user.id, AnalysisResult.status == Status.DONE)
-        .order_by(AnalysisResult.created_at.desc(), AnalysisResult.id.desc())
+def _own_results(q: str = ""):
+    """История пользователя — только ЗАВЕРШЁННЫЕ анализы (очередь показывается отдельно).
+
+    ``q`` — необязательный поиск по имени файла.
+    """
+    stmt = select(AnalysisResult).where(
+        AnalysisResult.user_id == current_user.id, AnalysisResult.status == Status.DONE
     )
+    if q:
+        stmt = stmt.where(AnalysisResult.original_name.icontains(q, autoescape=True))
+    return stmt.order_by(AnalysisResult.created_at.desc(), AnalysisResult.id.desc())
 
 
 def _can_view(result: AnalysisResult) -> bool:
@@ -227,7 +231,19 @@ def cancel_queued(pk: int):
 @bp.route("/history/")
 @login_required
 def history():
-    page = paginate(_own_results(), per_page=12)
+    q = request.args.get("q", "").strip()
+    page = paginate(_own_results(q), per_page=12)
+
+    # Запрос из JS-фильтра (см. static/js/list-filter.js): отдаём только фрагмент
+    # с таблицей/пагинацией, без перерисовки всей страницы.
+    if request.headers.get("X-Requested-With") == "fetch":
+        html = render_template(
+            "analyzer/_history_results.html",
+            page=page,
+            can_delete=current_user.is_panel_staff,
+        )
+        return jsonify(html=html, total=page.total, pages=page.pages, page_num=page.page)
+
     new_count = db.session.scalar(
         select(func.count(AnalysisResult.id)).where(
             AnalysisResult.user_id == current_user.id,
@@ -235,7 +251,7 @@ def history():
             AnalysisResult.is_new.is_(True),
         )
     )
-    return render_template("analyzer/history.html", page=page, new_count=new_count)
+    return render_template("analyzer/history.html", page=page, new_count=new_count, q=q)
 
 @bp.route("/history/mark-seen/", methods=["POST"])
 @login_required

@@ -2,7 +2,7 @@
 
 from urllib.parse import urlparse
 
-from flask import Blueprint, current_app, flash, redirect, render_template, request, url_for
+from flask import Blueprint, current_app, flash, jsonify, redirect, render_template, request, url_for
 from flask_login import current_user
 from sqlalchemy import func, select
 from sqlalchemy.orm import joinedload
@@ -223,24 +223,33 @@ def user_toggle_block(pk: int):
     return redirect(_safe_referrer(url_for("panel.users_list")))
 
 
-def _analysis_filters() -> tuple[list, str, bool]:
-    """Условия фильтра для «Все анализы» (только завершённые) + значения для формы."""
+def _analysis_filters() -> tuple[list, str, bool, str, str]:
+    """Условия фильтра для «Все анализы» (только завершённые) + значения для формы.
+
+    Поддерживает поиск по имени файла (``q``) и по имени пользователя (``user``).
+    """
     risk_filter = request.args.get("risk", request.form.get("risk", "")).strip()
     review_only = (request.args.get("review") or request.form.get("review")) == "1"
+    query = request.args.get("q", request.form.get("q", "")).strip()
+    user_query = request.args.get("user", request.form.get("user", "")).strip()
 
     conditions = [AnalysisResult.status == Status.DONE]
     if risk_filter:
         conditions.append(AnalysisResult.risk_level == risk_filter)
     if review_only:
         conditions.append(AnalysisResult.needs_human_review.is_(True))
-    return conditions, risk_filter, review_only
+    if query:
+        conditions.append(AnalysisResult.original_name.icontains(query, autoescape=True))
+    if user_query:
+        conditions.append(AnalysisResult.user.has(User.username.icontains(user_query, autoescape=True)))
+    return conditions, risk_filter, review_only, query, user_query
 
 
 @bp.route("/analyses/")
 @staff_required
 def analyses_list():
     """Все завершённые анализы в системе — для модерации."""
-    conditions, risk_filter, review_only = _analysis_filters()
+    conditions, risk_filter, review_only, query, user_query = _analysis_filters()
     stmt = (
         select(AnalysisResult)
         .options(joinedload(AnalysisResult.user))
@@ -248,8 +257,19 @@ def analyses_list():
         .order_by(AnalysisResult.created_at.desc(), AnalysisResult.id.desc())
     )
     page = paginate(stmt, per_page=20)
+
+    # Запрос из JS-фильтра: отдаём только фрагмент с таблицей/пагинацией.
+    if request.headers.get("X-Requested-With") == "fetch":
+        html = render_template("panel/_analyses_results.html", page=page)
+        return jsonify(html=html, total=page.total, pages=page.pages, page_num=page.page)
+
     return render_template(
-        "panel/analyses.html", page=page, risk_filter=risk_filter, review_only=review_only
+        "panel/analyses.html",
+        page=page,
+        risk_filter=risk_filter,
+        review_only=review_only,
+        query=query,
+        user_query=user_query,
     )
 
 
@@ -257,10 +277,18 @@ def analyses_list():
 @staff_required
 def analyses_delete_filtered():
     """Удалить ВСЕ завершённые анализы, подходящие под текущий фильтр (не только с этой страницы)."""
-    conditions, risk_filter, review_only = _analysis_filters()
+    conditions, risk_filter, review_only, query, user_query = _analysis_filters()
     count = delete_finished(*conditions[1:])  # первый пункт (status=done) delete_finished добавляет сам
     flash(f"Удалено записей: {count}." if count else "Нечего удалять.", "success" if count else "info")
-    return redirect(url_for("panel.analyses_list", risk=risk_filter or None, review="1" if review_only else None))
+    return redirect(
+        url_for(
+            "panel.analyses_list",
+            risk=risk_filter or None,
+            review="1" if review_only else None,
+            q=query or None,
+            user=user_query or None,
+        )
+    )
 
 
 @bp.route("/users/<int:pk>/clear-history/", methods=["POST"])

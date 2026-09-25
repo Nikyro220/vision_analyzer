@@ -1,0 +1,46 @@
+{% if page.items %}
+{% if can_delete %}
+<form method="post" action="{{ url_for('analyzer.delete_selected') }}" id="bulk-delete-form" data-bulk-delete-form>
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <input type="hidden" name="next" value="{{ request.full_path.rstrip('?') }}">
+{% endif %}
+<div class="table-wrap">
+    <table class="data-table">
+        <thead>
+            <tr>
+                {% if can_delete %}<th class="col-check"><input type="checkbox" data-select-all aria-label="Выбрать все на странице"></th>{% endif %}
+                <th>Файл</th>
+                <th>Риск</th>
+                <th>Проверка человеком</th>
+                <th>Бэкенд</th>
+                <th>Дата</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for item in page.items %}
+            <tr class="row-clickable" data-href="{{ url_for('analyzer.result_detail', pk=item.id) }}">
+                {% if can_delete %}<td class="col-check" onclick="event.stopPropagation()"><input type="checkbox" name="ids" value="{{ item.id }}" aria-label="Выбрать запись {{ item.id }}"></td>{% endif %}
+                <td>{{ (item.original_name or '—')|trunc(40) }}{% if item.is_new %} <span class="tag tag-new">новое</span>{% endif %}</td>
+                <td><span class="risk-pill risk-pill-{{ item.risk_level }}">{{ item.risk_level_display }}</span>{% if item.is_error %} <span class="tag tag-warn">ошибка</span>{% endif %}</td>
+                <td>{% if item.needs_human_review %}<span class="tag tag-warn">да</span>{% else %}<span class="tag">нет</span>{% endif %}</td>
+                <td>{{ item.backend or '—' }}</td>
+                <td>{{ item.created_at|localdt('%d.%m.%Y %H:%M') }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% if can_delete %}
+    <div class="bulk-bar">
+        <button type="submit" class="btn btn-danger" data-bulk-delete-btn
+                onclick="return confirm('Удалить выбранные записи вместе с изображениями? Это нельзя отменить.')">Удалить выбранные</button>
+        <span class="field-hint" data-selected-hint hidden></span>
+    </div>
+</form>
+{% endif %}
+
+{% include "partials/pagination.html" %}
+
+{% else %}
+<p class="empty-hint">{% if request.args.get('q') %}Ничего не найдено по запросу «{{ request.args.get('q') }}».{% else %}История пуста — завершённых анализов пока нет.{% endif %}</p>
+{% endif %}
