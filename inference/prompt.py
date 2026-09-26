@@ -99,6 +99,7 @@ def get_system_prompt(
     lang: str = "ru",
     categories: list[str] | None = None,
     compact: bool = False,
+    overlay: "category_registry.CategoryOverlay | None" = None,
 ) -> str:
     """Собирает системный промпт (второй, полный проход) под нужный язык
     и под нужное подмножество категорий сигналов.
@@ -117,16 +118,20 @@ def get_system_prompt(
     промпт, когда правила загружаются для всех категорий разом.
     Используется только в fallback-пути: первый вызов исчерпал попытки
     и не дал валидного списка категорий (см. backends._select_categories).
+
+    overlay — разовый оверлей категорий этого запроса (см.
+    categories.build_overlay), если клиент передал свои в /analyze.
+    None (по умолчанию) — только встроенные дефолты.
     """
     language_name = LANGUAGE_NAMES.get(lang, lang)
     labels = CONTEXT_LABELS.get(lang, CONTEXT_LABELS["en"])
 
     if compact:
-        risk_signals = category_registry.compact_signals_block(categories)
+        risk_signals = category_registry.compact_signals_block(categories, overlay)
         examples_text = ""
     else:
-        risk_signals = category_registry.full_signals_block(categories)
-        examples_text = category_registry.examples_block(categories, lang)
+        risk_signals = category_registry.full_signals_block(categories, overlay)
+        examples_text = category_registry.examples_block(categories, lang, overlay)
 
     examples_section = f"<examples>\n{examples_text}\n</examples>\n" if examples_text else ""
 
@@ -209,7 +214,7 @@ def get_user_prompt(lang: str = "ru", caption: str | None = None) -> str:
 # ---------------------------------------------------------------------------
 
 
-def get_classify_system_prompt() -> str:
+def get_classify_system_prompt(overlay: "category_registry.CategoryOverlay | None" = None) -> str:
     """Собирает системный промпт первого (классифицирующего) прохода.
 
     Не зависит от lang: единственный текст, который первый проход
@@ -222,11 +227,14 @@ def get_classify_system_prompt() -> str:
     __OUTPUT_LANGUAGE__ было бы работой в никуда.
 
     Список категорий-кандидатов всегда полный (все зарегистрированные
-    категории) — фильтрация происходит в самом первом вызове, а не до
-    него; второй проход получает уже отфильтрованный список.
+    категории, плюс разовые из overlay, если он передан) — фильтрация
+    происходит в самом первом вызове, а не до него; второй проход
+    получает уже отфильтрованный список.
+
+    overlay — см. get_system_prompt.
     """
     return _CLASSIFY_SYSTEM_PROMPT_TEMPLATE.replace(
-        "__CATEGORY_SUMMARIES__", category_registry.summaries_block()
+        "__CATEGORY_SUMMARIES__", category_registry.summaries_block(overlay)
     )
 
 

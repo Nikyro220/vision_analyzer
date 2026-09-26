@@ -233,6 +233,55 @@ def _parse_history_json(raw) -> list:
     return raw
 
 
+def _parse_categories_json(raw) -> list | None:
+    """Парсит 'categories' — разовые категории для этого вызова /analyze
+    (см. categories.build_overlay). Сам список ничего не валидирует по
+    содержимому (имена/summary/full/compact) — этим занимается
+    build_overlay, поднимая categories.CategoryError.
+
+    raw может быть:
+      - None / [] — разовых категорий нет, сервер работает с дефолтами;
+      - списком уже готовых объектов-категорий — пришёл из JSON-тела
+        запроса ({"categories": [{...}, {...}]});
+      - списком JSON-строк — по одной на каждый multipart-файл или
+        повторяющийся query-параметр 'categories' (см.
+        analyze._parse_multipart_body/_query_overrides). Каждая строка
+        разбирается отдельно: если внутри один объект — категория
+        добавляется как есть; если внутри массив — разворачивается
+        (клиент может прислать как отдельный файл на категорию, так и
+        один файл сразу со всеми).
+
+    Смешивать строки и уже готовые объекты в одном списке тоже можно —
+    их не различают заранее, каждый элемент разбирается по своему типу.
+    """
+    if not raw:
+        return None
+    if not isinstance(raw, list):
+        raise ValueError("categories must be a list")
+
+    result: list = []
+    for item in raw:
+        if isinstance(item, str):
+            item = item.strip()
+            if not item:
+                continue
+            try:
+                parsed = json.loads(item)
+            except json.JSONDecodeError as e:
+                raise ValueError(f"invalid categories JSON: {e}") from e
+        else:
+            parsed = item
+
+        if isinstance(parsed, list):
+            result.extend(parsed)
+        elif isinstance(parsed, dict):
+            result.append(parsed)
+        else:
+            raise ValueError("each categories item must be an object or a list of objects")
+
+    return result or None
+
+
 # Грубая оценка размера токенов для истории, отправляемой в vLLM — точного
 # токенайзера конкретной модели у нас тут нет, поэтому это защитный запас,
 # а не честный расчёт. Используется только для решения "обрезать ли
@@ -481,7 +530,9 @@ def _finalize_report(report, lang: str | None = None):
 _CLASSIFY_MAX_ATTEMPTS = 3
 
 
-def _parse_candidate_categories(content: str) -> list[str] | None:
+def _parse_candidate_categories(
+    content: str, overlay: "categories.CategoryOverlay | None" = None,
+) -> list[str] | None:
     """Разбирает ответ первого (классифицирующего) вызова.
 
     Возвращает список валидных имён категорий (может быть пустым списком
@@ -490,9 +541,10 @@ def _parse_candidate_categories(content: str) -> list[str] | None:
     candidate_categories — тогда вызывающая сторона (_select_categories)
     должна повторить попытку или в итоге уйти в compact-fallback.
 
-    Имена категорий, которых нет в реестре (см. categories.py) —
-    галлюцинация модели — тихо отбрасываются с предупреждением в лог,
-    это не делает весь ответ невалидным.
+    Имена категорий, которых нет в реестре (см. categories.py), а также
+    в overlay этого запроса, если он есть, — галлюцинация модели —
+    тихо отбрасываются с предупреждением в лог, это не делает весь
+    ответ невалидным.
     """
     if not content or not content.strip():
         return None
@@ -507,7 +559,7 @@ def _parse_candidate_categories(content: str) -> list[str] | None:
     if not isinstance(raw, list):
         return None
 
-    valid = [name for name in raw if isinstance(name, str) and categories.is_valid(name)]
+    valid = [name for name in raw if isinstance(name, str) and categories.is_valid(name, overlay)]
     unknown = [name for name in raw if name not in valid]
     if unknown:
         logging.warning("classify: модель предложила неизвестные категории, отброшены: %s", unknown)
@@ -520,6 +572,7 @@ async def _select_categories(
     backend: str,
     model: str,
     caption: str | None,
+    overlay: "categories.CategoryOverlay | None" = None,
 ) -> list[str] | None:
     """Первый вызов: описывает изображение и предлагает шорт-лист категорий
     для второго, полного анализа. До _CLASSIFY_MAX_ATTEMPTS попыток, если
@@ -539,8 +592,12 @@ async def _select_categories(
     не приходит намеренно: язык вывода классифицирующего прохода никуда
     дальше не идёт (см. prompt.get_classify_system_prompt), поэтому его
     незачем даже спрашивать у вызывающей стороны.
+
+    overlay — разовые категории этого запроса (см. categories.build_overlay),
+    если клиент передал свои в /analyze; включаются в шорт-лист кандидатов
+    наравне с дефолтными.
     """
-    system_prompt = config.prompt.get_classify_system_prompt()
+    system_prompt = config.prompt.get_classify_system_prompt(overlay)
     user_prompt = config.prompt.get_classify_user_prompt(caption)
 
     for attempt in range(1, _CLASSIFY_MAX_ATTEMPTS + 1):
@@ -549,7 +606,7 @@ async def _select_categories(
         else:
             content = await _analyze_ollama(image_b64, model, system_prompt, user_prompt)
 
-        candidates = _parse_candidate_categories(content)
+        candidates = _parse_candidate_categories(content, overlay)
         if candidates is not None:
             if attempt > 1:
                 logging.info(
@@ -584,18 +641,19 @@ async def _analyze_image(
     lang: str | None = None,
     history: list | None = None,
     caption: str | None = None,
+    overlay: "categories.CategoryOverlay | None" = None,
 ) -> tuple[dict, str]:
     try:
         resolved_model = model or await _discover_model(backend)
         resolved_lang = lang or config._current_lang()
 
         selected = await _select_categories(
-            image_b64, image_mime, backend, resolved_model, caption,
+            image_b64, image_mime, backend, resolved_model, caption, overlay,
         )
         used_fallback = selected is None  # None = проход 1 исчерпал попытки
 
         system_prompt = config.prompt.get_system_prompt(
-            resolved_lang, categories=selected, compact=used_fallback,
+            resolved_lang, categories=selected, compact=used_fallback, overlay=overlay,
         )
         user_prompt = config.prompt.get_user_prompt(resolved_lang, caption)
 
@@ -620,7 +678,7 @@ async def _analyze_image(
         return await _analyze_image(
             image_b64, image_mime,
             backend=fallback_backend, model=None, allow_fallback=False, lang=lang, history=history,
-            caption=caption,
+            caption=caption, overlay=overlay,
         )
 
     try:

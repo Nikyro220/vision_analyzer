@@ -35,8 +35,5 @@
 	"risk.medium": "medium",
 	"risk.high": "high",
 	"error.category_not_found": "Category {name!r} not found.",
-	"error.categories_invalid_json": "Invalid JSON request body.",
-	"error.categories_empty_body": "No fields to update were provided (summary, full, compact, examples, position).",
-	"error.categories_invalid_position": "Invalid position value: expected an integer.",
-	"error.categories_order_missing": "Missing field order."
+	"error.invalid_categories": "Invalid 'categories' format: expected a list of objects, each with a 'name' field."
 }

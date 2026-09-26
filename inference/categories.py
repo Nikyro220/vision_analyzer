@@ -51,20 +51,24 @@ reload().
              Категория без примеров просто не имеет этого ключа —
              сборка <examples> её пропускает.
 
-Admin API (см. categories_api.py, роуты собраны в server.py):
+Admin API (см. categories_api.py, роуты собраны в server.py) — ТОЛЬКО
+чтение, дефолты правятся вручную в inference/categories/*.json:
   GET  /categories            — list_categories(): {"order": [...]}
   GET  /categories/summaries  — get_summaries(): {имя: summary, ...}
   GET  /categories/<имя>      — get_category(имя): summary+full+compact+
                                  examples одной категории
-  POST /categories/order      — set_order(...): переставляет order
-                                 целиком (та же перестановка имён)
-  POST /categories/<имя>      — upsert_category(...): создаёт (если имени
-                                 нет) или частично обновляет (если есть)
-                                 summary/full/compact/examples/position
-пишущие функции сами кладут файлы в inference/categories/ и вызывают
-reload(); при ошибке валидации откатывают файлы на диске к состоянию до
-вызова и перечитывают реестр заново, так что уже работающий сервер не
-остаётся с половиной изменений.
+
+Разовые категории (см. build_overlay ниже): вместо API, который бы
+навсегда менял общий для всех реестр (риск: любой с доступом к серверу
+мог свободно переопределить дефолты для всех последующих запросов),
+клиент передаёт определение категории прямо в теле POST /analyze
+(поле "categories"). build_overlay() строит из него локальный,
+изолированный оверлей (order/summaries/registry) поверх текущих
+дефолтов — ничего не пишет на диск, не вызывает reload(), не трогает
+глобальный реестр ниже. Оверлей живёт ровно один HTTP-запрос и
+передаётся явным параметром через backends.py/prompt.py — не как
+общее состояние, — поэтому параллельные запросы разных клиентов с
+разными "categories" никогда не видят категории друг друга.
 """
 
 from __future__ import annotations
@@ -73,11 +77,16 @@ import json
 import logging
 import re
 import threading
+from collections import namedtuple
 from pathlib import Path
 
 _DIR = Path(__file__).resolve().parent / "categories"
 _lock = threading.Lock()
-_write_lock = threading.Lock()  # сериализует upsert_category/set_order между собой
+
+# Изолированный, разовый "вид" реестра — снимок order/summaries/registry,
+# который build_overlay() строит поверх дефолтов для одного запроса (см.
+# докстринг модуля). Передаётся явным параметром, а не хранится глобально.
+CategoryOverlay = namedtuple("CategoryOverlay", ["order", "summaries", "registry"])
 
 # Имя категории == имя файла на диске (см. докстринг выше) — поэтому
 # ограничиваем его тем, что безопасно как имя файла и не позволяет выйти
@@ -154,49 +163,59 @@ def reload(directory: Path = _DIR) -> None:
 reload()
 
 
-def order() -> list[str]:
+def order(overlay: CategoryOverlay | None = None) -> list[str]:
     """Список имён категорий в каноническом порядке (порядок появления
-    в промпте) — единственный источник порядка для обоих проходов."""
-    return list(_order)
+    в промпте) — единственный источник порядка для обоих проходов.
+
+    overlay — см. build_overlay(); None (по умолчанию) означает "только
+    дефолты", как и раньше."""
+    return list(overlay.order if overlay is not None else _order)
 
 
-def is_valid(name: str) -> bool:
-    return name in _registry
+def is_valid(name: str, overlay: CategoryOverlay | None = None) -> bool:
+    return name in (overlay.registry if overlay is not None else _registry)
 
 
-def _selected_or_all(selected: list[str] | None) -> list[str]:
-    """Пересекает выбор с реестром, сохраняя канонический порядок.
+def _selected_or_all(selected: list[str] | None, order_list: list[str]) -> list[str]:
+    """Пересекает выбор с order_list, сохраняя канонический порядок.
     None означает "все категории" (используется в compact-fallback и
     как обратно совместимое поведение по умолчанию)."""
     if selected is None:
-        return list(_order)
+        return list(order_list)
     wanted = set(selected)
-    return [name for name in _order if name in wanted]
+    return [name for name in order_list if name in wanted]
 
 
-def summaries_block() -> str:
+def summaries_block(overlay: CategoryOverlay | None = None) -> str:
     """<category name="...">summary</category> для КАЖДОЙ
     зарегистрированной категории — список кандидатов для первого
     (классифицирующего) вызова. Не фильтруется: фильтрация — это и
     есть то, что делает первый вызов.
 
-    Собирается целиком из index.json (через _summaries) — файлы
-    отдельных категорий (full/compact/examples) для этого не нужны."""
+    Собирается целиком из index.json (через _summaries), либо, если
+    передан overlay, из его summaries — файлы отдельных категорий
+    (full/compact/examples) для этого не нужны."""
+    order_list = overlay.order if overlay is not None else _order
+    summaries = overlay.summaries if overlay is not None else _summaries
     parts = [
-        f'<category name="{name}">{_summaries[name]}</category>'
-        for name in _order
+        f'<category name="{name}">{summaries[name]}</category>'
+        for name in order_list
     ]
     return "\n".join(parts)
 
 
-def full_signals_block(selected: list[str] | None = None) -> str:
-    names = _selected_or_all(selected)
-    return "\n\n".join(_registry[name]["full"] for name in names)
+def full_signals_block(selected: list[str] | None = None, overlay: CategoryOverlay | None = None) -> str:
+    order_list = overlay.order if overlay is not None else _order
+    registry = overlay.registry if overlay is not None else _registry
+    names = _selected_or_all(selected, order_list)
+    return "\n\n".join(registry[name]["full"] for name in names)
 
 
-def compact_signals_block(selected: list[str] | None = None) -> str:
-    names = _selected_or_all(selected)
-    return "\n\n".join(_registry[name]["compact"] for name in names)
+def compact_signals_block(selected: list[str] | None = None, overlay: CategoryOverlay | None = None) -> str:
+    order_list = overlay.order if overlay is not None else _order
+    registry = overlay.registry if overlay is not None else _registry
+    names = _selected_or_all(selected, order_list)
+    return "\n\n".join(registry[name]["compact"] for name in names)
 
 
 _EXAMPLES_INTRO = {
@@ -212,7 +231,7 @@ _EXAMPLES_INTRO = {
 }
 
 
-def examples_block(selected: list[str] | None, lang: str) -> str:
+def examples_block(selected: list[str] | None, lang: str, overlay: CategoryOverlay | None = None) -> str:
     """Собирает сцены-примеры для выбранных категорий на нужном языке.
 
     Возвращает "" (пустую строку), если ни у одной выбранной категории
@@ -222,11 +241,13 @@ def examples_block(selected: list[str] | None, lang: str) -> str:
     (prompt.py) должна аккуратно убрать секцию <examples> целиком,
     а не оставлять пустую пару тегов.
     """
-    names = _selected_or_all(selected)
+    order_list = overlay.order if overlay is not None else _order
+    registry = overlay.registry if overlay is not None else _registry
+    names = _selected_or_all(selected, order_list)
     scenes = [
-        _registry[name]["examples"][lang]
+        registry[name]["examples"][lang]
         for name in names
-        if _registry[name].get("examples") and lang in _registry[name]["examples"]
+        if registry[name].get("examples") and lang in registry[name]["examples"]
     ]
     if not scenes:
         return ""
@@ -275,24 +296,16 @@ def get_category(name: str) -> dict | None:
 
 
 # ---------------------------------------------------------------------------
-# Admin API — запись (см. categories_api.py: POST-хендлеры)
+# Разовые категории — build_overlay (см. докстринг модуля и analyze.py:
+# handle_analyze). Ничего здесь не пишет на диск и не трогает
+# _order/_summaries/_registry — только строит и возвращает локальные копии.
 # ---------------------------------------------------------------------------
-
-def _atomic_write_json(path: Path, data: dict) -> None:
-    """Пишет во временный файл рядом и атомарно переименовывает поверх
-    целевого — чтобы конкурентный reload() (в этом же процессе или
-    случайно запущенный извне) никогда не увидел наполовину записанный
-    JSON."""
-    tmp = path.with_suffix(path.suffix + ".tmp")
-    with open(tmp, "w", encoding="utf-8") as f:
-        json.dump(data, f, ensure_ascii=False, indent=2)
-    tmp.replace(path)
-
 
 def _merge_examples(current: dict | None, incoming) -> dict | None:
     """Сливает {"en": ..., "ru": ...} из запроса с уже сохранёнными
-    примерами. incoming целиком None/{} — убрать все примеры; отдельный
-    язык со значением None внутри incoming — убрать только его."""
+    примерами (только при подмене существующей категории). incoming
+    целиком None/{} — убрать все примеры; отдельный язык со значением
+    None внутри incoming — убрать только его."""
     if incoming is None or incoming == {}:
         return None
     if not isinstance(incoming, dict):
@@ -308,117 +321,84 @@ def _merge_examples(current: dict | None, incoming) -> dict | None:
     return merged or None
 
 
-def upsert_category(
+def _merge_category_payload(
     name: str,
-    *,
-    summary: str | None = None,
-    full: str | None = None,
-    compact: str | None = None,
-    examples=_UNSET,
-    position: int | None = None,
-    directory: Path = _DIR,
-) -> dict:
-    """Создаёт новую категорию или частично обновляет существующую;
-    пишет index.json и categories/<имя>.json, затем reload(). Ответ
-    POST /categories/<имя>.
+    summary: str | None,
+    full: str | None,
+    compact: str | None,
+    examples,
+    current_summary: str | None,
+    current_record: dict | None,
+) -> tuple[str, dict]:
+    """Валидирует одну запись из "categories" в теле /analyze и
+    сливает её с текущей дефолтной категорией того же имени (если
+    есть — current_summary/current_record; иначе оба None и summary/
+    full/compact обязательны). Возвращает (summary, {"full", "compact",
+    "examples"?}) — готовую запись для CategoryOverlay.registry."""
+    new_summary = summary if summary is not None else current_summary
+    new_full = full if full is not None else (current_record or {}).get("full")
+    new_compact = compact if compact is not None else (current_record or {}).get("compact")
+    new_examples = (
+        _merge_examples((current_record or {}).get("examples"), examples)
+        if examples is not _UNSET else (current_record or {}).get("examples")
+    )
 
-    - Новой категории (имени нет в реестре) обязательны summary, full и
-      compact — как и при загрузке с диска (см. _load).
-    - У существующей категории можно передать любое подмножество полей —
-      остальные остаются как на диске.
-    - examples: см. _merge_examples.
-    - position: 0-based индекс в общем order. Для новой категории по
-      умолчанию — конец списка; для существующей, если не передан,
-      позиция не меняется.
+    for field, value in (("summary", new_summary), ("full", new_full), ("compact", new_compact)):
+        if not isinstance(value, str) or not value.strip():
+            raise CategoryError(f"categories[{name!r}]: поле {field!r} обязательно и не может быть пустым")
 
-    При CategoryError (в том числе если reload() внезапно не пропустил
-    уже как будто провалидированные данные — например, из-за гонки с
-    другим процессом, трогающим те же файлы) откатывает файлы на диске
-    к состоянию до вызова и перечитывает реестр — сервер остаётся с тем,
-    что было. Возвращает get_category(name) при успехе.
-    """
-    if not _NAME_RE.match(name):
-        raise CategoryError(
-            f"Некорректное имя категории {name!r}: разрешены только латинские буквы, цифры и '_'"
+    record = {"full": new_full, "compact": new_compact}
+    if new_examples:
+        record["examples"] = new_examples
+    return new_summary, record
+
+
+def build_overlay(extra: list[dict] | None) -> CategoryOverlay | None:
+    """Строит разовый оверлей категорий для одного вызова /analyze
+    поверх текущих дефолтов (см. докстринг модуля). Ничего не пишет на
+    диск, не вызывает reload(), не трогает _order/_summaries/_registry.
+
+    extra — список объектов {"name", "summary"?, "full"?, "compact"?,
+    "examples"?} (то же тело, что раньше принимал upsert_category, без
+    "position"). Имя, совпадающее с уже существующей категорией,
+    частично заменяет её ТОЛЬКО на время этого вызова: непереданные
+    поля берутся от дефолта, место категории в order не меняется.
+    Новое имя требует summary+full+compact и добавляется в конец order.
+
+    None или [] возвращает None — вызывающая сторона (backends.py/
+    prompt.py) в этом случае должна работать с дефолтами напрямую,
+    без лишнего копирования реестра на каждый запрос без "categories".
+
+    Бросает CategoryError при некорректном имени/теле — analyze.py
+    ловит её и отвечает 400, не давая один плохой запрос уронить сервер
+    (реестр по умолчанию тут в принципе не трогается, поэтому откатывать
+    нечего — в отличие от прежнего upsert_category)."""
+    if not extra:
+        return None
+    if not isinstance(extra, list):
+        raise CategoryError("categories: ожидается список объектов")
+
+    order = list(_order)
+    summaries = dict(_summaries)
+    registry = dict(_registry)
+
+    for item in extra:
+        if not isinstance(item, dict) or not item.get("name"):
+            raise CategoryError("categories: каждый элемент должен быть объектом с непустым полем 'name'")
+        name = item["name"]
+        if not _NAME_RE.match(name):
+            raise CategoryError(
+                f"Некорректное имя категории {name!r}: разрешены только латинские буквы, цифры и '_'"
+            )
+
+        examples = item["examples"] if "examples" in item else _UNSET
+        new_summary, record = _merge_category_payload(
+            name, item.get("summary"), item.get("full"), item.get("compact"), examples,
+            summaries.get(name), registry.get(name),
         )
+        summaries[name] = new_summary
+        registry[name] = record
+        if name not in order:
+            order.append(name)
 
-    with _write_lock:
-        exists = name in _registry
-        current = _registry.get(name, {})
-
-        new_summary = summary if summary is not None else _summaries.get(name)
-        new_full = full if full is not None else current.get("full")
-        new_compact = compact if compact is not None else current.get("compact")
-        new_examples = _merge_examples(current.get("examples"), examples) if examples is not _UNSET else current.get("examples")
-
-        for field, value in (("summary", new_summary), ("full", new_full), ("compact", new_compact)):
-            if not isinstance(value, str) or not value.strip():
-                raise CategoryError(f"{name!r}: поле {field!r} обязательно и не может быть пустым")
-
-        new_order = list(_order)
-        if name not in new_order:
-            idx = len(new_order) if position is None else max(0, min(position, len(new_order)))
-            new_order.insert(idx, name)
-        elif position is not None:
-            new_order.remove(name)
-            idx = max(0, min(position, len(new_order)))
-            new_order.insert(idx, name)
-
-        index_path = directory / "index.json"
-        cat_path = directory / f"{name}.json"
-        index_backup = index_path.read_bytes() if index_path.exists() else None
-        cat_backup = cat_path.read_bytes() if cat_path.exists() else None
-
-        new_summaries = dict(_summaries)
-        new_summaries[name] = new_summary
-        cat_record = {"full": new_full, "compact": new_compact}
-        if new_examples:
-            cat_record["examples"] = new_examples
-
-        try:
-            _atomic_write_json(index_path, {"order": new_order, "summaries": new_summaries})
-            _atomic_write_json(cat_path, cat_record)
-            reload(directory)
-        except Exception:
-            if index_backup is not None:
-                index_path.write_bytes(index_backup)
-            if cat_backup is not None:
-                cat_path.write_bytes(cat_backup)
-            elif cat_path.exists():
-                cat_path.unlink()
-            reload(directory)
-            raise
-
-    return get_category(name)
-
-
-def set_order(new_order, directory: Path = _DIR) -> list[str]:
-    """Полностью заменяет порядок категорий (index.json: "order"), не
-    меняя ни одной другой части ни одной категории. Ответ
-    POST /categories/order.
-
-    new_order обязан быть перестановкой ровно тех же имён, что уже в
-    реестре — добавлять или убирать категории тут нельзя (для добавления
-    есть upsert_category, для удаления пока нет эндпоинта — см. TODO).
-    Как и upsert_category, откатывает файл на диске при ошибке.
-    """
-    if not isinstance(new_order, list) or not all(isinstance(n, str) for n in new_order):
-        raise CategoryError("order: ожидается список строк (имён категорий)")
-    if len(new_order) != len(_order) or set(new_order) != set(_order):
-        raise CategoryError(
-            f"order должен быть перестановкой текущих категорий {sorted(_order)}, "
-            f"получено {sorted(set(new_order))}"
-        )
-
-    with _write_lock:
-        index_path = directory / "index.json"
-        backup = index_path.read_bytes()
-        try:
-            _atomic_write_json(index_path, {"order": new_order, "summaries": dict(_summaries)})
-            reload(directory)
-        except Exception:
-            index_path.write_bytes(backup)
-            reload(directory)
-            raise
-
-    return list(_order)
+    return CategoryOverlay(order=order, summaries=summaries, registry=registry)

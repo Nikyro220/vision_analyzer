@@ -35,8 +35,5 @@
 	"risk.medium": "средний",
 	"risk.high": "высокий",
 	"error.category_not_found": "Категория {name!r} не найдена.",
-	"error.categories_invalid_json": "Некорректное JSON-тело запроса.",
-	"error.categories_empty_body": "Не передано ни одно поле для изменения (summary, full, compact, examples, position).",
-	"error.categories_invalid_position": "Некорректное значение position: ожидается целое число.",
-	"error.categories_order_missing": "Не передано поле order."
+	"error.invalid_categories": "Некорректный формат 'categories': ожидается список объектов, у каждого — поле 'name'."
 }

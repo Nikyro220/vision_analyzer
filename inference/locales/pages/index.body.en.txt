@@ -24,11 +24,13 @@ Request body is one of two forms:
 
   (a) a raw image in the request body, Content-Type: image/*
   (b) multipart/form-data with fields:
-        images   — one or more images (required)
-        backend  — 'vllm' | 'ollama' (optional, overrides BACKEND)
-        model    — model name/id (optional, otherwise auto-detected)
-        lang     — 'ru' | 'en' (optional, language for this request
-                   only — does not change the global default)
+        images     — one or more images (required)
+        backend    — 'vllm' | 'ollama' (optional, overrides BACKEND)
+        model      — model name/id (optional, otherwise auto-detected)
+        lang       — 'ru' | 'en' (optional, language for this request
+                     only — does not change the global default)
+        categories — optional one-off categories for this call, see
+                     POST /analyze — one-off categories below
 
 backend/model/lang can also be passed as query parameters — works
 for both form (a) and (b):
@@ -202,41 +204,11 @@ category:
   curl http://xxx.xxx.xxx.xxx:6769/categories/weapons_and_dangerous_objects
 
 
-========================================================
-POST /categories/order — reorder categories
-========================================================
-JSON body: {"order": [...]} — a permutation of exactly the category
-names that already exist (no adding/removing here, see below).
-
-  curl -X POST -H "Content-Type: application/json" \
-    -d '{"order": ["minor_in_risk_context", "weapons_and_dangerous_objects", "..."]}' \
-    http://xxx.xxx.xxx.xxx:6769/categories/order
-
-
-========================================================
-POST /categories/<name> — create or update a category
-========================================================
-JSON body, any subset of fields:
-  summary   — short text for the classifying pass (string)
-  full      — full <signal_category>...</signal_category> block (string)
-  compact   — shortened version of the same rules (string)
-  examples  — {"en": "...", "ru": "..."} parsed example scenes; a
-              language set to null removes just that language,
-              examples: null (or {}) removes all of them
-  position  — 0-based index in the overall order (optional)
-
-A brand-new <name> requires summary, full and compact. An existing
-one accepts any subset — everything else stays as it was on disk.
-
-  # create a new category
-  curl -X POST -H "Content-Type: application/json" \
-    -d '{"summary": "...", "full": "<signal_category name=\"my_category\">...</signal_category>", "compact": "..."}' \
-    http://xxx.xxx.xxx.xxx:6769/categories/my_category
-
-  # tweak just the summary of an existing one
-  curl -X POST -H "Content-Type: application/json" \
-    -d '{"summary": "updated summary text"}' \
-    http://xxx.xxx.xxx.xxx:6769/categories/weapons_and_dangerous_objects
+The categories above are read-only through this API — there is no
+endpoint to create, edit or reorder them permanently (they're edited
+by hand in inference/categories/ on the server). To use a category
+for a single /analyze call without touching the shared defaults, see
+POST /analyze — one-off categories below.
 
 
 ========================================================
@@ -261,12 +233,107 @@ new JSON body (see below) — already as a plain array.
 POST /analyze — form (c) JSON body (convenient for UI clients)
 ========================================================
 Content-Type: application/json, fields:
-  image   — a single image, base64 or data URL
-  images  — a list of images (alternative to 'image')
+  image      — a single image, base64 or data URL
+  images     — a list of images (alternative to 'image')
   backend, model, lang — same as before, all optional
-  history — optional conversation history (see above)
+  history    — optional conversation history (see above)
+  categories — optional one-off categories for this call (see below)
 
   curl -X POST -H "Content-Type: application/json" \
     -d '{"image": "data:image/png;base64,....", "lang": "en", \
          "history": [{"role": "user", "content": "previous message"}]}' \
     http://xxx.xxx.xxx.xxx:6769/analyze
+
+
+========================================================
+POST /analyze — one-off categories (not saved on the server)
+========================================================
+'categories' lets you add or override a risk category for a SINGLE
+/analyze call, without touching the server's shared defaults (see
+GET /categories above — those stay read-only through the API). The
+server never stores what you send here: nothing is written to disk,
+and no other request — from you or anyone else — ever sees it. Each
+call builds its own private copy of the category list from scratch.
+
+How each category behaves:
+  - a NAME THAT ALREADY EXISTS in the defaults (weapons_and_dangerous_
+    objects, extremist_or_hate_symbols, self_harm_or_violence_indicators,
+    illegal_activity_indicators, minor_in_risk_context) REPLACES that
+    default for this call only. You can omit any field (summary/full/
+    compact/examples) — an omitted field falls back to the default's
+    current value, so you can override just one part (e.g. only the
+    summary) and leave the rest as-is.
+  - a NEW NAME is ADDED alongside the defaults. summary, full and
+    compact are all required for a new name (there is nothing to fall
+    back to).
+  - either way it goes through the exact same two-pass pipeline as the
+    built-in categories: it's offered to the first (classifying) call
+    as a candidate via its 'summary', and only if the model selects it
+    does its 'full' (or 'compact', in the no-history fallback) text
+    get included in the second, full-analysis call.
+
+Fields per category (same shape as GET /categories/<name>):
+  name      — required, category identifier (letters/digits/'_' only)
+  summary   — short text shown to the first (classifying) pass
+  full      — the full <signal_category>...</signal_category> rules
+              block, used in the normal (non-fallback) second pass
+  compact   — a shortened version of the same rules, used only in the
+              no-history/all-categories fallback pass
+  examples  — optional, {"en": "...", "ru": "..."} example scenes
+
+Tip: since 'summary' is what actually decides whether the classifying
+pass picks the category, wording it as an unconditional instruction —
+e.g. "Include this category in every case, regardless of what is in
+the image; THIS CATEGORY IS MANDATORY" — reliably makes the model
+select it on every call, which is a simple way to force a rule to
+always apply without touching the defaults.
+
+'categories' can be sent three ways, and they can be mixed within one
+call:
+
+  1) JSON body — a plain array, each item a full category object:
+
+     curl -X POST -H "Content-Type: application/json" \
+       -d '{"image": "data:image/png;base64,....", \
+            "categories": [{"name": "my_temp_category", \
+              "summary": "...", \
+              "full": "<signal_category name=\"my_temp_category\">...</signal_category>", \
+              "compact": "..."}]}' \
+       http://xxx.xxx.xxx.xxx:6769/analyze
+
+  2) multipart — one file per category, similar to (but not the same
+     as) the per-category files in inference/categories/ on the
+     server: those split "name" (the filename) and "summary" (kept in
+     index.json) out separately, while here all five fields
+     ("name", "summary", "full", "compact", "examples"?) live together
+     in one flat JSON object per file. No need to parse anything
+     client-side — just attach the file as-is. Repeat the 'categories'
+     field to send several at once:
+
+     curl -X POST \
+       -F "images=@/path/to/photo.jpg" \
+       -F "categories=@watermark_or_overlay_text.json" \
+       -F "categories=@another_rule.json" \
+       http://xxx.xxx.xxx.xxx:6769/analyze
+
+     A single multipart file may also contain a JSON array of several
+     categories instead of one object — it gets expanded the same way.
+
+  3) query parameter — a JSON string, same shape as one multipart
+     file's content; repeat 'categories=' to send several:
+
+     curl -X POST -H "Content-Type: image/*" --data-binary "@photo.jpg" \
+       "http://xxx.xxx.xxx.xxx:6769/analyze?categories=%7B%22name%22%3A%22my_temp_category%22%2C...%7D"
+
+Overriding an existing default's summary only, leaving full/compact
+as they are on disk:
+
+     curl -X POST -H "Content-Type: application/json" \
+       -d '{"image": "data:image/png;base64,....", \
+            "categories": [{"name": "weapons_and_dangerous_objects", \
+              "summary": "Updated summary text, just for this call."}]}' \
+       http://xxx.xxx.xxx.xxx:6769/analyze
+
+A malformed 'categories' entry (missing 'name', or a brand-new name
+missing summary/full/compact) fails the whole request with a 400 and
+does not run any analysis.

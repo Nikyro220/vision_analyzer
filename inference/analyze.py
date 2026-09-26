@@ -22,6 +22,7 @@ from aiohttp import web
 from PIL import Image
 
 import backends
+import categories
 import config
 from config import image_upscaler, locales
 
@@ -89,6 +90,17 @@ def _query_overrides(request: web.Request) -> dict[str, Any]:
         "lang": request.query.get("lang"),
         "history": request.query.get("history"),
         "caption": request.query.get("caption"),
+        # Разовые категории на этот вызов (см. categories.build_overlay).
+        # В отличие от остальных полей — список, а не строка: через
+        # query/multipart можно передать НЕСКОЛЬКО категорий, каждую
+        # отдельным значением/файлом (backends._parse_categories_json
+        # разбирает каждый элемент как один объект категории ИЛИ как
+        # JSON-массив категорий). Пустой список ("параметра нет")
+        # приводим к None, чтобы работала общая логика
+        # "overrides[key] = overrides[key] or body.get(key)" в
+        # _parse_json_body — иначе пустой список (falsy и так, но для
+        # ясности) не перекрывал бы JSON-тело.
+        "categories": request.query.getall("categories", []) or None,
     }
 
 
@@ -152,7 +164,8 @@ async def _parse_json_body(request: web.Request, overrides: dict) -> tuple[list,
 # Текстовые поля-переопределения в multipart-запросе → куда класть
 # значение в overrides. True — значение стрипается (лишние пробелы по
 # краям не нужны), False — не стрипается (в тексте поста пробелы могут
-# быть значимыми).
+# быть значимыми). 'categories' сюда не входит — она может повторяться
+# (несколько файлов за один вызов), см. _parse_multipart_body.
 _MULTIPART_TEXT_FIELDS = {
     "backend": True, "model": True, "lang": True, "history": True, "caption": False,
 }
@@ -160,11 +173,25 @@ _MULTIPART_TEXT_FIELDS = {
 
 async def _parse_multipart_body(request: web.Request, overrides: dict) -> tuple[list, list, list]:
     """Content-Type: multipart/form-data — старый путь, одно или несколько
-    полей 'images'/'image' плюс текстовые поля-переопределения."""
+    полей 'images'/'image' плюс текстовые поля-переопределения.
+
+    'categories' — необязательно, можно прикрепить НЕСКОЛЬКО раз за один
+    запрос (каждая часть — файл с одним объектом категории, как
+    inference/categories/<имя>.json на сервере; допускается и часть с
+    JSON-массивом сразу нескольких — backends._parse_categories_json
+    разберёт оба варианта). Клиенту не нужно ничего парсить самому —
+    файл просто прикрепляется как есть.
+    """
     reader = await request.multipart()
     tasks, names = [], []
+    raw_categories: list[str] = []
 
     async for part in reader:
+        if part.name == "categories":
+            raw = (await part.read(decode=True)).decode("utf-8").strip()
+            if raw:
+                raw_categories.append(raw)
+            continue
         if part.name in _MULTIPART_TEXT_FIELDS:
             raw = (await part.read(decode=True)).decode("utf-8")
             overrides[part.name] = raw.strip() if _MULTIPART_TEXT_FIELDS[part.name] else raw
@@ -181,6 +208,9 @@ async def _parse_multipart_body(request: web.Request, overrides: dict) -> tuple[
 
         tasks.append(prepared)
         names.append(source_name)
+
+    if raw_categories:
+        overrides["categories"] = raw_categories
 
     if not tasks:
         raise _BodyError(_json(
@@ -253,12 +283,23 @@ async def handle_analyze(request: web.Request) -> web.Response:
     except ValueError:
         return _json({"error": config._t("error.invalid_history", lang=resolved_lang)}, status=400)
 
+    try:
+        extra_categories = backends._parse_categories_json(overrides["categories"])
+    except ValueError:
+        return _json({"error": config._t("error.invalid_categories", lang=resolved_lang)}, status=400)
+
+    try:
+        category_overlay = categories.build_overlay(extra_categories)
+    except categories.CategoryError as e:
+        return _json({"error": str(e)}, status=400)
+
     backend_was_explicit = bool(overrides["backend"])
 
     logging.info(
-        "Получено изображений в запросе: %d (%s) | backend=%s model=%s lang=%s history=%d",
+        "Получено изображений в запросе: %d (%s) | backend=%s model=%s lang=%s history=%d "
+        "categories=%d(разовых)",
         len(tasks), ", ".join(names), backend, overrides["model"] or "auto",
-        resolved_lang or "default", len(resolved_history),
+        resolved_lang or "default", len(resolved_history), len(extra_categories or []),
     )
 
     try:
@@ -268,7 +309,7 @@ async def handle_analyze(request: web.Request) -> web.Response:
                 backend=backend, model=overrides["model"],
                 allow_fallback=not backend_was_explicit,
                 lang=resolved_lang, history=resolved_history,
-                caption=cap,
+                caption=cap, overlay=category_overlay,
             )
             for (img_b64, img_mime), cap in zip(tasks, captions)
         ])
