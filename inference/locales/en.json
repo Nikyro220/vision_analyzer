@@ -35,5 +35,7 @@
 	"risk.medium": "medium",
 	"risk.high": "high",
 	"error.category_not_found": "Category {name!r} not found.",
-	"error.invalid_categories": "Invalid 'categories' format: expected a list of objects, each with a 'name' field."
+	"error.invalid_categories": "Invalid 'categories' format: expected a list of objects, each with a 'name' field.",
+	"error.empty_message": "Missing or empty 'message' field.",
+	"error.chat_failed": "Failed to get a reply from the model."
 }

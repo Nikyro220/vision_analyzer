@@ -7,6 +7,8 @@ server.py — HTTP-слой vision_analyzer_server: простые хендле�
 Хендлеры /categories (только чтение дефолтов) — в categories_api.py,
 бизнес-логика — в categories.py. Разовые категории на один вызов
 передаются прямо в POST /analyze (см. analyze.py, поле "categories").
+POST /chat — свободный диалог с моделью (текст + картинки, с историей),
+без риск-JSON-схемы /analyze — вынесен в chat.py/chat_backends.py.
 
 Поддерживает два бэкенда:
   - vllm   — OpenAI-совместимый API (/v1/chat/completions), напр. gvllm2.service
@@ -34,6 +36,7 @@ from aiohttp import web
 
 import backends
 import categories_api
+import chat
 import config
 from analyze import _json, handle_analyze
 from config import locales
@@ -288,6 +291,7 @@ def build_app() -> web.Application:
     app.router.add_get("/", handle_index)
     app.router.add_get("/health", handle_health)
     app.router.add_post("/analyze", handle_analyze)
+    app.router.add_post("/chat", chat.handle_chat)
     app.router.add_post("/lang", handle_lang)
     app.router.add_get("/config", handle_config)
     app.router.add_post("/config", handle_config)

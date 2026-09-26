@@ -88,7 +88,6 @@ def _query_overrides(request: web.Request) -> dict[str, Any]:
         "backend": request.query.get("backend"),
         "model": request.query.get("model"),
         "lang": request.query.get("lang"),
-        "history": request.query.get("history"),
         "caption": request.query.get("caption"),
         # Разовые категории на этот вызов (см. categories.build_overlay).
         # В отличие от остальных полей — список, а не строка: через
@@ -119,7 +118,7 @@ async def _parse_raw_image_body(request: web.Request, overrides: dict) -> tuple[
 
 async def _parse_json_body(request: web.Request, overrides: dict) -> tuple[list, list, list]:
     """Content-Type: application/json — удобно для UI/ботов, поддерживает
-    историю диалога и batch с caption на каждую картинку отдельно.
+    batch с caption на каждую картинку отдельно.
 
     'images' — список, каждый элемент либо строка с картинкой (caption
     для неё общий, из overrides['caption']), либо объект
@@ -167,7 +166,7 @@ async def _parse_json_body(request: web.Request, overrides: dict) -> tuple[list,
 # быть значимыми). 'categories' сюда не входит — она может повторяться
 # (несколько файлов за один вызов), см. _parse_multipart_body.
 _MULTIPART_TEXT_FIELDS = {
-    "backend": True, "model": True, "lang": True, "history": True, "caption": False,
+    "backend": True, "model": True, "lang": True, "caption": False,
 }
 
 
@@ -279,11 +278,6 @@ async def handle_analyze(request: web.Request) -> web.Response:
         )
 
     try:
-        resolved_history = backends._parse_history_json(overrides["history"])
-    except ValueError:
-        return _json({"error": config._t("error.invalid_history", lang=resolved_lang)}, status=400)
-
-    try:
         extra_categories = backends._parse_categories_json(overrides["categories"])
     except ValueError:
         return _json({"error": config._t("error.invalid_categories", lang=resolved_lang)}, status=400)
@@ -296,10 +290,10 @@ async def handle_analyze(request: web.Request) -> web.Response:
     backend_was_explicit = bool(overrides["backend"])
 
     logging.info(
-        "Получено изображений в запросе: %d (%s) | backend=%s model=%s lang=%s history=%d "
+        "Получено изображений в запросе: %d (%s) | backend=%s model=%s lang=%s "
         "categories=%d(разовых)",
         len(tasks), ", ".join(names), backend, overrides["model"] or "auto",
-        resolved_lang or "default", len(resolved_history), len(extra_categories or []),
+        resolved_lang or "default", len(extra_categories or []),
     )
 
     try:
@@ -308,7 +302,7 @@ async def handle_analyze(request: web.Request) -> web.Response:
                 img_b64, img_mime,
                 backend=backend, model=overrides["model"],
                 allow_fallback=not backend_was_explicit,
-                lang=resolved_lang, history=resolved_history,
+                lang=resolved_lang,
                 caption=cap, overlay=category_overlay,
             )
             for (img_b64, img_mime), cap in zip(tasks, captions)
@@ -323,7 +317,7 @@ async def handle_analyze(request: web.Request) -> web.Response:
     except asyncio.TimeoutError:
         logging.warning(
             "Таймаут при обращении к backend=%s (не уложились в %.0fс) — "
-            "проверь num_ctx (/sampling) и размер history, бэкенд может быть перегружен",
+            "проверь num_ctx (/sampling), бэкенд может быть перегружен",
             backend, config.REQUEST_TIMEOUT.total,
         )
         return _json({"error": config._t("error.backend_timeout", lang=resolved_lang)}, status=504)

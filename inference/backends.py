@@ -1,10 +1,10 @@
 """
-backends.py — всё, что говорит с моделью напрямую:
+backends.py — всё, что говорит с моделью напрямую для /analyze
+(риск-анализ по строгой JSON-схеме, без истории — см. chat_backends.py,
+если нужен свободный диалог с историей):
   - автоопределение и сканирование моделей (Ollama/vLLM)
   - обнаружение реального контекстного окна vLLM
   - health-пинг бэкенда
-  - сборка истории диалога в формат конкретного бэкенда + защитная
-    обрезка истории под контекст vLLM
   - низкоуровневая отправка ОДНОГО chat-запроса с картинкой (Ollama
     /api/chat, vLLM /v1/chat/completions) — _analyze_ollama/_analyze_vllm
     ничего не знают про схему ответа, просто шлют system+user+картинку
@@ -20,11 +20,11 @@ backends.py — всё, что говорит с моделью напрямую
         но с промптом, отфильтрованным по результату pass 1
   - общий wrapper с фолбэком между бэкендами (vllm <-> ollama)
 
-Ничего из этого не хранит состояние диалога — история приходит целиком
-от вызывающей стороны (см. server.py: handle_analyze) на каждый запрос.
-История участвует только во втором проходе (полный анализ); первый
-проход (классификация) всегда стателесс — ему не нужен контекст прошлых
-сообщений, только текущая картинка и caption.
+Ничего из этого не хранит состояние диалога — каждый вызов /analyze
+разовый, без контекста прошлых сообщений (история диалога — только у
+/chat, см. chat_backends.py; она использует _discover_model/
+_get_vllm_context_window/_strip_data_url/_ensure_data_url отсюда, но не
+двухпроходный пайплайн ниже).
 """
 
 import asyncio
@@ -148,89 +148,23 @@ async def _ping_backend(backend: str) -> dict:
 # ---------------------------------------------------------------------------
 
 def _strip_data_url(img: str) -> str:
-    """Убирает 'data:...;base64,' префикс, если есть — Ollama ждёт чистый base64."""
+    """Убирает 'data:...;base64,' префикс, если есть — Ollama ждёт чистый base64.
+
+    Общая утилита, используется и здесь (/analyze), и в chat_backends.py
+    (/chat) — поэтому осталась в backends.py, а не переехала вместе с
+    остальным chat-специфичным кодом.
+    """
     if img.startswith("data:") and ";base64," in img:
         return img.split(";base64,", 1)[1]
     return img
 
 
 def _ensure_data_url(img: str, default_mime: str = "image/png") -> str:
-    """Добавляет 'data:...;base64,' префикс, если его нет — нужен для vLLM image_url."""
+    """Добавляет 'data:...;base64,' префикс, если его нет — нужен для vLLM
+    image_url. Как и _strip_data_url — общая утилита для /analyze и /chat."""
     if img.startswith("data:"):
         return img
     return f"data:{default_mime};base64,{img}"
-
-
-def _history_to_ollama_messages(history: list) -> list[dict]:
-    """История прошлых сообщений диалога → формат сообщений Ollama.
-
-    Сервер сам НИГДЕ не хранит историю — она целиком приходит в каждом
-    запросе от клиента (бота/UI) и здесь просто конвертируется в нужный
-    для конкретного бэкенда формат сообщений.
-    """
-    messages = []
-    for turn in history:
-        entry = {"role": turn["role"], "content": turn.get("content", "")}
-        images = turn.get("images")
-        if images:
-            entry["images"] = [_strip_data_url(img) for img in images]
-        messages.append(entry)
-    return messages
-
-
-def _history_to_vllm_messages(history: list) -> list[dict]:
-    """История прошлых сообщений диалога → формат сообщений vLLM (OpenAI-style)."""
-    messages = []
-    for turn in history:
-        blocks = []
-        text = turn.get("content")
-        if text:
-            blocks.append({"type": "text", "text": text})
-        for img in turn.get("images") or []:
-            blocks.append({"type": "image_url", "image_url": {"url": _ensure_data_url(img)}})
-        messages.append({"role": turn["role"], "content": blocks or ""})
-    return messages
-
-
-def _parse_history_json(raw) -> list:
-    """Парсит и валидирует 'history' — список прошлых сообщений диалога.
-
-    Сервер сам историю нигде не хранит — она целиком приходит от клиента
-    (бота/UI) в каждом запросе. Формат бэкенд-агностичный:
-
-        [
-          {"role": "user", "content": "...", "images": ["data:image/png;base64,..."]},
-          {"role": "assistant", "content": "..."}
-        ]
-
-    'content' и 'images' необязательны, но должны быть строкой/списком,
-    если присутствуют. 'images' — data URL (или просто base64 — тоже
-    примется, см. _strip_data_url/_ensure_data_url).
-
-    raw может быть уже списком (если пришло в JSON-теле запроса) либо
-    JSON-строкой (если пришло через query-параметр или multipart-поле).
-    Пустое/отсутствующее значение — просто "истории нет".
-    """
-    if raw is None:
-        return []
-    if isinstance(raw, str):
-        raw = raw.strip()
-        if not raw:
-            return []
-        raw = json.loads(raw)  # может бросить json.JSONDecodeError (это ValueError)
-
-    if not isinstance(raw, list):
-        raise ValueError("history must be a list")
-
-    for turn in raw:
-        if not isinstance(turn, dict) or turn.get("role") not in ("user", "assistant"):
-            raise ValueError("each history item needs role: 'user' or 'assistant'")
-        if "content" in turn and not isinstance(turn["content"], str):
-            raise ValueError("history 'content' must be a string")
-        if "images" in turn and not isinstance(turn["images"], list):
-            raise ValueError("history 'images' must be a list")
-
-    return raw
 
 
 def _parse_categories_json(raw) -> list | None:
@@ -282,60 +216,6 @@ def _parse_categories_json(raw) -> list | None:
     return result or None
 
 
-# Грубая оценка размера токенов для истории, отправляемой в vLLM — точного
-# токенайзера конкретной модели у нас тут нет, поэтому это защитный запас,
-# а не честный расчёт. Используется только для решения "обрезать ли
-# историю", когда реальный max_model_len удалось узнать через
-# _get_vllm_context_window; сама vLLM всё равно провалидирует запрос и
-# кинет ошибку, если промпт всё же не влез.
-_VLLM_EST_CHARS_PER_TOKEN = 4
-_VLLM_EST_TOKENS_PER_IMAGE = 1500
-_VLLM_CONTEXT_SAFETY_MARGIN = 0.9  # оставляем запас под системный промпт/ответ модели
-
-
-def _estimate_tokens(text: str) -> int:
-    return max(1, len(text or "") // _VLLM_EST_CHARS_PER_TOKEN)
-
-
-def _truncate_history_for_vllm(
-    history: list, system_prompt: str, current_text: str, max_model_len: int,
-) -> list:
-    """Отбрасывает старые сообщения истории, если оценочно не влезаем
-    в контекст vLLM. Идёт с конца истории (свежие сообщения важнее),
-    оставляет максимум, что влезает в safety-margin от max_model_len.
-    """
-    budget = int(max_model_len * _VLLM_CONTEXT_SAFETY_MARGIN)
-    fixed_tokens = (
-        _estimate_tokens(system_prompt)
-        + _estimate_tokens(current_text)
-        + _VLLM_EST_TOKENS_PER_IMAGE  # текущее изображение
-    )
-
-    def turn_tokens(turn: dict) -> int:
-        return _estimate_tokens(turn.get("content")) + _VLLM_EST_TOKENS_PER_IMAGE * len(turn.get("images") or [])
-
-    kept = []
-    total = fixed_tokens
-    for turn in reversed(history):
-        t = turn_tokens(turn)
-        if total + t > budget:
-            break
-        kept.insert(0, turn)
-        total += t
-
-    dropped = len(history) - len(kept)
-    if dropped:
-        logging.warning(
-            "vLLM: history (%d сообщений) оценочно не влезает в контекст "
-            "max_model_len=%d — отброшено %d старых сообщений, оставлено %d "
-            "(оценочно ~%d/%d токенов, safety_margin=%.0f%%)",
-            len(history), max_model_len, dropped, len(kept),
-            total, max_model_len, _VLLM_CONTEXT_SAFETY_MARGIN * 100,
-        )
-
-    return kept
-
-
 # ---------------------------------------------------------------------------
 # Низкоуровневая отправка одного chat-запроса с картинкой.
 #
@@ -349,11 +229,11 @@ def _truncate_history_for_vllm(
 
 async def _analyze_ollama(
     image_b64: str, model: str, system_prompt: str, user_prompt: str,
-    history: list | None = None,
 ) -> str:
-    messages = [{"role": "system", "content": system_prompt}]
-    messages.extend(_history_to_ollama_messages(history or []))
-    messages.append({"role": "user", "content": user_prompt, "images": [image_b64]})
+    messages = [
+        {"role": "system", "content": system_prompt},
+        {"role": "user", "content": user_prompt, "images": [image_b64]},
+    ]
 
     options = {
         "temperature": config.SAMPLING_DEFAULTS["temperature"],
@@ -425,37 +305,20 @@ async def _analyze_ollama(
 
 async def _analyze_vllm(
     image_b64: str, image_mime: str, model: str, system_prompt: str, user_prompt: str,
-    history: list | None = None,
 ) -> str:
-    history = history or []
-
-    # Если у vLLM удалось узнать реальный max_model_len — используем его,
-    # чтобы не отправлять заведомо не влезающий промпт. Если не удалось
-    # (сборка не отдаёт max_model_len, бэкенд недоступен и т.п.) — не
-    # трогаем историю вслепую, просто отправляем как есть; vLLM сама
-    # вернёт ошибку, если промпт не влезет.
-    # Оценка бюджета строится на РЕАЛЬНОМ system_prompt этого вызова
-    # (он может быть промптом первого прохода, или второго с отфильтрованными
-    # /compact-категориями) — не на некотором обобщённом "полном" промпте,
-    # это важно для точности оценки после разбиения на два прохода.
-    max_model_len = await _get_vllm_context_window(model)
-    if max_model_len:
-        history = _truncate_history_for_vllm(
-            history, system_prompt, user_prompt, max_model_len,
-        )
-
-    messages = [{"role": "system", "content": system_prompt}]
-    messages.extend(_history_to_vllm_messages(history))
-    messages.append({
-        "role": "user",
-        "content": [
-            {"type": "text", "text": user_prompt},
-            {
-                "type": "image_url",
-                "image_url": {"url": f"data:{image_mime};base64,{image_b64}"},
-            },
-        ],
-    })
+    messages = [
+        {"role": "system", "content": system_prompt},
+        {
+            "role": "user",
+            "content": [
+                {"type": "text", "text": user_prompt},
+                {
+                    "type": "image_url",
+                    "image_url": {"url": f"data:{image_mime};base64,{image_b64}"},
+                },
+            ],
+        },
+    ]
 
     base_payload = {
         "model": model,
@@ -639,7 +502,6 @@ async def _analyze_image(
     model: str | None = None,
     allow_fallback: bool = True,
     lang: str | None = None,
-    history: list | None = None,
     caption: str | None = None,
     overlay: "categories.CategoryOverlay | None" = None,
 ) -> tuple[dict, str]:
@@ -658,13 +520,9 @@ async def _analyze_image(
         user_prompt = config.prompt.get_user_prompt(resolved_lang, caption)
 
         if backend == "vllm":
-            content = await _analyze_vllm(
-                image_b64, image_mime, resolved_model, system_prompt, user_prompt, history=history,
-            )
+            content = await _analyze_vllm(image_b64, image_mime, resolved_model, system_prompt, user_prompt)
         elif backend == "ollama":
-            content = await _analyze_ollama(
-                image_b64, resolved_model, system_prompt, user_prompt, history=history,
-            )
+            content = await _analyze_ollama(image_b64, resolved_model, system_prompt, user_prompt)
         else:
             raise ValueError(config._t("error.unknown_backend", backend=backend, lang=lang))
     except aiohttp.ClientConnectorError:
@@ -677,7 +535,7 @@ async def _analyze_image(
         )
         return await _analyze_image(
             image_b64, image_mime,
-            backend=fallback_backend, model=None, allow_fallback=False, lang=lang, history=history,
+            backend=fallback_backend, model=None, allow_fallback=False, lang=lang,
             caption=caption, overlay=overlay,
         )
 
