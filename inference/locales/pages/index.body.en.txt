@@ -337,3 +337,95 @@ as they are on disk:
 A malformed 'categories' entry (missing 'name', or a brand-new name
 missing summary/full/compact) fails the whole request with a 400 and
 does not run any analysis.
+
+
+========================================================
+POST /chat — free-form chat with the model (no risk JSON schema)
+========================================================
+Unlike /analyze (always a single-shot analysis against a strict risk
+JSON schema), /chat is a plain conversation: text (+ optional
+images), with history. The model's reply is returned to the client
+as-is, with no attempt to parse it as JSON.
+
+Request body is one of two forms:
+
+  (a) JSON, Content-Type: application/json, fields:
+        message    — the message text (required)
+        image      — a single image, base64 or data URL (optional)
+        images     — a list of images, alternative to 'image'
+        system     — optional ADDITION to the system prompt for this
+                     call (see below — a base persona prompt is always
+                     included)
+        history    — optional conversation history (same format as
+                     POST /analyze — conversation history above)
+        backend    — 'vllm' | 'ollama' (optional, overrides BACKEND)
+        model      — model name/id (optional, otherwise auto-detected)
+        lang       — 'ru' | 'en' (optional, language for this request
+                     only — does not change the global default)
+
+  (b) multipart/form-data with the same fields: 'message'/'system'/
+      'history'/'backend'/'model'/'lang' as plain text fields, images
+      as one or more 'images'/'image' file fields
+
+backend/model/lang can also be passed as query parameters — works for
+both forms:
+  ?backend=vllm&model=google/gemma-4-31B-it&lang=en
+
+By default, every call is prefixed with a persona system prompt: the
+model knows it's the assistant FOR the vision_analyzer tool (explains
+the endpoints, helps make sense of already-produced /analyze reports,
+sampling settings, etc.) — NOT the risk analyzer itself, and should
+not hand down risk-signal verdicts in place of /analyze. A 'system'
+field passed in the request does not replace this prompt — it is
+appended after it as an extra instruction for that call.
+
+The server itself stores NO history at all — it is sent in full by
+the client on every request via the 'history' field (a JSON array,
+or, in query/multipart, a JSON string — same as /analyze).
+
+If backend isn't passed explicitly and the default backend is
+unreachable, the server automatically tries the other backend once
+(vllm <-> ollama) before returning an error.
+
+For backend=vllm, if the real max_model_len could be determined (see
+GET /sampling -> vllm_context_window above), history is truncated
+(a rough estimate) to fit that size before sending — same as /analyze.
+
+Response:
+  {"reply": "...", "backend": "vllm"|"ollama", "model": "..."}
+
+Unlike /analyze, /chat does not accept a 'categories' field — one-off
+risk categories only exist within the analysis JSON schema.
+
+Examples:
+
+  # 1) Simple question, no images or history
+  curl -X POST -H "Content-Type: application/json" \
+    -d '{"message": "Hi! What can you do?"}' \
+    http://xxx.xxx.xxx.xxx:6769/chat
+
+  # 2) With an image
+  curl -X POST -H "Content-Type: application/json" \
+    -d '{"message": "What is in this picture?", \
+         "image": "data:image/png;base64,...."}' \
+    http://xxx.xxx.xxx.xxx:6769/chat
+
+  # 3) With conversation history
+  curl -X POST -H "Content-Type: application/json" \
+    -d '{"message": "Now describe it in more detail", \
+         "history": [{"role": "user", "content": "What is in the photo?"}, \
+                      {"role": "assistant", "content": "A cat on a sofa."}]}' \
+    http://xxx.xxx.xxx.xxx:6769/chat
+
+  # 4) Multipart, image as a file + explicit backend/model
+  curl -X POST \
+    -F "message=What is in the photo?" \
+    -F "images=@/path/to/file.png" \
+    -F "backend=ollama" \
+    -F "model=llama3.2-vision" \
+    http://xxx.xxx.xxx.xxx:6769/chat
+
+  # 5) Custom system prompt for this call
+  curl -X POST -H "Content-Type: application/json" \
+    -d '{"message": "Hi", "system": "Reply only in Kazakh."}' \
+    http://xxx.xxx.xxx.xxx:6769/chat

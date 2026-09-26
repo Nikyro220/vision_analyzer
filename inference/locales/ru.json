@@ -37,5 +37,7 @@
 	"error.category_not_found": "Категория {name!r} не найдена.",
 	"error.invalid_categories": "Некорректный формат 'categories': ожидается список объектов, у каждого — поле 'name'.",
 	"error.empty_message": "Не передано или пустое поле 'message'.",
-	"error.chat_failed": "Не удалось получить ответ от модели."
+	"error.chat_failed": "Не удалось получить ответ от модели.",
+	"error.chat_unsupported_content_type": "Ожидается application/json либо multipart/form-data (поле 'message', необязательные 'images'/'image').",
+	"error.invalid_json_body": "Некорректный JSON в теле запроса."
 }

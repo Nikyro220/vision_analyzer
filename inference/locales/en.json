@@ -37,5 +37,7 @@
 	"error.category_not_found": "Category {name!r} not found.",
 	"error.invalid_categories": "Invalid 'categories' format: expected a list of objects, each with a 'name' field.",
 	"error.empty_message": "Missing or empty 'message' field.",
-	"error.chat_failed": "Failed to get a reply from the model."
+	"error.chat_failed": "Failed to get a reply from the model.",
+	"error.chat_unsupported_content_type": "Expected application/json or multipart/form-data (field 'message', optional 'images'/'image').",
+	"error.invalid_json_body": "Malformed JSON in the request body."
 }

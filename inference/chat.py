@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import asyncio
 import base64
+import json
 import logging
 from typing import Any
 
@@ -28,7 +29,7 @@ import backends
 import chat_backends
 import config
 from analyze import _BodyError, _json, _prepare_image
-from config import locales
+from config import locales, prompt
 
 # ---------------------------------------------------------------------------
 # Разбор тела запроса — два формата (в отличие от /analyze, тут всегда
@@ -65,7 +66,13 @@ async def _parse_json_body(request: web.Request, overrides: dict) -> tuple[str, 
     """Content-Type: application/json, поля:
     message (обязательно), images/image (необязательно), history,
     system, backend/model/lang (см. также query-параметры выше)."""
-    body = await request.json() or {}
+    try:
+        body = await request.json() or {}
+    except json.JSONDecodeError:
+        raise _BodyError(
+            _json({"error": config._t("error.invalid_json_body", lang=overrides["lang"])}, status=400)
+        )
+
     for key in overrides:
         overrides[key] = overrides[key] or body.get(key)
 
@@ -135,7 +142,7 @@ async def handle_chat(request: web.Request) -> web.Response:
 
     parser = next((fn for prefix, fn in _BODY_PARSERS if content_type.startswith(prefix)), None)
     if parser is None:
-        return _json({"error": config._t("error.unsupported_content_type", lang=overrides["lang"])}, status=400)
+        return _json({"error": config._t("error.chat_unsupported_content_type", lang=overrides["lang"])}, status=400)
 
     try:
         message, images = await parser(request, overrides)
@@ -167,6 +174,18 @@ async def handle_chat(request: web.Request) -> web.Response:
 
     backend_was_explicit = bool(overrides["backend"])
 
+    # Дефолтная "личность" ассистента по инструменту (см. prompt.py:
+    # get_chat_system_prompt) — подставляется ВСЕГДА, даже если клиент
+    # передал своё поле 'system': оно не заменяет базовый промпт, а
+    # добавляется к нему как доп. инструкция на этот вызов. Если
+    # prompt.py не найден на сервере (см. config.py) — ведём себя как
+    # раньше и просто передаём system как есть (может быть None).
+    system_prompt = (
+        prompt.get_chat_system_prompt(resolved_lang or config._current_lang(), overrides["system"])
+        if prompt is not None
+        else overrides["system"]
+    )
+
     logging.info(
         "chat: message=%d симв. картинок=%d | backend=%s model=%s lang=%s history=%d",
         len(message), len(images), backend, overrides["model"] or "auto",
@@ -176,14 +195,26 @@ async def handle_chat(request: web.Request) -> web.Response:
     try:
         reply, actual_backend, actual_model = await chat_backends.chat(
             message, images,
-            backend=backend, model=overrides["model"], system=overrides["system"],
+            backend=backend, model=overrides["model"], system=system_prompt,
             history=resolved_history, allow_fallback=not backend_was_explicit,
         )
-    except aiohttp.ClientConnectorError:
-        endpoint = config.VLLM_URL if backend == "vllm" else config.OLLAMA_HOST
-        logging.error("chat: не удалось подключиться к бэкенду %s (%s)", backend, endpoint)
+    except aiohttp.ClientConnectorError as e:
+        # backend — исходно запрошенный бэкенд; если сработал фолбэк
+        # (см. chat_backends.chat) и упал ВТОРОЙ бэкенд, реально
+        # неудачным был именно он, а не backend — chat_backends.chat
+        # помечает это на самом исключении (chat_backend), чтобы здесь
+        # не соврать про то, какой бэкенд/эндпоинт на самом деле недоступен.
+        failed_backend = getattr(e, "chat_backend", backend)
+        endpoint = config.VLLM_URL if failed_backend == "vllm" else config.OLLAMA_HOST
+        if failed_backend != backend:
+            logging.error(
+                "chat: не удалось подключиться ни к одному бэкенду — %s (исходный) и %s (фолбэк) недоступны",
+                backend, failed_backend,
+            )
+        else:
+            logging.error("chat: не удалось подключиться к бэкенду %s (%s)", failed_backend, endpoint)
         return _json(
-            {"error": config._t("error.backend_unavailable", backend=backend, endpoint=endpoint, lang=resolved_lang)},
+            {"error": config._t("error.backend_unavailable", backend=failed_backend, endpoint=endpoint, lang=resolved_lang)},
             status=502,
         )
     except asyncio.TimeoutError:
