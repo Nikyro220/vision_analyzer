@@ -1,0 +1,7 @@
+{
+  "full": "<signal_category name=\"test_category\">Full test rules.</signal_category>",
+  "compact": "<signal_category name=\"test_category\">Compact test rules.</signal_category>",
+  "examples": {
+    "en": "A plain test scene."
+  }
+}

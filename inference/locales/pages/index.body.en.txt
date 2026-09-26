@@ -1,0 +1,272 @@
+vision_analyzer_server is running.
+Default backend: {backend}
+
+========================================================
+GET /
+========================================================
+This text — the list of commands and usage examples.
+
+  curl http://xxx.xxx.xxx.xxx:6769/
+
+
+========================================================
+GET /health
+========================================================
+vLLM and Ollama status: availability + auto-detected model.
+
+  curl http://xxx.xxx.xxx.xxx:6769/health
+
+
+========================================================
+POST /analyze — analyze image(s) for risk signals
+========================================================
+Request body is one of two forms:
+
+  (a) a raw image in the request body, Content-Type: image/*
+  (b) multipart/form-data with fields:
+        images   — one or more images (required)
+        backend  — 'vllm' | 'ollama' (optional, overrides BACKEND)
+        model    — model name/id (optional, otherwise auto-detected)
+        lang     — 'ru' | 'en' (optional, language for this request
+                   only — does not change the global default)
+
+backend/model/lang can also be passed as query parameters — works
+for both form (a) and (b):
+  ?backend=vllm&model=google/gemma-4-31B-it&lang=en
+
+Examples:
+
+  # 1) Simple analysis, image straight in the body, everything default
+  curl -X POST -H "Content-Type: image/" \
+    --data-binary "@/path/to/file.png" \
+    http://xxx.xxx.xxx.xxx:6769/analyze
+
+  # 2) Same, but the model answers in English (this request only)
+  curl -X POST -H "Content-Type: image/" \
+    --data-binary "@/path/to/file.png" \
+    "http://xxx.xxx.xxx.xxx:6769/analyze?lang=en"
+
+  # 3) Explicit backend and model via query parameters
+  curl -X POST -H "Content-Type: image/" \
+    --data-binary "@/path/to/file.png" \
+    "http://xxx.xxx.xxx.xxx:6769/analyze?backend=ollama&model=llama3.2-vision"
+
+  # 4) Several images at once, via multipart
+  curl -X POST \
+    -F "images=@/path/to/file1.png" \
+    -F "images=@/path/to/file2.jpg" \
+    http://xxx.xxx.xxx.xxx:6769/analyze
+
+  # 5) Multipart, with backend/model/lang passed as separate form fields
+  curl -X POST \
+    -F "images=@/path/to/file.png" \
+    -F "backend=vllm" \
+    -F "model=google/gemma-4-31B-it" \
+    -F "lang=en" \
+    http://xxx.xxx.xxx.xxx:6769/analyze
+
+
+========================================================
+POST /lang — switch the default language (for every
+request that doesn't pass its own lang=...)
+========================================================
+Accepts 'lang' three ways — query, JSON body, or form field:
+
+  # via query parameter
+  curl -X POST "http://xxx.xxx.xxx.xxx:6769/lang?lang=en"
+
+  # via JSON body
+  curl -X POST -H "Content-Type: application/json" \
+    -d '{"lang": "en"}' \
+    http://xxx.xxx.xxx.xxx:6769/lang
+
+  # via form-data
+  curl -X POST -F "lang=ru" http://xxx.xxx.xxx.xxx:6769/lang
+
+
+========================================================
+GET/POST /config — view/change backend, ollama_host, vllm_url
+========================================================
+GET returns the current values. POST accepts 'backend',
+'ollama_host' and/or 'vllm_url' (any subset, at least one) — via
+query, JSON body or form field, same as /lang. Takes effect
+immediately, no server restart needed. Startup values can also be
+set via the VISION_ANALYZER_BACKEND / _OLLAMA_HOST / _VLLM_URL
+environment variables.
+
+  curl http://xxx.xxx.xxx.xxx:6769/config
+
+  curl -X POST "http://xxx.xxx.xxx.xxx:6769/config?vllm_url=http://192.168.1.10:8000/v1"
+
+  curl -X POST -H "Content-Type: application/json" \
+    -d '{"backend": "ollama", "ollama_host": "http://192.168.1.10:11434"}' \
+    http://xxx.xxx.xxx.xxx:6769/config
+
+
+========================================================
+GET/POST /sampling — view/change temperature, top_p, top_k, seed, num_ctx, num_predict, think
+========================================================
+GET returns the current values. POST accepts any subset of
+'temperature', 'top_p', 'top_k', 'seed', 'num_ctx', 'num_predict',
+'think' — via query, JSON body or form field, same as /config. Takes effect immediately, for
+every subsequent /analyze request. Startup values can also be set via
+the VISION_ANALYZER_TEMPERATURE / _TOP_P / _TOP_K / _SEED / _NUM_CTX / _NUM_PREDICT / _THINK
+environment variables.
+
+num_ctx is the context window size, relevant only for backend=ollama
+(vLLM's context size is fixed at server startup and is not a
+per-request parameter). By default it is NOT overridden (null) —
+Ollama uses the model's own default from its Modelfile, same as
+before /sampling existed. IMPORTANT: raise it deliberately — a large
+num_ctx noticeably increases KV-cache size and prefill time, and can
+cause request timeouts if VRAM runs short. Mainly useful for a long
+/analyze -> history.
+
+  curl http://xxx.xxx.xxx.xxx:6769/sampling
+
+  curl -X POST "http://xxx.xxx.xxx.xxx:6769/sampling?temperature=0.2&top_p=0.9"
+
+  # raise context for a long history
+  curl -X POST "http://xxx.xxx.xxx.xxx:6769/sampling?num_ctx=8192"
+
+  # revert to the model's default (auto/none/default/empty all work)
+  curl -X POST "http://xxx.xxx.xxx.xxx:6769/sampling?num_ctx=auto"
+
+num_predict is the maximum number of tokens the model may generate in
+one answer (Ollama: options.num_predict; vLLM: max_tokens). Must be at
+least 1. By default it is NOT overridden (null) — the model's own limit
+applies. Too small a value cuts the JSON report off mid-way (you get
+"_raw" instead of a report) — 1024-2048 is a sensible minimum. With
+think enabled, reasoning tokens count towards this limit too.
+
+think controls the model's reasoning mode. Most models take true/false;
+GPT-OSS takes only the levels low / medium / high (true/false is ignored
+for it, and its reasoning cannot be fully disabled). Default: false.
+On vLLM the value is sent as chat_template_kwargs.enable_thinking, so a
+level only means "on" there, and without --reasoning-parser the
+reasoning text may end up inside the answer itself.
+
+  # cap the answer length
+  curl -X POST "http://xxx.xxx.xxx.xxx:6769/sampling?num_predict=2048"
+
+  # remove the limit again (auto/none/default/empty all work)
+  curl -X POST "http://xxx.xxx.xxx.xxx:6769/sampling?num_predict=auto"
+
+  # reasoning: off / on / GPT-OSS level
+  curl -X POST "http://xxx.xxx.xxx.xxx:6769/sampling?think=false"
+  curl -X POST "http://xxx.xxx.xxx.xxx:6769/sampling?think=high"
+
+vllm_context_window (in the GET response) — read-only, the context
+size actually reported by vLLM (GET /v1/models -> max_model_len), or
+null if the backend is unreachable or that particular build doesn't
+expose the field. When it's known, history sent to backend=vllm is
+automatically truncated (a rough estimate, no real tokenizer) to fit
+that size — the truncation is logged on the server (WARNING).
+
+
+========================================================
+GET /models — list all models the backend currently reports
+========================================================
+With no parameter — scans both vllm and ollama. ?backend=vllm|ollama —
+just one. Unlike /health (which only shows the auto-detected first
+model), this returns the full list.
+
+  curl http://xxx.xxx.xxx.xxx:6769/models
+
+  curl "http://xxx.xxx.xxx.xxx:6769/models?backend=ollama"
+
+
+========================================================
+GET /categories — list current categories
+========================================================
+Returns the category order (canonical order, used everywhere else too):
+
+  curl http://xxx.xxx.xxx.xxx:6769/categories
+
+
+========================================================
+GET /categories/summaries — summaries of all categories
+========================================================
+Short "candidate" description of each category, used only by the
+first (classifying) model pass:
+
+  curl http://xxx.xxx.xxx.xxx:6769/categories/summaries
+
+
+========================================================
+GET /categories/<name> — one category's full content
+========================================================
+Returns summary, full, compact and (if present) examples for a single
+category:
+
+  curl http://xxx.xxx.xxx.xxx:6769/categories/weapons_and_dangerous_objects
+
+
+========================================================
+POST /categories/order — reorder categories
+========================================================
+JSON body: {"order": [...]} — a permutation of exactly the category
+names that already exist (no adding/removing here, see below).
+
+  curl -X POST -H "Content-Type: application/json" \
+    -d '{"order": ["minor_in_risk_context", "weapons_and_dangerous_objects", "..."]}' \
+    http://xxx.xxx.xxx.xxx:6769/categories/order
+
+
+========================================================
+POST /categories/<name> — create or update a category
+========================================================
+JSON body, any subset of fields:
+  summary   — short text for the classifying pass (string)
+  full      — full <signal_category>...</signal_category> block (string)
+  compact   — shortened version of the same rules (string)
+  examples  — {"en": "...", "ru": "..."} parsed example scenes; a
+              language set to null removes just that language,
+              examples: null (or {}) removes all of them
+  position  — 0-based index in the overall order (optional)
+
+A brand-new <name> requires summary, full and compact. An existing
+one accepts any subset — everything else stays as it was on disk.
+
+  # create a new category
+  curl -X POST -H "Content-Type: application/json" \
+    -d '{"summary": "...", "full": "<signal_category name=\"my_category\">...</signal_category>", "compact": "..."}' \
+    http://xxx.xxx.xxx.xxx:6769/categories/my_category
+
+  # tweak just the summary of an existing one
+  curl -X POST -H "Content-Type: application/json" \
+    -d '{"summary": "updated summary text"}' \
+    http://xxx.xxx.xxx.xxx:6769/categories/weapons_and_dangerous_objects
+
+
+========================================================
+POST /analyze — conversation history (for UI/bots)
+========================================================
+The server itself stores NO history at all — it is sent in full by
+the client on every request via the 'history' field: a JSON array of
+prior messages in a backend-agnostic format:
+
+  [
+    {"role": "user", "content": "...", "images": ["data:image/png;base64,..."]},
+    {"role": "assistant", "content": "..."}
+  ]
+
+'content' and 'images' are optional. 'images' are data URLs (plain
+base64 with no prefix also works). 'history' can be passed via query
+(as a JSON string), a multipart field (as a JSON string), or in the
+new JSON body (see below) — already as a plain array.
+
+
+========================================================
+POST /analyze — form (c) JSON body (convenient for UI clients)
+========================================================
+Content-Type: application/json, fields:
+  image   — a single image, base64 or data URL
+  images  — a list of images (alternative to 'image')
+  backend, model, lang — same as before, all optional
+  history — optional conversation history (see above)
+
+  curl -X POST -H "Content-Type: application/json" \
+    -d '{"image": "data:image/png;base64,....", "lang": "en", \
+         "history": [{"role": "user", "content": "previous message"}]}' \
+    http://xxx.xxx.xxx.xxx:6769/analyze

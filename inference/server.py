@@ -4,6 +4,8 @@ server.py — HTTP-слой vision_analyzer_server: простые хендле�
 и entrypoint. Сам /analyze — самый сложный путь — вынесен в analyze.py:
 подготовка изображений и разбор трёх форматов тела запроса там.
 Собственно общением с моделью (Ollama/vLLM) занимается backends.py.
+Хендлеры /categories (просмотр и правка категорий на лету) — в
+categories_api.py, бизнес-логика — в categories.py.
 
 Поддерживает два бэкенда:
   - vllm   — OpenAI-совместимый API (/v1/chat/completions), напр. gvllm2.service
@@ -30,6 +32,7 @@ import aiohttp
 from aiohttp import web
 
 import backends
+import categories_api
 import config
 from analyze import _json, handle_analyze
 from config import locales
@@ -37,7 +40,7 @@ from config import locales
 
 async def handle_index(request: web.Request) -> web.Response:
     return web.Response(
-        text=config._t("index.body", backend=config.BACKEND),
+        text=config._page("index.body", backend=config.BACKEND),
         content_type="text/plain",
     )
 
@@ -290,6 +293,14 @@ def build_app() -> web.Application:
     app.router.add_get("/sampling", handle_sampling)
     app.router.add_post("/sampling", handle_sampling)
     app.router.add_get("/models", handle_models)
+    # Статические /categories/summaries и /categories/order — раньше
+    # динамического /categories/{name}, иначе он перехватит их как имя
+    # категории (aiohttp резолвит роуты в порядке регистрации).
+    app.router.add_get("/categories", categories_api.handle_categories_list)
+    app.router.add_get("/categories/summaries", categories_api.handle_categories_summaries)
+    app.router.add_post("/categories/order", categories_api.handle_categories_order)
+    app.router.add_get("/categories/{name}", categories_api.handle_category_detail)
+    app.router.add_post("/categories/{name}", categories_api.handle_category_upsert)
     return app
 
 

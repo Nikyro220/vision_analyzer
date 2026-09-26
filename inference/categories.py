@@ -51,21 +51,40 @@ reload().
              Категория без примеров просто не имеет этого ключа —
              сборка <examples> её пропускает.
 
-TODO (не сейчас, но заложено в архитектуру): admin-эндпоинт
-GET/POST /categories, который пишет/удаляет файлы в inference/categories/
-и дёргает reload() — позволит менять список категорий, их порядок,
-summary и правила на лету, без выкладки нового кода.
+Admin API (см. categories_api.py, роуты собраны в server.py):
+  GET  /categories            — list_categories(): {"order": [...]}
+  GET  /categories/summaries  — get_summaries(): {имя: summary, ...}
+  GET  /categories/<имя>      — get_category(имя): summary+full+compact+
+                                 examples одной категории
+  POST /categories/order      — set_order(...): переставляет order
+                                 целиком (та же перестановка имён)
+  POST /categories/<имя>      — upsert_category(...): создаёт (если имени
+                                 нет) или частично обновляет (если есть)
+                                 summary/full/compact/examples/position
+пишущие функции сами кладут файлы в inference/categories/ и вызывают
+reload(); при ошибке валидации откатывают файлы на диске к состоянию до
+вызова и перечитывают реестр заново, так что уже работающий сервер не
+остаётся с половиной изменений.
 """
 
 from __future__ import annotations
 
 import json
 import logging
+import re
 import threading
 from pathlib import Path
 
 _DIR = Path(__file__).resolve().parent / "categories"
 _lock = threading.Lock()
+_write_lock = threading.Lock()  # сериализует upsert_category/set_order между собой
+
+# Имя категории == имя файла на диске (см. докстринг выше) — поэтому
+# ограничиваем его тем, что безопасно как имя файла и не позволяет выйти
+# из inference/categories/ (никаких "..", "/", пробелов и т.п.).
+_NAME_RE = re.compile(r"^[A-Za-z0-9_]+$")
+
+_UNSET = object()  # сентинел: поле не передано в запросе (в отличие от None)
 
 _order: list[str] = []
 _summaries: dict[str, str] = {}
@@ -213,3 +232,193 @@ def examples_block(selected: list[str] | None, lang: str) -> str:
         return ""
     intro = _EXAMPLES_INTRO.get(lang, _EXAMPLES_INTRO["en"])
     return "\n\n".join([intro, *scenes]) + "\n"
+
+
+# ---------------------------------------------------------------------------
+# Admin API — чтение (см. categories_api.py: GET-хендлеры)
+# ---------------------------------------------------------------------------
+
+class CategoryError(ValueError):
+    """Ошибка валидации входных данных API (имя категории, отсутствующие
+    обязательные поля, некорректный order и т.п.). Отдельный тип, чтобы
+    categories_api.py мог поймать именно её и вернуть 400, не путая с
+    программистской ошибкой (которая должна остаться 500)."""
+
+
+def list_categories() -> dict:
+    """{"order": [...]} — список имён в каноническом порядке. Ответ
+    GET /categories."""
+    return {"order": list(_order)}
+
+
+def get_summaries() -> dict[str, str]:
+    """summary каждой категории, отдельно от полного содержимого — ответ
+    GET /categories/summaries."""
+    return dict(_summaries)
+
+
+def get_category(name: str) -> dict | None:
+    """Полное содержимое одной категории: summary+full+compact+examples —
+    ответ GET /categories/<имя>. None, если категории с таким именем нет."""
+    if name not in _registry:
+        return None
+    cat = _registry[name]
+    result = {
+        "name": name,
+        "summary": _summaries[name],
+        "full": cat["full"],
+        "compact": cat["compact"],
+    }
+    if cat.get("examples"):
+        result["examples"] = cat["examples"]
+    return result
+
+
+# ---------------------------------------------------------------------------
+# Admin API — запись (см. categories_api.py: POST-хендлеры)
+# ---------------------------------------------------------------------------
+
+def _atomic_write_json(path: Path, data: dict) -> None:
+    """Пишет во временный файл рядом и атомарно переименовывает поверх
+    целевого — чтобы конкурентный reload() (в этом же процессе или
+    случайно запущенный извне) никогда не увидел наполовину записанный
+    JSON."""
+    tmp = path.with_suffix(path.suffix + ".tmp")
+    with open(tmp, "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
+    tmp.replace(path)
+
+
+def _merge_examples(current: dict | None, incoming) -> dict | None:
+    """Сливает {"en": ..., "ru": ...} из запроса с уже сохранёнными
+    примерами. incoming целиком None/{} — убрать все примеры; отдельный
+    язык со значением None внутри incoming — убрать только его."""
+    if incoming is None or incoming == {}:
+        return None
+    if not isinstance(incoming, dict):
+        raise CategoryError("examples: ожидается объект вида {'en': '...', 'ru': '...'} или null")
+    merged = dict(current or {})
+    for lang, text in incoming.items():
+        if text is None:
+            merged.pop(lang, None)
+            continue
+        if not isinstance(text, str) or not text.strip():
+            raise CategoryError(f"examples[{lang!r}]: ожидается непустая строка или null")
+        merged[lang] = text
+    return merged or None
+
+
+def upsert_category(
+    name: str,
+    *,
+    summary: str | None = None,
+    full: str | None = None,
+    compact: str | None = None,
+    examples=_UNSET,
+    position: int | None = None,
+    directory: Path = _DIR,
+) -> dict:
+    """Создаёт новую категорию или частично обновляет существующую;
+    пишет index.json и categories/<имя>.json, затем reload(). Ответ
+    POST /categories/<имя>.
+
+    - Новой категории (имени нет в реестре) обязательны summary, full и
+      compact — как и при загрузке с диска (см. _load).
+    - У существующей категории можно передать любое подмножество полей —
+      остальные остаются как на диске.
+    - examples: см. _merge_examples.
+    - position: 0-based индекс в общем order. Для новой категории по
+      умолчанию — конец списка; для существующей, если не передан,
+      позиция не меняется.
+
+    При CategoryError (в том числе если reload() внезапно не пропустил
+    уже как будто провалидированные данные — например, из-за гонки с
+    другим процессом, трогающим те же файлы) откатывает файлы на диске
+    к состоянию до вызова и перечитывает реестр — сервер остаётся с тем,
+    что было. Возвращает get_category(name) при успехе.
+    """
+    if not _NAME_RE.match(name):
+        raise CategoryError(
+            f"Некорректное имя категории {name!r}: разрешены только латинские буквы, цифры и '_'"
+        )
+
+    with _write_lock:
+        exists = name in _registry
+        current = _registry.get(name, {})
+
+        new_summary = summary if summary is not None else _summaries.get(name)
+        new_full = full if full is not None else current.get("full")
+        new_compact = compact if compact is not None else current.get("compact")
+        new_examples = _merge_examples(current.get("examples"), examples) if examples is not _UNSET else current.get("examples")
+
+        for field, value in (("summary", new_summary), ("full", new_full), ("compact", new_compact)):
+            if not isinstance(value, str) or not value.strip():
+                raise CategoryError(f"{name!r}: поле {field!r} обязательно и не может быть пустым")
+
+        new_order = list(_order)
+        if name not in new_order:
+            idx = len(new_order) if position is None else max(0, min(position, len(new_order)))
+            new_order.insert(idx, name)
+        elif position is not None:
+            new_order.remove(name)
+            idx = max(0, min(position, len(new_order)))
+            new_order.insert(idx, name)
+
+        index_path = directory / "index.json"
+        cat_path = directory / f"{name}.json"
+        index_backup = index_path.read_bytes() if index_path.exists() else None
+        cat_backup = cat_path.read_bytes() if cat_path.exists() else None
+
+        new_summaries = dict(_summaries)
+        new_summaries[name] = new_summary
+        cat_record = {"full": new_full, "compact": new_compact}
+        if new_examples:
+            cat_record["examples"] = new_examples
+
+        try:
+            _atomic_write_json(index_path, {"order": new_order, "summaries": new_summaries})
+            _atomic_write_json(cat_path, cat_record)
+            reload(directory)
+        except Exception:
+            if index_backup is not None:
+                index_path.write_bytes(index_backup)
+            if cat_backup is not None:
+                cat_path.write_bytes(cat_backup)
+            elif cat_path.exists():
+                cat_path.unlink()
+            reload(directory)
+            raise
+
+    return get_category(name)
+
+
+def set_order(new_order, directory: Path = _DIR) -> list[str]:
+    """Полностью заменяет порядок категорий (index.json: "order"), не
+    меняя ни одной другой части ни одной категории. Ответ
+    POST /categories/order.
+
+    new_order обязан быть перестановкой ровно тех же имён, что уже в
+    реестре — добавлять или убирать категории тут нельзя (для добавления
+    есть upsert_category, для удаления пока нет эндпоинта — см. TODO).
+    Как и upsert_category, откатывает файл на диске при ошибке.
+    """
+    if not isinstance(new_order, list) or not all(isinstance(n, str) for n in new_order):
+        raise CategoryError("order: ожидается список строк (имён категорий)")
+    if len(new_order) != len(_order) or set(new_order) != set(_order):
+        raise CategoryError(
+            f"order должен быть перестановкой текущих категорий {sorted(_order)}, "
+            f"получено {sorted(set(new_order))}"
+        )
+
+    with _write_lock:
+        index_path = directory / "index.json"
+        backup = index_path.read_bytes()
+        try:
+            _atomic_write_json(index_path, {"order": new_order, "summaries": dict(_summaries)})
+            reload(directory)
+        except Exception:
+            index_path.write_bytes(backup)
+            reload(directory)
+            raise
+
+    return list(_order)

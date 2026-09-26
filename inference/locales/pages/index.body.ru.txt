@@ -1,0 +1,265 @@
+vision_analyzer_server работает.
+Бэкенд по умолчанию: {backend}
+
+========================================================
+GET /
+========================================================
+Этот текст — список команд и примеров использования.
+
+  curl http://xxx.xxx.xxx.xxx:6769/
+
+
+========================================================
+GET /health
+========================================================
+Статус vLLM и Ollama: доступность + автоопределённая модель.
+
+  curl http://xxx.xxx.xxx.xxx:6769/health
+
+
+========================================================
+POST /analyze — анализ изображения(й) на риск-сигналы
+========================================================
+Тело запроса — один из двух вариантов:
+
+  (а) сырое изображение в теле запроса, Content-Type: image/*
+  (б) multipart/form-data с полями:
+        images   — одно или несколько изображений (обязательно)
+        backend  — 'vllm' | 'ollama' (необязательно, переопределяет BACKEND)
+        model    — имя/id модели (необязательно, иначе автоопределение)
+        lang     — 'ru' | 'en' (необязательно, язык только для этого
+                   запроса — не меняет глобальный дефолт)
+
+Параметры backend/model/lang можно передать и через query-строку —
+работает для обоих вариантов (а) и (б):
+  ?backend=vllm&model=google/gemma-4-31B-it&lang=en
+
+Примеры:
+
+  # 1) Простой анализ, картинка прямо в теле, всё по умолчанию
+  curl -X POST -H "Content-Type: image/" \
+    --data-binary "@/путь/к/файл.png" \
+    http://xxx.xxx.xxx.xxx:6769/analyze
+
+  # 2) То же самое, но модель отвечает на английском (только для этого запроса)
+  curl -X POST -H "Content-Type: image/" \
+    --data-binary "@/путь/к/файл.png" \
+    "http://xxx.xxx.xxx.xxx:6769/analyze?lang=en"
+
+  # 3) Явно указать бэкенд и модель через query-параметры
+  curl -X POST -H "Content-Type: image/" \
+    --data-binary "@/путь/к/файл.png" \
+    "http://xxx.xxx.xxx.xxx:6769/analyze?backend=ollama&model=llama3.2-vision"
+
+  # 4) Несколько изображений сразу, через multipart
+  curl -X POST \
+    -F "images=@/путь/к/файл1.png" \
+    -F "images=@/путь/к/файл2.jpg" \
+    http://xxx.xxx.xxx.xxx:6769/analyze
+
+  # 5) Multipart, где backend/model/lang переданы как отдельные поля формы
+  curl -X POST \
+    -F "images=@/путь/к/файл.png" \
+    -F "backend=vllm" \
+    -F "model=google/gemma-4-31B-it" \
+    -F "lang=en" \
+    http://xxx.xxx.xxx.xxx:6769/analyze
+
+
+========================================================
+POST /lang — сменить язык по умолчанию (для всех запросов
+без явного lang=...)
+========================================================
+Принимает 'lang' тремя способами — query, JSON-тело или form-поле:
+
+  # через query-параметр
+  curl -X POST "http://xxx.xxx.xxx.xxx:6769/lang?lang=en"
+
+  # через JSON-тело
+  curl -X POST -H "Content-Type: application/json" \
+    -d '{"lang": "en"}' \
+    http://xxx.xxx.xxx.xxx:6769/lang
+
+  # через form-data
+  curl -X POST -F "lang=ru" http://xxx.xxx.xxx.xxx:6769/lang
+
+
+========================================================
+GET/POST /config — посмотреть/поменять backend, ollama_host, vllm_url
+========================================================
+GET возвращает текущие значения. POST принимает 'backend',
+'ollama_host' и/или 'vllm_url' (любое подмножество, хотя бы одно) —
+через query, JSON-тело или form-поле, как и /lang. Действует сразу,
+без перезапуска сервера. Стартовые значения также можно задать
+переменными окружения VISION_ANALYZER_BACKEND / _OLLAMA_HOST / _VLLM_URL.
+
+  curl http://xxx.xxx.xxx.xxx:6769/config
+
+  curl -X POST "http://xxx.xxx.xxx.xxx:6769/config?vllm_url=http://192.168.1.10:8000/v1"
+
+  curl -X POST -H "Content-Type: application/json" \
+    -d '{"backend": "ollama", "ollama_host": "http://192.168.1.10:11434"}' \
+    http://xxx.xxx.xxx.xxx:6769/config
+
+
+========================================================
+GET/POST /sampling — посмотреть/поменять temperature, top_p, top_k, seed, num_ctx, num_predict, think
+========================================================
+GET возвращает текущие значения. POST принимает любое подмножество из
+'temperature', 'top_p', 'top_k', 'seed', 'num_ctx', 'num_predict',
+'think' — через query, JSON-тело или form-поле, как /config. Действует сразу, на все
+последующие запросы /analyze. Стартовые значения также можно задать
+переменными окружения VISION_ANALYZER_TEMPERATURE / _TOP_P / _TOP_K /
+_SEED / _NUM_CTX / _NUM_PREDICT / _THINK.
+
+num_ctx — размер контекстного окна, актуален только для backend=ollama
+(у vLLM размер контекста фиксируется при запуске сервера и per-request
+не передаётся). С появлением /analyze -> history промпт может расти
+сильнее прежнего — при длинной истории может понадобиться увеличить
+num_ctx под свою модель/VRAM.
+
+  curl http://xxx.xxx.xxx.xxx:6769/sampling
+
+  curl -X POST "http://xxx.xxx.xxx.xxx:6769/sampling?temperature=0.2&top_p=0.9"
+
+num_predict — максимум токенов, которые модель может сгенерировать
+за один ответ (Ollama: options.num_predict; vLLM: max_tokens). Не
+меньше 1. По умолчанию НЕ переопределяется (null) — действует лимит
+самой модели. Слишком маленькое значение обрежет JSON-отчёт на
+полуслове (вместо отчёта придёт "_raw") — разумный минимум 1024-2048.
+При включённом think токены размышлений тоже идут в этот лимит.
+
+think — режим размышлений модели. Большинство моделей принимают
+true/false; GPT-OSS принимает только уровни low / medium / high
+(true/false для неё игнорируются, а размышления полностью не
+отключаются). По умолчанию false. В vLLM значение уходит как
+chat_template_kwargs.enable_thinking, поэтому уровень там означает
+просто «включено», а без --reasoning-parser текст размышлений может
+попасть прямо в ответ.
+
+  # ограничить длину ответа
+  curl -X POST "http://xxx.xxx.xxx.xxx:6769/sampling?num_predict=2048"
+
+  # снять лимит (подойдут auto/none/default/пусто)
+  curl -X POST "http://xxx.xxx.xxx.xxx:6769/sampling?num_predict=auto"
+
+  # размышления: выкл / вкл / уровень для GPT-OSS
+  curl -X POST "http://xxx.xxx.xxx.xxx:6769/sampling?think=false"
+  curl -X POST "http://xxx.xxx.xxx.xxx:6769/sampling?think=high"
+
+vllm_context_window (в GET-ответе) — read-only, реально узнанный у
+vLLM размер контекста (GET /v1/models -> max_model_len), либо null,
+если бэкенд недоступен или конкретная сборка это поле не отдаёт.
+Когда контекст известен, история для backend=vllm перед отправкой
+автоматически обрезается (оценочно, без точного токенайзера) под
+этот размер — обрезка логируется на сервере (WARNING).
+
+
+========================================================
+GET /models — список всех моделей, которые сейчас отдаёт бэкенд
+========================================================
+Без параметра — сканирует и vllm, и ollama. ?backend=vllm|ollama —
+только один. В отличие от /health (там только автоопределённая
+первая модель), здесь полный список.
+
+  curl http://xxx.xxx.xxx.xxx:6769/models
+
+  curl "http://xxx.xxx.xxx.xxx:6769/models?backend=ollama"
+
+
+========================================================
+GET /categories — список текущих категорий
+========================================================
+Возвращает порядок категорий (тот же канонический порядок, что и везде
+в промпте):
+
+  curl http://xxx.xxx.xxx.xxx:6769/categories
+
+
+========================================================
+GET /categories/summaries — summary всех категорий
+========================================================
+Короткое описание-кандидат для каждой категории — то, что видит только
+первый (классифицирующий) вызов модели:
+
+  curl http://xxx.xxx.xxx.xxx:6769/categories/summaries
+
+
+========================================================
+GET /categories/<имя> — полное содержимое одной категории
+========================================================
+Возвращает summary, full, compact и (если есть) examples для одной
+категории:
+
+  curl http://xxx.xxx.xxx.xxx:6769/categories/weapons_and_dangerous_objects
+
+
+========================================================
+POST /categories/order — поменять порядок категорий
+========================================================
+JSON-тело: {"order": [...]} — перестановка ровно тех же имён, что уже
+есть (добавлять/удалять категории тут нельзя, см. ниже).
+
+  curl -X POST -H "Content-Type: application/json" \
+    -d '{"order": ["minor_in_risk_context", "weapons_and_dangerous_objects", "..."]}' \
+    http://xxx.xxx.xxx.xxx:6769/categories/order
+
+
+========================================================
+POST /categories/<имя> — создать или изменить категорию
+========================================================
+JSON-тело, любое подмножество полей:
+  summary   — короткий текст для классифицирующего вызова (строка)
+  full      — полный блок <signal_category>...</signal_category> (строка)
+  compact   — сокращённая версия тех же правил (строка)
+  examples  — {"en": "...", "ru": "..."} разобранные сцены-примеры;
+              язык со значением null убирает только его, а
+              examples: null (или {}) убирает все примеры целиком
+  position  — 0-based индекс в общем порядке (необязательно)
+
+Для новой категории <имя> обязательны summary, full и compact. Для
+уже существующей — любое подмножество полей, остальное остаётся как
+было на диске.
+
+  # создать новую категорию
+  curl -X POST -H "Content-Type: application/json" \
+    -d '{"summary": "...", "full": "<signal_category name=\"my_category\">...</signal_category>", "compact": "..."}' \
+    http://xxx.xxx.xxx.xxx:6769/categories/my_category
+
+  # поправить только summary у существующей
+  curl -X POST -H "Content-Type: application/json" \
+    -d '{"summary": "обновлённый текст summary"}' \
+    http://xxx.xxx.xxx.xxx:6769/categories/weapons_and_dangerous_objects
+
+
+========================================================
+POST /analyze — история диалога (для UI/ботов)
+========================================================
+Сервер сам НИКАКУЮ историю не хранит — она целиком приходит от
+клиента в каждом запросе полем 'history': JSON-массив прошлых
+сообщений в бэкенд-агностичном формате:
+
+  [
+    {"role": "user", "content": "...", "images": ["data:image/png;base64,..."]},
+    {"role": "assistant", "content": "..."}
+  ]
+
+'content' и 'images' необязательны. 'images' — data URL (можно и
+просто base64 без префикса — тоже сработает). Поле 'history' можно
+передать через query (JSON-строкой), multipart-поле (JSON-строкой)
+или в новом JSON-теле запроса (см. ниже) — уже как обычный массив.
+
+
+========================================================
+POST /analyze — вариант (в) JSON-тело (удобно для UI)
+========================================================
+Content-Type: application/json, поля:
+  image   — одно изображение, base64 или data URL
+  images  — список изображений (альтернатива 'image')
+  backend, model, lang — как и раньше, необязательные
+  history — необязательная история диалога (см. выше)
+
+  curl -X POST -H "Content-Type: application/json" \
+    -d '{"image": "data:image/png;base64,....", "lang": "en", \
+         "history": [{"role": "user", "content": "предыдущее сообщение"}]}' \
+    http://xxx.xxx.xxx.xxx:6769/analyze

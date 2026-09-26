@@ -97,6 +97,21 @@ def _t(key: str, **kwargs) -> str:
     return locales.get_formatted(key, **kwargs)
 
 
+def _page(name: str, **kwargs) -> str:
+    """Длинный "страничный" текст (см. locales.py: load_pages/get_page),
+    например index.body — помощь по GET /. В отличие от _t, подстановка
+    плейсхолдеров вида {key} делается точечным str.replace по каждому
+    переданному kwarg, а не str.format(**kwargs) — поэтому сам текст
+    страницы не обязан экранировать литеральные { и } (curl-примеры с
+    JSON-телом можно писать как есть, без "{{"/"}}")."""
+    if locales is None:
+        return f"???{name}???"
+    text = locales.get_page(name, _current_lang())
+    for key, value in kwargs.items():
+        text = text.replace("{" + key + "}", str(value))
+    return text
+
+
 
 
 # С переходом на двухпроходный анализ (classify + analyze, см. backends.py:
