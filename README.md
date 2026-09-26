@@ -44,10 +44,11 @@ cd inference && python server.py
 
 | Файл | Назначение |
 |---|---|
-| `server.py` | HTTP-эндпоинты (aiohttp): `/`, `/health`, `/analyze`, `/lang`, `/config`, `/sampling`, `/models` |
-| `backends.py` | Обращение к vLLM (`/v1/chat/completions`) и Ollama (`/api/chat`) |
+| `server.py` | HTTP-эндпоинты (aiohttp): `/`, `/health`, `/analyze`, `/chat`, `/lang`, `/config`, `/sampling`, `/models`, `/categories` |
+| `backends.py` | Обращение к vLLM (`/v1/chat/completions`) и Ollama (`/api/chat`) для `/analyze` |
+| `chat.py`, `chat_backends.py` | То же самое, но для `/chat` — свободный диалог с историей, без JSON-схемы риск-отчёта |
 | `config.py` | Константы, параметры сэмплинга, логирование, бутстрап `locales`/`prompt`/`image_upscaler` |
-| `prompt.py` | Системный промпт модели |
+| `prompt.py` | Системный промпт `/analyze` (двухпроходный, по категориям) и дефолтная системная "личность" `/chat` |
 | `locales.py`, `locales/*.json` | Тексты ответов сервера на разных языках |
 | `image_upscaler.py` | Апскейл маленьких изображений (Real-ESRGAN) перед анализом |
 
@@ -60,6 +61,17 @@ cd inference && python server.py
   `multipart/form-data` (`images`, plus `backend`/`model`/`lang`/`history`)
   или JSON (`image`/`images`, plus те же необязательные поля). Параметры
   можно передать и через query (`?backend=&model=&lang=`).
+- `POST /chat` — свободный диалог с моделью (текст + необязательные
+  картинки, с историей), без JSON-схемы риск-отчёта — ответ отдаётся как
+  есть. Тело — JSON (`message`, `image`/`images`, `system`, `history`,
+  `backend`/`model`/`lang`) либо `multipart/form-data` с теми же полями.
+  Сервер сам историю не хранит — она целиком приходит от клиента на
+  каждый запрос. Перед сообщениями всегда стоит дефолтный системный
+  промпт: модель знает, что она ассистент ПО инструменту, а не сам
+  риск-анализатор, и не выносит вердиктов по риск-сигналам вместо
+  `/analyze`; переданный `system` добавляется к этому промпту, а не
+  заменяет его. Если выбранный бэкенд недоступен, а `backend` не был
+  передан явно, сервер один раз автоматически пробует второй бэкенд.
 - `POST /lang` — сменить язык ответов по умолчанию (`ru`/`en`).
 - `GET/POST /config` — посмотреть/поменять `backend`, `ollama_host`,
   `vllm_url` без перезапуска.
