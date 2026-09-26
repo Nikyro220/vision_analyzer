@@ -99,7 +99,12 @@ def _t(key: str, **kwargs) -> str:
 
 
 
-# Используется в backends.py: в _analyze_ollama (строка 294), в _analyze_vllm дважды — при обрезке истории (348) и при сборке сообщений (351)
+# С переходом на двухпроходный анализ (classify + analyze, см. backends.py:
+# _select_categories/_analyze_image) backends.py сам решает, какие категории
+# и какой вариант (full/compact) передать в prompt.get_system_prompt — эта
+# обёртка больше не используется в backends.py напрямую. Оставлена как общий
+# "весь промпт, все категории" хелпер для внешнего кода (CLI-обёртка и т.п.,
+# см. prompt.py: docstring).
 def _get_system_prompt(lang: str | None = None) -> str:
     if prompt is None:
         return ""

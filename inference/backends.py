@@ -5,11 +5,26 @@ backends.py — всё, что говорит с моделью напрямую
   - health-пинг бэкенда
   - сборка истории диалога в формат конкретного бэкенда + защитная
     обрезка истории под контекст vLLM
-  - сама отправка запроса на анализ изображения (Ollama /api/chat,
-    vLLM /v1/chat/completions) и общий wrapper с фолбэком между ними
+  - низкоуровневая отправка ОДНОГО chat-запроса с картинкой (Ollama
+    /api/chat, vLLM /v1/chat/completions) — _analyze_ollama/_analyze_vllm
+    ничего не знают про схему ответа, просто шлют system+user+картинку
+    и возвращают сырой текст; какой именно system/user-промпт подставить
+    решает вызывающая сторона (см. prompt.py)
+  - двухпроходный анализ одного изображения (_analyze_image):
+      pass 1 (_select_categories) — дешёвая предклассификация, до
+        _CLASSIFY_MAX_ATTEMPTS попыток; если модель так и не вернула
+        валидный список категорий, сигнализирует об этом (None), и
+        pass 2 уходит в compact-fallback (все категории разом, в
+        сокращённом виде — см. prompt.get_system_prompt(compact=True))
+      pass 2 (полный анализ) — то же, что раньше делал одиночный вызов,
+        но с промптом, отфильтрованным по результату pass 1
+  - общий wrapper с фолбэком между бэкендами (vllm <-> ollama)
 
 Ничего из этого не хранит состояние диалога — история приходит целиком
 от вызывающей стороны (см. server.py: handle_analyze) на каждый запрос.
+История участвует только во втором проходе (полный анализ); первый
+проход (классификация) всегда стателесс — ему не нужен контекст прошлых
+сообщений, только текущая картинка и caption.
 """
 
 import asyncio
@@ -18,6 +33,7 @@ import logging
 import re
 import aiohttp
 import uuid
+import categories
 import config
 
 
@@ -130,18 +146,6 @@ async def _ping_backend(backend: str) -> dict:
 # ---------------------------------------------------------------------------
 # История диалога
 # ---------------------------------------------------------------------------
-
-_USER_PROMPT = "Проанализируй это изображение и верни JSON по заданной схеме."
-
-def _user_prompt(lang: str | None, caption: str | None = None) -> str:
-    """Пользовательское сообщение с правилом языка вывода (prompt.get_user_prompt).
-
-    caption — необязательный сопроводительный текст к конкретному изображению
-    (например, подпись поста), добавляется как контекст, см. prompt.py.
-    """
-    if config.prompt is None:
-        return _USER_PROMPT
-    return config.prompt.get_user_prompt(lang or config._current_lang(), caption=caption)
 
 def _strip_data_url(img: str) -> str:
     """Убирает 'data:...;base64,' префикс, если есть — Ollama ждёт чистый base64."""
@@ -284,16 +288,23 @@ def _truncate_history_for_vllm(
 
 
 # ---------------------------------------------------------------------------
-# Анализ изображения
+# Низкоуровневая отправка одного chat-запроса с картинкой.
+#
+# Ничего не знают о том, что за system_prompt/user_prompt им передали —
+# это может быть промпт первого (классифицирующего) прохода или второго
+# (полного анализа): решает вызывающая сторона (_select_categories /
+# _analyze_image), собирая текст через prompt.py. Это единственный слой,
+# который реально говорит с бэкендом, поэтому оба прохода идут через
+# него, а не дублируют HTTP/streaming-логику.
 # ---------------------------------------------------------------------------
 
 async def _analyze_ollama(
-    image_b64: str, model: str, lang: str | None = None, history: list | None = None,
-    caption: str | None = None,
+    image_b64: str, model: str, system_prompt: str, user_prompt: str,
+    history: list | None = None,
 ) -> str:
-    messages = [{"role": "system", "content": config._get_system_prompt(lang)}]
+    messages = [{"role": "system", "content": system_prompt}]
     messages.extend(_history_to_ollama_messages(history or []))
-    messages.append({"role": "user", "content": _user_prompt(lang, caption), "images": [image_b64]})
+    messages.append({"role": "user", "content": user_prompt, "images": [image_b64]})
 
     options = {
         "temperature": config.SAMPLING_DEFAULTS["temperature"],
@@ -364,8 +375,8 @@ async def _analyze_ollama(
 
 
 async def _analyze_vllm(
-    image_b64: str, image_mime: str, model: str, lang: str | None = None, history: list | None = None,
-    caption: str | None = None,
+    image_b64: str, image_mime: str, model: str, system_prompt: str, user_prompt: str,
+    history: list | None = None,
 ) -> str:
     history = history or []
 
@@ -374,18 +385,22 @@ async def _analyze_vllm(
     # (сборка не отдаёт max_model_len, бэкенд недоступен и т.п.) — не
     # трогаем историю вслепую, просто отправляем как есть; vLLM сама
     # вернёт ошибку, если промпт не влезет.
+    # Оценка бюджета строится на РЕАЛЬНОМ system_prompt этого вызова
+    # (он может быть промптом первого прохода, или второго с отфильтрованными
+    # /compact-категориями) — не на некотором обобщённом "полном" промпте,
+    # это важно для точности оценки после разбиения на два прохода.
     max_model_len = await _get_vllm_context_window(model)
     if max_model_len:
         history = _truncate_history_for_vllm(
-            history, config._get_system_prompt(lang), _user_prompt(lang), max_model_len,
+            history, system_prompt, user_prompt, max_model_len,
         )
 
-    messages = [{"role": "system", "content": config._get_system_prompt(lang)}]
+    messages = [{"role": "system", "content": system_prompt}]
     messages.extend(_history_to_vllm_messages(history))
     messages.append({
         "role": "user",
         "content": [
-            {"type": "text", "text": _user_prompt(lang, caption)},
+            {"type": "text", "text": user_prompt},
             {
                 "type": "image_url",
                 "image_url": {"url": f"data:{image_mime};base64,{image_b64}"},
@@ -457,6 +472,109 @@ def _finalize_report(report, lang: str | None = None):
         report["needs_human_review"] = True
     return report
 
+
+# ---------------------------------------------------------------------------
+# Проход 1: предклассификация (какие категории вообще имеет смысл
+# проверять полными правилами во втором проходе).
+# ---------------------------------------------------------------------------
+
+_CLASSIFY_MAX_ATTEMPTS = 3
+
+
+def _parse_candidate_categories(content: str) -> list[str] | None:
+    """Разбирает ответ первого (классифицирующего) вызова.
+
+    Возвращает список валидных имён категорий (может быть пустым списком
+    — это легитимный ответ "ничего из списка не подходит"), либо None,
+    если ответ пустой или не разбирается как объект с массивом
+    candidate_categories — тогда вызывающая сторона (_select_categories)
+    должна повторить попытку или в итоге уйти в compact-fallback.
+
+    Имена категорий, которых нет в реестре (см. categories.py) —
+    галлюцинация модели — тихо отбрасываются с предупреждением в лог,
+    это не делает весь ответ невалидным.
+    """
+    if not content or not content.strip():
+        return None
+    try:
+        data = json.loads(content)
+    except (json.JSONDecodeError, TypeError):
+        return None
+    if not isinstance(data, dict):
+        return None
+
+    raw = data.get("candidate_categories")
+    if not isinstance(raw, list):
+        return None
+
+    valid = [name for name in raw if isinstance(name, str) and categories.is_valid(name)]
+    unknown = [name for name in raw if name not in valid]
+    if unknown:
+        logging.warning("classify: модель предложила неизвестные категории, отброшены: %s", unknown)
+    return valid
+
+
+async def _select_categories(
+    image_b64: str,
+    image_mime: str,
+    backend: str,
+    model: str,
+    caption: str | None,
+) -> list[str] | None:
+    """Первый вызов: описывает изображение и предлагает шорт-лист категорий
+    для второго, полного анализа. До _CLASSIFY_MAX_ATTEMPTS попыток, если
+    модель вернула пустой или не разбирающийся по схеме ответ (запрос
+    повторяется целиком, включая саму картинку — первая попытка могла
+    просто "сорваться").
+
+    Возвращает:
+      - список имён категорий (может быть пустым — легитимное "ничего
+        не подходит") при успешном разборе, с первой попытки или позже;
+      - None, если все попытки исчерпаны без валидного ответа — тогда
+        второй проход уходит в compact-fallback: все категории разом,
+        в сокращённом виде (см. prompt.get_system_prompt(compact=True)).
+
+    Первый проход всегда стателесс — без истории диалога, ему нужна
+    только текущая картинка и caption, не прошлые сообщения. lang сюда
+    не приходит намеренно: язык вывода классифицирующего прохода никуда
+    дальше не идёт (см. prompt.get_classify_system_prompt), поэтому его
+    незачем даже спрашивать у вызывающей стороны.
+    """
+    system_prompt = config.prompt.get_classify_system_prompt()
+    user_prompt = config.prompt.get_classify_user_prompt(caption)
+
+    for attempt in range(1, _CLASSIFY_MAX_ATTEMPTS + 1):
+        if backend == "vllm":
+            content = await _analyze_vllm(image_b64, image_mime, model, system_prompt, user_prompt)
+        else:
+            content = await _analyze_ollama(image_b64, model, system_prompt, user_prompt)
+
+        candidates = _parse_candidate_categories(content)
+        if candidates is not None:
+            if attempt > 1:
+                logging.info(
+                    "classify: валидный ответ получен с попытки %d/%d", attempt, _CLASSIFY_MAX_ATTEMPTS,
+                )
+            logging.info("classify: категории-кандидаты (backend=%s model=%s): %s", backend, model, candidates or "(нет)")
+            return candidates
+
+        logging.warning(
+            "classify: попытка %d/%d — пустой или некорректный (не по схеме) ответ модели (backend=%s model=%s)",
+            attempt, _CLASSIFY_MAX_ATTEMPTS, backend, model,
+        )
+
+    logging.warning(
+        "classify: все %d попытки исчерпаны без валидного ответа — второй проход уходит в "
+        "compact-fallback (все категории разом, в сокращённом виде, без classify-фильтрации)",
+        _CLASSIFY_MAX_ATTEMPTS,
+    )
+    return None
+
+
+# ---------------------------------------------------------------------------
+# Проход 2 + общий вход: полный анализ отфильтрованными правилами.
+# ---------------------------------------------------------------------------
+
 async def _analyze_image(
     image_b64: str,
     image_mime: str = "image/jpeg",
@@ -469,11 +587,26 @@ async def _analyze_image(
 ) -> tuple[dict, str]:
     try:
         resolved_model = model or await _discover_model(backend)
+        resolved_lang = lang or config._current_lang()
+
+        selected = await _select_categories(
+            image_b64, image_mime, backend, resolved_model, caption,
+        )
+        used_fallback = selected is None  # None = проход 1 исчерпал попытки
+
+        system_prompt = config.prompt.get_system_prompt(
+            resolved_lang, categories=selected, compact=used_fallback,
+        )
+        user_prompt = config.prompt.get_user_prompt(resolved_lang, caption)
 
         if backend == "vllm":
-            content = await _analyze_vllm(image_b64, image_mime, resolved_model, lang=lang, history=history, caption=caption)
+            content = await _analyze_vllm(
+                image_b64, image_mime, resolved_model, system_prompt, user_prompt, history=history,
+            )
         elif backend == "ollama":
-            content = await _analyze_ollama(image_b64, resolved_model, lang=lang, history=history, caption=caption)
+            content = await _analyze_ollama(
+                image_b64, resolved_model, system_prompt, user_prompt, history=history,
+            )
         else:
             raise ValueError(config._t("error.unknown_backend", backend=backend, lang=lang))
     except aiohttp.ClientConnectorError:

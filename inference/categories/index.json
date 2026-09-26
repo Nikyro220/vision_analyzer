@@ -1,0 +1,16 @@
+{
+  "order": [
+    "weapons_and_dangerous_objects",
+    "extremist_or_hate_symbols",
+    "self_harm_or_violence_indicators",
+    "illegal_activity_indicators",
+    "minor_in_risk_context"
+  ],
+  "summaries": {
+    "weapons_and_dangerous_objects": "Any handheld, worn, or carried object that could be a gun, knife, blade, club, bat, chain, axe, hammer, brass knuckles, or any elongated/tube-shaped or edged item -- even if only partially visible, blurred, seen end-on, or just possibly weapon-shaped. Include this category whenever any object in a hand or foreground is not clearly and fully identified as something harmless.",
+    "extremist_or_hate_symbols": "Flags, patches, tattoos, gestures, emblems, or uniforms that could resemble known extremist, terrorist, or hate-group iconography, including any black flag or banner with Arabic-style calligraphy and a sword/blade element beneath the text. Include this category whenever a flag, symbol, or readable Arabic/foreign script appears anywhere in the frame.",
+    "self_harm_or_violence_indicators": "Visible blood, open wounds, bruising, scars, a person being restrained, bound, struck, or held down, or any other sign of physical violence or self-harm on a body. Include this category whenever skin shows an injury, a mark that could be an injury, or a person's posture suggests restraint or an attack.",
+    "illegal_activity_indicators": "Drug paraphernalia (syringes, pipes, foil, pills, powder, small bags, scales), cannabis, or cash bundled next to any of these. Include this category whenever any small unidentified object, powder, pills, or bagged substance is visible on a table, hand, or surface.",
+    "minor_in_risk_context": "A child or teenager (under 18) appears anywhere in the frame, especially near any other object, person, or scene element that could itself be sensitive. Include this category whenever any person could plausibly be under 18, even if the rest of the scene looks otherwise ordinary."
+  }
+}

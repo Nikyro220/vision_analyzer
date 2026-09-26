@@ -22,103 +22,56 @@ Design notes:
     rule is repeated in the user message (get_user_prompt) for recency.
   - Enum values (risk_level, category, needs_human_review) stay in English /
     JSON literals in every output language, so the server can parse them.
+Two-pass pipeline (added when the single monolithic prompt was split):
+  - Pass 1 (classify): get_classify_system_prompt / get_classify_user_prompt.
+    Cheap, no rule-checking — describes the image and proposes a shortlist
+    of candidate categories, favouring recall over precision. Category
+    summaries come from categories.py (inference/categories/*.json), never
+    hand-edited here.
+  - Pass 2 (analyze): get_system_prompt, now takes an optional `categories`
+    filter (the pass-1 shortlist) and a `compact` flag. `compact=True` is
+    the fallback path — categories.py's compact_signals_block() covers
+    every category at once — used when pass 1 could not be trusted (see
+    backends._select_categories). Output JSON schema is unchanged.
+
+Both system-prompt templates (analyze/classify) live in inference/prompts/
+as plain .txt files, not as string constants in this module — same reason
+categories moved out to inference/categories/: it lets the prompt wording
+be read/edited/versioned on its own, independently of the assembly code
+below, and is a prerequisite for the same future hot-reload story as
+categories (see categories.py's TODO). reload_templates() below is that
+module's reload() counterpart.
 """
 
-import prompt_rules
+import categories as category_registry
+from pathlib import Path
 
-SYSTEM_PROMPT_TEMPLATE = """\
-<role>
-You are a visual risk-triage module in a content-moderation pipeline. You receive one image and return one JSON object. A human moderator reads your JSON to decide whether the image goes to the review queue. You work as a reporting instrument: you describe, register signals, and route.
-</role>
+_PROMPTS_DIR = Path(__file__).resolve().parent / "prompts"
 
-<reasoning_budget>
-Reason briefly and silently: identify what is visible first, then check it against the rules below once, in one pass. Do not quote, paraphrase, or restate these instructions in your reasoning — apply them directly without narrating them.
-</reasoning_budget>
+_ANALYZE_SYSTEM_PROMPT_TEMPLATE: str = ""
+_CLASSIFY_SYSTEM_PROMPT_TEMPLATE: str = ""
 
-<principles>
-<principle name="observed_facts_only">
-Write only what is visible: counts, colors, shapes, sizes relative to a hand or body, positions (left / center / right, foreground / background), readable text. Write an emotion or an intention only when a caption inside the image states it.
-</principle>
 
-<principle name="neutral_tone">
-Write like an evidence log: short declarative sentences, one fact per sentence, the same tone for harmless and sensitive content.
-</principle>
+def reload_templates(directory: Path = _PROMPTS_DIR) -> None:
+    """Перечитывает шаблоны системных промптов (analyze_system.txt,
+    classify_system.txt) с диска.
 
-<principle name="respectful_generality">
-Describe a person with these attributes: man / woman / boy / girl, age bracket (child under 12, teen 13-17, young adult 18-25, adult 26-50, older adult 50+), build, hair color and length, clothing. Leave out ethnicity, nationality, religion, health status, sexual orientation, and personal identity. When a uniform, badge, or caption states such a fact as text, transcribe that text verbatim.
-</principle>
+    Как и categories.reload(), это точка расширения под будущее
+    редактирование на лету: если что-то из файлов отсутствует или
+    пустое — исключение летит наверх, старые шаблоны в памяти не
+    затираются частично.
+    """
+    analyze_text = (directory / "analyze_system.txt").read_text(encoding="utf-8")
+    classify_text = (directory / "classify_system.txt").read_text(encoding="utf-8")
+    if not analyze_text.strip() or not classify_text.strip():
+        raise ValueError(f"{directory}: analyze_system.txt/classify_system.txt не должны быть пустыми")
 
-<principle name="calibrated_confidence">
-Use this wording ladder:
-- Element fully visible and taller than one tenth of the image height: plain statement ("a dark cylinder").
-- Element partly covered, blurred, seen end-on, or smaller than one tenth of the image height: "partially visible", "appears to be", or "seen end-on".
-- Element whose type is unclear: "unidentified object" plus its color, shape, and size.
-</principle>
-</principles>
+    global _ANALYZE_SYSTEM_PROMPT_TEMPLATE, _CLASSIFY_SYSTEM_PROMPT_TEMPLATE
+    _ANALYZE_SYSTEM_PROMPT_TEMPLATE = analyze_text
+    _CLASSIFY_SYSTEM_PROMPT_TEMPLATE = classify_text
 
-<scene_coverage>
-Fill "description" in this order, one sentence per item that has visible content:
-1. People: count, apparent gender presentation, age bracket, build, hair, pose, action.
-2. Hands: for every visible person, what each hand holds (object color, shape, length compared with the hand, orientation) or "empty". For every held object add the direction it points: toward the camera, toward a person, upward, downward, sideways.
-3. Clothing and gear: garment types, colors, headwear, accessories.
-4. Text, patches, symbols, flags, logos: location on the body or in the scene, color, shape, and a verbatim transcription.
-5. Other objects: type, color, condition, brand or model markings.
-6. Environment: indoor or outdoor, lighting, time of day, background elements.
-7. Image quality: blur, cropping, compression, or low resolution that reduces visibility.
-</scene_coverage>
 
-<risk_signals>
-Record every instance found as a separate signal with its own id (S-1, S-2, ...).
-
-__RISK_SIGNALS__
-</risk_signals>
-
-<context_classification>
-Write one short label for the overall scene in __OUTPUT_LANGUAGE__. Label options: __CONTEXT_LABELS__. Use the __OUTPUT_LANGUAGE__ wording of the closest option, or a similarly short label of your own when none fits. Base it on clothing, setting, symbols, and objects you already described. The label is metadata for the moderator; risk_level comes from signals only, with the single exception in context_escalation_guidance.
-</context_classification>
-
-<context_escalation_guidance>
-Escalate when both conditions hold: (1) the context label is religious, devotional, or ideological, and (2) a caption, overlay, or slogan in the image contains words about law, bans, rights, freedom, government, court, police, protest, or a call to action (for example "закон", "запрет", "право", "protest", "ban", "rights"). In that case raise risk_level one step ("low" becomes "medium"; "medium" and "high" stay) and set needs_human_review to true, so the moderator judges intent. A plain photo in devotional attire, or one with a caption that only gives a name, greeting, or place, receives no escalation.
-</context_escalation_guidance>
-
-<risk_level_guidance>
-"high": a weapons signal at level "high"; an extremist or hate symbol that is fully visible; visible blood or wounds together with a person being struck or restrained; a minor_in_risk_context signal next to any "high" signal.
-"medium": a weapons signal at level "medium"; a partially visible or only resembling extremist symbol; an illegal_activity_indicators signal; a prop or costume weapon in a scene that is clearly fiction (costume, stage, film set); context escalation.
-"low": no signal registered, or every registered signal removed by an override.
-</risk_level_guidance>
-
-<human_review_guidance>
-Set needs_human_review to true when any signal is registered, when risk_level is "medium" or "high", when context escalation applies, or when an object in a person's hand cannot be identified (blurred, covered, or seen end-on).
-Set it to false when the signals array is empty and every object in every hand is identified or the hands are empty.
-</human_review_guidance>
-
-<examples>
-__EXAMPLES__
-</examples>
-
-<output_format>
-Respond with one valid JSON object and nothing else: no markdown fences, no text outside the JSON. Write every free-text value (description, context, detail, rationale, recommendation) in __OUTPUT_LANGUAGE__. Keep these values in English exactly as spelled below, in every output language: "risk_level" (low, medium, or high), each "category" (a signal_category name), and the JSON literals true and false. Fill the fields in the order shown, so each field builds on the ones already written:
-
-{
-  "description": "the scene_coverage items, in order",
-  "text_on_image": "verbatim transcription of readable text, or an empty string",
-  "context": "one short label from context_classification, written in __OUTPUT_LANGUAGE__",
-  "signals": [
-    {"id": "S-1", "category": "one signal_category name in English", "detail": "observed features and feature codes"}
-  ],
-  "rationale": "the feature codes or overrides that lead to the risk_level below",
-  "risk_level": "exactly one of: low, medium, high",
-  "needs_human_review": true or false (a JSON boolean),
-  "recommendation": "one sentence in __OUTPUT_LANGUAGE__ naming the check for the moderator; for a weapons signal the sentence asks the moderator to verify whether the object is a real weapon, a replica, or a prop, and these three options are the complete list"
-}
-
-Use an empty array for "signals" when no signal is registered.
-
-Language check before answering: signals[].detail, rationale, and recommendation are written in __OUTPUT_LANGUAGE__, the same as description.
-</output_format>
-"""
-
-EXAMPLES = prompt_rules.EXAMPLES_BLOCKS
+reload_templates()
 
 CONTEXT_LABELS = {
     "ru": (
@@ -142,19 +95,44 @@ LANGUAGE_NAMES = {
 }
 
 
-def get_system_prompt(lang: str = "ru") -> str:
-    """Собирает системный промпт под нужный язык вывода модели.
+def get_system_prompt(
+    lang: str = "ru",
+    categories: list[str] | None = None,
+    compact: bool = False,
+) -> str:
+    """Собирает системный промпт (второй, полный проход) под нужный язык
+    и под нужное подмножество категорий сигналов.
 
     lang — код локали ("ru", "en", ...). Неизвестный код подставляется
     как есть (на случай, если LANGUAGE_NAMES ещё не знает о новом языке,
     но locales.json для него уже добавлен).
+
+    categories — список имён категорий (из первого, классифицирующего
+    вызова), которые нужно включить в правила. None означает "все
+    категории" — так вызывался промпт раньше (обратная совместимость),
+    и так же в fallback (вместе с compact=True, см. ниже).
+
+    compact — True переключает на сокращённые (compact) версии правил
+    категорий и полностью убирает секцию <examples>, чтобы не раздувать
+    промпт, когда правила загружаются для всех категорий разом.
+    Используется только в fallback-пути: первый вызов исчерпал попытки
+    и не дал валидного списка категорий (см. backends._select_categories).
     """
     language_name = LANGUAGE_NAMES.get(lang, lang)
-    examples = EXAMPLES.get(lang, EXAMPLES["en"])
     labels = CONTEXT_LABELS.get(lang, CONTEXT_LABELS["en"])
-    text = SYSTEM_PROMPT_TEMPLATE.replace("__EXAMPLES__", examples)
+
+    if compact:
+        risk_signals = category_registry.compact_signals_block(categories)
+        examples_text = ""
+    else:
+        risk_signals = category_registry.full_signals_block(categories)
+        examples_text = category_registry.examples_block(categories, lang)
+
+    examples_section = f"<examples>\n{examples_text}\n</examples>\n" if examples_text else ""
+
+    text = _ANALYZE_SYSTEM_PROMPT_TEMPLATE.replace("__EXAMPLES_SECTION__", examples_section)
     text = text.replace("__CONTEXT_LABELS__", labels)
-    text = text.replace("__RISK_SIGNALS__", prompt_rules.RISK_SIGNALS_BLOCK)
+    text = text.replace("__RISK_SIGNALS__", risk_signals)
     return text.replace("__OUTPUT_LANGUAGE__", language_name)
 
 
@@ -222,6 +200,58 @@ def get_user_prompt(lang: str = "ru", caption: str | None = None) -> str:
     return base + block.format(caption=caption)
 
 
+# ---------------------------------------------------------------------------
+# Первый проход (classify): дешёвая предклассификация — описывает сцену
+# и предлагает шорт-лист категорий-кандидатов для второго, полного прохода.
+# Точность выбора категорий не важна, важен recall (лучше взять лишнюю
+# категорию, чем упустить нужную) — второй проход всё равно проверяет
+# каждую по полным правилам.
+# ---------------------------------------------------------------------------
+
+
+def get_classify_system_prompt() -> str:
+    """Собирает системный промпт первого (классифицирующего) прохода.
+
+    Не зависит от lang: единственный текст, который первый проход
+    реально порождает и который куда-то идёт дальше — это
+    candidate_categories (английские идентификаторы категорий, язык
+    вывода тут в принципе не участвует). Поле description в ответе
+    существует только как reasoning-подпорка перед выбором категорий
+    (см. prompts/classify_system.txt) и после парсинга (backends.
+    _parse_candidate_categories) отбрасывается — просить его на языке
+    __OUTPUT_LANGUAGE__ было бы работой в никуда.
+
+    Список категорий-кандидатов всегда полный (все зарегистрированные
+    категории) — фильтрация происходит в самом первом вызове, а не до
+    него; второй проход получает уже отфильтрованный список.
+    """
+    return _CLASSIFY_SYSTEM_PROMPT_TEMPLATE.replace(
+        "__CATEGORY_SUMMARIES__", category_registry.summaries_block()
+    )
+
+
+_CLASSIFY_USER_PROMPT = (
+    "Describe this image and pick the matching categories following the given schema."
+)
+
+
+def get_classify_user_prompt(caption: str | None = None) -> str:
+    """Пользовательское сообщение первого прохода. Одно, без вариантов по
+    lang — по той же причине, что и get_classify_system_prompt: язык
+    вывода первого прохода никуда не идёт дальше. caption обрабатывается
+    так же, как в get_user_prompt — как контекст, не инструкция; сам
+    caption может быть на любом языке, это просто данные, инструкция
+    вокруг него на английском не мешает модели его прочитать."""
+    caption = (caption or "").strip()
+    if not caption:
+        return _CLASSIFY_USER_PROMPT
+    if len(caption) > _CAPTION_MAX_CHARS:
+        caption = f"{caption[:_CAPTION_MAX_CHARS]}…"
+
+    return _CLASSIFY_USER_PROMPT + _CAPTION_BLOCK["en"].format(caption=caption)
+
+
 # Обратная совместимость: если что-то ещё импортирует SYSTEM_PROMPT напрямую,
-# оно получит промпт на языке по умолчанию (ru).
+# оно получит полный (некомпактный, все категории) промпт на языке по
+# умолчанию (ru).
 SYSTEM_PROMPT = get_system_prompt("ru")
