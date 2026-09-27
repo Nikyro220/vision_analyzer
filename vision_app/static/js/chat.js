@@ -25,26 +25,63 @@
 
   var sending = false;
 
+  var ROLE_LABELS = { user: "вы", assistant: "модель", error: "ошибка" };
+
   function el(tag, className) {
     var node = document.createElement(tag);
     if (className) node.className = className;
     return node;
   }
 
-  function renderMessage(role, text, meta) {
+  function pad2(n) {
+    return (n < 10 ? "0" : "") + n;
+  }
+
+  function nowHM() {
+    var d = new Date();
+    return pad2(d.getHours()) + ":" + pad2(d.getMinutes());
+  }
+
+  // Реплика — не пузырь, а строка «журнала сессии»: роль + время сверху
+  // (моноширинным, как остальные технические метки в панели), текст снизу.
+  function renderTurn(role, text, meta) {
     var emptyHint = document.getElementById("chat-empty");
     if (emptyHint) emptyHint.remove();
 
-    var bubble = el("div", "chat-msg chat-msg-" + role);
-    bubble.appendChild(document.createTextNode(text));
+    var turn = el("div", "chat-turn chat-turn-" + role);
+
+    var head = el("div", "chat-turn-head");
+    var roleEl = el("span", "chat-turn-role");
+    roleEl.textContent = ROLE_LABELS[role] || role;
+    var timeEl = el("span", "chat-turn-time");
+    timeEl.textContent = nowHM();
+    head.appendChild(roleEl);
+    head.appendChild(timeEl);
+
+    var body = el("div", "chat-turn-body");
+    if (text) body.appendChild(document.createTextNode(text));
     if (meta) {
-      var metaEl = el("span", "chat-msg-meta");
+      var metaEl = el("span", "chat-turn-meta");
       metaEl.textContent = meta;
-      bubble.appendChild(metaEl);
+      body.appendChild(metaEl);
     }
-    log.appendChild(bubble);
+
+    turn.appendChild(head);
+    turn.appendChild(body);
+    log.appendChild(turn);
     log.scrollTop = log.scrollHeight;
-    return bubble;
+    return turn;
+  }
+
+  // Пока модель отвечает — реплика с тремя пульсирующими точками вместо текста.
+  function renderPending() {
+    var turn = renderTurn("assistant", "");
+    turn.classList.add("chat-turn-pending");
+    var body = turn.querySelector(".chat-turn-body");
+    var dots = el("span", "chat-typing");
+    dots.innerHTML = "<span></span><span></span><span></span>";
+    body.appendChild(dots);
+    return turn;
   }
 
   function autoGrow() {
@@ -68,18 +105,17 @@
   // как только сервер вернёт настоящий заголовок, подставляем его на месте, без перезагрузки.
   function updateSidebarTitle(title) {
     if (!title) return;
-    var activeRow = document.querySelector(".chat-session-row.is-active .mini-list-name");
+    var activeRow = document.querySelector(".chat-session-row.is-active .chat-session-name");
     if (activeRow) activeRow.textContent = title;
     document.title = title + " · " + document.title.split(" · ").slice(1).join(" · ");
   }
 
   function sendMessage(message) {
-    renderMessage("user", message);
+    renderTurn("user", message);
     showError("");
     setSending(true);
 
-    var pending = renderMessage("assistant", "…");
-    pending.classList.add("chat-msg-pending");
+    var pending = renderPending();
 
     fetch(sendUrl, {
       method: "POST",
@@ -104,7 +140,7 @@
         }
         var data = result.data || {};
         var meta = data.backend ? data.backend + (data.model ? " · " + data.model : "") : "";
-        renderMessage("assistant", data.reply || "", meta);
+        renderTurn("assistant", data.reply || "", meta);
         updateSidebarTitle(data.title);
       })
       .catch(function () {

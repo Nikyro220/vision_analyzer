@@ -17,13 +17,13 @@
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <button type="submit" class="btn btn-secondary btn-block">+ Новый чат</button>
         </form>
-        <ul class="mini-list chat-session-list">
+        <ul class="chat-session-list">
             {% for s in sessions %}
             <li>
                 <div class="chat-session-row {% if s.id == session.id %}is-active{% endif %}">
-                    <a href="{{ url_for('chat.view', session_id=s.id) }}" class="mini-list-row chat-session-link">
-                        <span class="mini-list-name" title="{{ s.display_title }}">{{ s.display_title|trunc(28) }}</span>
-                        <span class="mini-list-date">{{ s.updated_at|localdt('%d.%m %H:%M') }}</span>
+                    <a href="{{ url_for('chat.view', session_id=s.id) }}" class="chat-session-link">
+                        <span class="chat-session-name" title="{{ s.display_title }}">{{ s.display_title|trunc(30) }}</span>
+                        <span class="chat-session-date">{{ s.updated_at|localdt('%d.%m · %H:%M') }}</span>
                     </a>
                     <form method="post" action="{{ url_for('chat.delete_session', session_id=s.id) }}"
                           class="chat-session-delete" data-confirm="Удалить этот чат безвозвратно?">
@@ -32,6 +32,8 @@
                     </form>
                 </div>
             </li>
+            {% else %}
+            <li class="chat-session-empty">Пока нет ни одного чата.</li>
             {% endfor %}
         </ul>
     </div>
@@ -41,9 +43,18 @@
          data-csrf="{{ csrf_token() }}">
         <div class="chat-log" id="chat-log">
             {% for m in messages %}
-            <div class="chat-msg chat-msg-{{ m.role }}">{{ m.content }}{% if m.role == 'assistant' and m.backend %}<span class="chat-msg-meta">{{ m.backend }}{% if m.model %} · {{ m.model }}{% endif %}</span>{% endif %}</div>
+            <div class="chat-turn chat-turn-{{ m.role }}">
+                <div class="chat-turn-head">
+                    <span class="chat-turn-role">{{ 'вы' if m.role == 'user' else 'модель' }}</span>
+                    <span class="chat-turn-time">{{ m.created_at|localdt('%H:%M') }}</span>
+                </div>
+                <div class="chat-turn-body">{{ m.content }}{% if m.role == 'assistant' and m.backend %}<span class="chat-turn-meta">{{ m.backend }}{% if m.model %} · {{ m.model }}{% endif %}</span>{% endif %}</div>
+            </div>
             {% else %}
-            <p class="empty-hint" id="chat-empty">Напишите что-нибудь, чтобы начать этот чат.</p>
+            <div class="chat-empty" id="chat-empty">
+                <p class="chat-empty-title">чат пуст</p>
+                <p class="chat-empty-hint">Спросите про категории риска, что значит уже готовый отчёт /analyze, настройки сэмплинга — или просто поздоровайтесь.</p>
+            </div>
             {% endfor %}
         </div>
 
@@ -52,7 +63,10 @@
                       placeholder="Сообщение…" autofocus></textarea>
             <button type="submit" class="btn btn-primary" id="chat-send-btn">Отправить</button>
         </form>
-        <p class="field-hint chat-error" id="chat-error" hidden></p>
+        <div class="chat-composer-foot">
+            <span class="chat-composer-hint">Enter — отправить · Shift+Enter — новая строка</span>
+            <p class="chat-error" id="chat-error" hidden></p>
+        </div>
     </div>
 </div>
 {% endblock %}
