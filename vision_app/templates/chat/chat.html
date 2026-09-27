@@ -48,7 +48,10 @@
                     <span class="chat-turn-role">{{ 'вы' if m.role == 'user' else 'модель' }}</span>
                     <span class="chat-turn-time">{{ m.created_at|localdt('%H:%M') }}</span>
                 </div>
-                <div class="chat-turn-body">{{ m.content }}{% if m.role == 'assistant' and m.backend %}<span class="chat-turn-meta">{{ m.backend }}{% if m.model %} · {{ m.model }}{% endif %}</span>{% endif %}</div>
+                <div class="chat-turn-body"><span class="chat-turn-text" data-raw-text>{{ m.content }}</span>{% if m.role == 'assistant' and m.backend %}<span class="chat-turn-meta">{{ m.backend }}{% if m.model %} · {{ m.model }}{% endif %}</span>{% endif %}</div>
+                {% if m.role == 'assistant' and m.refs %}
+                <div class="chat-refs" data-refs='{{ m.refs|tojson }}'></div>
+                {% endif %}
             </div>
             {% else %}
             <div class="chat-empty" id="chat-empty">
@@ -72,5 +75,6 @@
 {% endblock %}
 
 {% block scripts_extra %}
+<script src="{{ url_for('static', filename='js/markdown.js') }}"></script>
 <script src="{{ url_for('static', filename='js/chat.js') }}"></script>
 {% endblock %}

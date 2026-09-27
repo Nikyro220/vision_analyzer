@@ -267,6 +267,14 @@ class ChatMessage(db.Model):
     role = db.Column(db.String(16), nullable=False)  # ChatRole.USER / ChatRole.ASSISTANT
     content = db.Column(db.Text, nullable=False, default="")
 
+    # Ссылки на анализы, которые ретрив (analysis_query.py) подложил под этот
+    # ответ ассистента — список словарей {id, url, thumb_url, label, risk_level,
+    # risk_label, date}. Формируются из тех же строк БД, что и текстовая сводка
+    # в system-промпте, поэтому не могут "поплыть"/сгаллюцинироваться в отличие
+    # от того, если бы модель сама писала ссылки текстом. Пусто для role=user
+    # и для ответов без сработавшего ретрива.
+    refs = db.Column(db.JSON, nullable=False, default=list, server_default="[]")
+
     # Только для role=assistant — чем/на чём был получен этот ответ (для отображения).
     backend = db.Column(db.String(32), nullable=False, default="")
     model = db.Column(db.String(120), nullable=False, default="")

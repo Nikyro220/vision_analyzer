@@ -33,6 +33,94 @@
     return node;
   }
 
+  // На случай, если markdown.js по какой-то причине не подключился —
+  // не оставляем пользователя без текста, просто без форматирования.
+  function escapeForFallback(text) {
+    var div = el("div");
+    div.textContent = text;
+    return div.innerHTML.replace(/\n/g, "<br>");
+  }
+
+  // Реплики, отрисованные сервером при загрузке страницы (Jinja положил туда
+  // экранированный текст как textContent) — прогоняем через тот же рендерер,
+  // чтобы markdown работал одинаково и в истории, и в новых сообщениях.
+  function renderExistingTurns() {
+    if (window.renderMarkdownToHtml) {
+      var textNodes = log.querySelectorAll(".chat-turn-text[data-raw-text]");
+      for (var i = 0; i < textNodes.length; i += 1) {
+        var node = textNodes[i];
+        var raw = node.textContent;
+        node.innerHTML = window.renderMarkdownToHtml(raw);
+        node.removeAttribute("data-raw-text");
+      }
+    }
+
+    var refNodes = log.querySelectorAll(".chat-refs[data-refs]");
+    for (var j = 0; j < refNodes.length; j += 1) {
+      var refNode = refNodes[j];
+      var refs = [];
+      try {
+        refs = JSON.parse(refNode.getAttribute("data-refs") || "[]");
+      } catch (e) {
+        refs = [];
+      }
+      refNode.removeAttribute("data-refs");
+      fillRefCards(refNode, refs);
+    }
+  }
+
+  var RISK_CLASS = { low: "chat-ref-risk-low", medium: "chat-ref-risk-medium", high: "chat-ref-risk-high" };
+
+  // Карточка-ссылка на конкретный анализ: миниатюра + название + бейдж риска.
+  // Ссылки/данные приходят готовыми с сервера (analysis_query.py собирает их
+  // из тех же строк БД, что и текстовую сводку для модели) — фронт их только
+  // рисует, ничего не парсит из текста ответа модели.
+  function buildRefCard(ref) {
+    var card = document.createElement("a");
+    card.className = "chat-ref-card";
+    card.href = ref.url || "#";
+    card.target = "_blank";
+    card.rel = "noopener noreferrer";
+
+    var thumbWrap = el("span", "chat-ref-thumb");
+    if (ref.thumb_url) {
+      var img = document.createElement("img");
+      img.src = ref.thumb_url;
+      img.alt = ref.label || "";
+      img.loading = "lazy";
+      thumbWrap.appendChild(img);
+    } else {
+      thumbWrap.classList.add("chat-ref-thumb-empty");
+    }
+    card.appendChild(thumbWrap);
+
+    var info = el("span", "chat-ref-info");
+
+    var label = el("span", "chat-ref-label");
+    label.textContent = ref.label || "Анализ #" + ref.id;
+    info.appendChild(label);
+
+    var metaLine = el("span", "chat-ref-meta");
+    var badge = el("span", "chat-ref-badge " + (RISK_CLASS[ref.risk_level] || ""));
+    badge.textContent = ref.risk_label || ref.risk_level || "";
+    metaLine.appendChild(badge);
+    var dateSpan = el("span", "chat-ref-date");
+    dateSpan.textContent = [ref.username, ref.date].filter(Boolean).join(" · ");
+    metaLine.appendChild(dateSpan);
+    info.appendChild(metaLine);
+
+    card.appendChild(info);
+    return card;
+  }
+
+  function fillRefCards(container, refs) {
+    if (!refs || !refs.length) return;
+    container.innerHTML = "";
+    refs.forEach(function (ref) {
+      container.appendChild(buildRefCard(ref));
+    });
+  }
+
   function pad2(n) {
     return (n < 10 ? "0" : "") + n;
   }
@@ -44,7 +132,7 @@
 
   // Реплика — не пузырь, а строка «журнала сессии»: роль + время сверху
   // (моноширинным, как остальные технические метки в панели), текст снизу.
-  function renderTurn(role, text, meta) {
+  function renderTurn(role, text, meta, refs) {
     var emptyHint = document.getElementById("chat-empty");
     if (emptyHint) emptyHint.remove();
 
@@ -59,7 +147,11 @@
     head.appendChild(timeEl);
 
     var body = el("div", "chat-turn-body");
-    if (text) body.appendChild(document.createTextNode(text));
+    if (text) {
+      var textEl = el("span", "chat-turn-text");
+      textEl.innerHTML = window.renderMarkdownToHtml ? window.renderMarkdownToHtml(text) : escapeForFallback(text);
+      body.appendChild(textEl);
+    }
     if (meta) {
       var metaEl = el("span", "chat-turn-meta");
       metaEl.textContent = meta;
@@ -68,6 +160,13 @@
 
     turn.appendChild(head);
     turn.appendChild(body);
+
+    if (refs && refs.length) {
+      var refsEl = el("div", "chat-refs");
+      fillRefCards(refsEl, refs);
+      turn.appendChild(refsEl);
+    }
+
     log.appendChild(turn);
     log.scrollTop = log.scrollHeight;
     return turn;
@@ -140,7 +239,7 @@
         }
         var data = result.data || {};
         var meta = data.backend ? data.backend + (data.model ? " · " + data.model : "") : "";
-        renderTurn("assistant", data.reply || "", meta);
+        renderTurn("assistant", data.reply || "", meta, data.refs);
         updateSidebarTitle(data.title);
       })
       .catch(function () {
@@ -171,5 +270,6 @@
     }
   });
 
+  renderExistingTurns();
   log.scrollTop = log.scrollHeight;
 })();

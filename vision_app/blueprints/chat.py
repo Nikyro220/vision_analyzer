@@ -6,6 +6,7 @@ from flask import Blueprint, abort, current_app, jsonify, redirect, render_templ
 from flask_login import current_user, login_required
 from sqlalchemy import select
 
+from ..analysis_query import build_analysis_context
 from ..extensions import db
 from ..models import ChatMessage, ChatRole, ChatSession
 from ..services import VisionApiError, chat_with_model
@@ -124,6 +125,12 @@ def send(session_id: int):
 
     target_backend, target_model = get_analysis_target()
 
+    # Если вопрос похож на аналитический ("какие анализы были на этой неделе",
+    # "сколько высокого риска" и т.п.) — подмешиваем в system-промпт сводку
+    # реальных данных из БД (с учётом прав доступа) и получаем карточки-ссылки
+    # на конкретные анализы (см. analysis_query.py).
+    rag = build_analysis_context(current_user, message)
+
     try:
         outcome = chat_with_model(
             message,
@@ -131,6 +138,7 @@ def send(session_id: int):
             backend=target_backend,
             model=target_model,
             lang="ru",
+            system=rag.system,
         )
     except VisionApiError as exc:
         current_app.logger.warning("chat: ошибка сервера анализа: %s", exc)
@@ -144,6 +152,7 @@ def send(session_id: int):
             content=outcome.reply,
             backend=outcome.backend,
             model=outcome.model,
+            refs=rag.references,
         )
     )
     if not session_row.title:
@@ -156,5 +165,6 @@ def send(session_id: int):
             "backend": outcome.backend,
             "model": outcome.model,
             "title": session_row.title,
+            "refs": rag.references,
         }
     )

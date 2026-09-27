@@ -305,14 +305,6 @@ async def chat(
             raise ValueError(config._t("error.unknown_backend", backend=backend))
     except aiohttp.ClientConnectorError as e:
         if not allow_fallback:
-            # Помечаем исключение тем бэкендом, который реально сейчас
-            # недоступен — если это фолбэк-попытка (см. ветку ниже),
-            # backend тут уже не исходно запрошенный, а тот, на который
-            # переключились. Без этого вызывающий код (chat.py:
-            # handle_chat) не может отличить "упал только исходный
-            # бэкенд" от "упали оба" и в логе/ответе клиенту называет
-            # исходный бэкенд, даже если на самом деле последним упал
-            # другой.
             e.chat_backend = backend
             raise
         fallback_backend = "ollama" if backend == "vllm" else "vllm"
