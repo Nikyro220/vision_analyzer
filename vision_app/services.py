@@ -1,5 +1,5 @@
 """
-Тонкий клиент для vision_analyzer_server.py (см. /analyze, /health, /lang).
+Тонкий клиент для vision_analyzer_server.py (см. /analyze, /chat, /health, /lang).
 
 Сервер ожидает сырые байты изображения в теле POST /analyze с
 Content-Type: image/<тип> и возвращает JSON вида:
@@ -265,6 +265,77 @@ def extract_model_names(payload, backend: str = "") -> list[str]:
             seen.add(name)
             result.append(name)
     return result
+
+
+@dataclass
+class ChatOutcome:
+    reply: str = ""
+    backend: str = ""
+    model: str = ""
+
+
+def chat_with_model(
+    message: str,
+    history: list[dict] | None = None,
+    images: list[str] | None = None,
+    backend: str = "",
+    model: str = "",
+    lang: str = "ru",
+    system: str = "",
+) -> ChatOutcome:
+    """Отправляет одно сообщение на POST /chat (см. inference/chat.py) и
+    возвращает разобранный ответ.
+
+    Сервер не хранит историю — при каждом вызове ей нужно передавать всю
+    историю целиком (``history``: список {"role": "user"|"assistant", "content": "..."}).
+    ``images`` — необязательный список data-url строк (data:image/...;base64,...)
+    для мультимодального сообщения.
+    """
+    url = f"{_base_url()}/chat"
+
+    payload: dict = {"message": message, "lang": lang}
+    if history:
+        payload["history"] = history
+    if images:
+        payload["images"] = images
+    if backend:
+        payload["backend"] = backend
+    if model:
+        payload["model"] = model
+    if system:
+        payload["system"] = system
+
+    try:
+        resp = requests.post(url, json=payload, timeout=_timeout())
+    except requests.exceptions.ConnectionError as exc:
+        raise VisionApiError(
+            "Не удалось подключиться к серверу анализа изображений. "
+            "Проверьте, что vision_analyzer_server.py запущен."
+        ) from exc
+    except requests.exceptions.Timeout as exc:
+        raise VisionApiError("Сервер не ответил вовремя (таймаут).") from exc
+
+    if resp.status_code >= 400:
+        try:
+            data = resp.json()
+            message_err = data.get("error", resp.text) if isinstance(data, dict) else resp.text
+        except ValueError:
+            message_err = resp.text
+        raise VisionApiError(f"Сервер вернул ошибку ({resp.status_code}): {message_err}")
+
+    try:
+        data = resp.json()
+    except ValueError as exc:
+        raise VisionApiError("Сервер вернул некорректный JSON-ответ.") from exc
+
+    if not isinstance(data, dict) or "reply" not in data:
+        raise VisionApiError("Сервер не вернул ответ модели.")
+
+    return ChatOutcome(
+        reply=str(data.get("reply", "")),
+        backend=str(data.get("backend", ""))[:32],
+        model=str(data.get("model", ""))[:120],
+    )
 
 
 def get_models(backend: str) -> list[str]:

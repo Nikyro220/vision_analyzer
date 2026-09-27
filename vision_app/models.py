@@ -211,6 +211,73 @@ class AnalysisResult(db.Model):
 
 
 # ----------------------------------------------------------------------------
+# Чат с моделью — сессии и сообщения
+# ----------------------------------------------------------------------------
+class ChatRole:
+    USER = "user"
+    ASSISTANT = "assistant"
+
+
+class ChatSession(db.Model):
+    """Одна ветка переписки пользователя с моделью (аналог «чата» в ChatGPT).
+
+    Заголовок изначально пуст — заполняется первым сообщением пользователя
+    (см. blueprints/chat.py), поэтому display_title ниже подставляет
+    заглушку, пока сообщений ещё не было.
+    """
+
+    __tablename__ = "chat_sessions"
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(
+        db.Integer, db.ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    user = db.relationship(
+        "User", backref=db.backref("chat_sessions", cascade="all, delete-orphan", passive_deletes=True)
+    )
+
+    title = db.Column(db.String(200), nullable=False, default="")
+    created_at = db.Column(db.DateTime, nullable=False, default=utcnow)
+    # Обновляется при каждом новом сообщении — по этому полю сортируется список чатов.
+    updated_at = db.Column(db.DateTime, nullable=False, default=utcnow, onupdate=utcnow, index=True)
+
+    messages = db.relationship(
+        "ChatMessage",
+        backref="session",
+        cascade="all, delete-orphan",
+        order_by="ChatMessage.id",
+    )
+
+    @property
+    def display_title(self) -> str:
+        return self.title or "Новый чат"
+
+    def __repr__(self) -> str:
+        return f"<ChatSession {self.id} {self.title!r}>"
+
+
+class ChatMessage(db.Model):
+    __tablename__ = "chat_messages"
+
+    id = db.Column(db.Integer, primary_key=True)
+    session_id = db.Column(
+        db.Integer, db.ForeignKey("chat_sessions.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+
+    role = db.Column(db.String(16), nullable=False)  # ChatRole.USER / ChatRole.ASSISTANT
+    content = db.Column(db.Text, nullable=False, default="")
+
+    # Только для role=assistant — чем/на чём был получен этот ответ (для отображения).
+    backend = db.Column(db.String(32), nullable=False, default="")
+    model = db.Column(db.String(120), nullable=False, default="")
+
+    created_at = db.Column(db.DateTime, nullable=False, default=utcnow, index=True)
+
+    def __repr__(self) -> str:
+        return f"<ChatMessage {self.id} {self.role}>"
+
+
+# ----------------------------------------------------------------------------
 # Настройки приложения (ключ-значение)
 # ----------------------------------------------------------------------------
 class Setting(db.Model):

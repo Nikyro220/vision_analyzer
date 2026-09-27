@@ -49,10 +49,11 @@ def create_app(config: dict | None = None) -> Flask:
         return user if user is not None and user.is_active else None
 
     # --- blueprints ---
-    from .blueprints import accounts, analyzer, panel
+    from .blueprints import accounts, analyzer, chat, panel
 
     app.register_blueprint(accounts.bp)
     app.register_blueprint(analyzer.bp)
+    app.register_blueprint(chat.bp, url_prefix="/chat")
     app.register_blueprint(panel.bp)
 
     # --- Jinja ---

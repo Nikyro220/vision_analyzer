@@ -41,6 +41,9 @@
             <a class="nav-link {% if ep == 'analyzer.health' %}is-active{% endif %}" href="{{ url_for('analyzer.health') }}">
                 <span class="nav-ic">◐</span> Статус сервера
             </a>
+            <a class="nav-link {% if ep in ('chat.index', 'chat.view') %}is-active{% endif %}" href="{{ url_for('chat.index') }}">
+                <span class="nav-ic">✎</span> Чат
+            </a>
 
             {% if current_user.is_panel_staff %}
             <div class="nav-divider">Панель управления</div>

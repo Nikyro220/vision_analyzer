@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% block title %}{{ session.display_title }}{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>Чат с моделью</h1>
+    <p class="page-sub">
+        Свободный диалог с той же локальной моделью, без риск-JSON-схемы анализа.
+        {% if target_backend %}Сейчас отвечает: <strong>{{ target_backend }}</strong> · модель: <strong>{{ target_model or 'авто' }}</strong>.
+        {% else %}Отвечает бэкенд по умолчанию.{% endif %}
+    </p>
+</div>
+
+<div class="panel-grid chat-layout">
+    <div class="card chat-sessions-card">
+        <form method="post" action="{{ url_for('chat.new_session') }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button type="submit" class="btn btn-secondary btn-block">+ Новый чат</button>
+        </form>
+        <ul class="mini-list chat-session-list">
+            {% for s in sessions %}
+            <li>
+                <div class="chat-session-row {% if s.id == session.id %}is-active{% endif %}">
+                    <a href="{{ url_for('chat.view', session_id=s.id) }}" class="mini-list-row chat-session-link">
+                        <span class="mini-list-name" title="{{ s.display_title }}">{{ s.display_title|trunc(28) }}</span>
+                        <span class="mini-list-date">{{ s.updated_at|localdt('%d.%m %H:%M') }}</span>
+                    </a>
+                    <form method="post" action="{{ url_for('chat.delete_session', session_id=s.id) }}"
+                          class="chat-session-delete" data-confirm="Удалить этот чат безвозвратно?">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <button type="submit" class="chat-session-delete-btn" title="Удалить чат" aria-label="Удалить чат">✕</button>
+                    </form>
+                </div>
+            </li>
+            {% endfor %}
+        </ul>
+    </div>
+
+    <div class="card chat-card" id="chat-root"
+         data-send-url="{{ url_for('chat.send', session_id=session.id) }}"
+         data-csrf="{{ csrf_token() }}">
+        <div class="chat-log" id="chat-log">
+            {% for m in messages %}
+            <div class="chat-msg chat-msg-{{ m.role }}">{{ m.content }}{% if m.role == 'assistant' and m.backend %}<span class="chat-msg-meta">{{ m.backend }}{% if m.model %} · {{ m.model }}{% endif %}</span>{% endif %}</div>
+            {% else %}
+            <p class="empty-hint" id="chat-empty">Напишите что-нибудь, чтобы начать этот чат.</p>
+            {% endfor %}
+        </div>
+
+        <form class="chat-composer" id="chat-form" novalidate>
+            <textarea id="chat-input" class="chat-input" rows="1" maxlength="8000"
+                      placeholder="Сообщение…" autofocus></textarea>
+            <button type="submit" class="btn btn-primary" id="chat-send-btn">Отправить</button>
+        </form>
+        <p class="field-hint chat-error" id="chat-error" hidden></p>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts_extra %}
+<script src="{{ url_for('static', filename='js/chat.js') }}"></script>
+{% endblock %}
