@@ -19,6 +19,7 @@ signals, rationale, recommendation, text_on_image, context, либо {"_raw": ".
 
 from __future__ import annotations
 
+import base64
 from dataclasses import dataclass, field
 
 import requests
@@ -81,27 +82,55 @@ def analyze_image(
     backend: str = "",
     model: str = "",
     caption: str = "",
+    categories: list[dict] | None = None,
 ) -> AnalysisOutcome:
     """Отправляет одно изображение на /analyze и возвращает разобранный результат.
 
     backend/model — необязательные; если пусты, сервер выбирает бэкенд по умолчанию
     и автоматически определяет модель. caption — необязательный контекст к конкретному
     изображению (передаётся серверу как есть, влияет только на промпт модели).
+
+    categories — разовые категории оценивания на этот вызов (см.
+    inference/categories.py: build_overlay). Единственный источник этого списка —
+    таблица categories в БД vision_app (categories_store.build_categories_payload);
+    сервер анализа своих категорий больше не хранит.
+
+    Формат запроса: без категорий — как раньше, сырые байты в теле
+    (Content-Type: image/*) плюс query-параметры (быстрее, без base64).
+    С категориями — целиком JSON-телом (Content-Type: application/json,
+    см. inference/analyze.py: _parse_json_body), потому что правила
+    категорий (full/compact) в сумме легко превышают ограничение aiohttp
+    на длину строки запроса (~8 КБ) — через query-параметры категории
+    туда просто не влезают уже на 4-5 включённых категориях.
     """
     url = f"{_base_url()}/analyze"
-    headers = {"Content-Type": mime_type or "image/jpeg"}
-    params = {"lang": lang} if lang else {}
-    if backend:
-        params["backend"] = backend
-    if model:
-        params["model"] = model
-    if caption:
-        params["caption"] = caption
+
+    if categories:
+        payload: dict = {
+            "image": base64.b64encode(image_bytes).decode("ascii"),
+            "lang": lang,
+            "categories": categories,  # уже list[dict] — сервер примет как есть, без доп. json.dumps
+        }
+        if backend:
+            payload["backend"] = backend
+        if model:
+            payload["model"] = model
+        if caption:
+            payload["caption"] = caption
+        request_kwargs = {"json": payload}
+    else:
+        headers = {"Content-Type": mime_type or "image/jpeg"}
+        params = {"lang": lang} if lang else {}
+        if backend:
+            params["backend"] = backend
+        if model:
+            params["model"] = model
+        if caption:
+            params["caption"] = caption
+        request_kwargs = {"data": image_bytes, "headers": headers, "params": params}
 
     try:
-        resp = requests.post(
-            url, data=image_bytes, headers=headers, params=params, timeout=_timeout()
-        )
+        resp = requests.post(url, timeout=_timeout(), **request_kwargs)
     except requests.exceptions.ConnectionError as exc:
         raise VisionApiError(
             "Не удалось подключиться к серверу анализа изображений. "

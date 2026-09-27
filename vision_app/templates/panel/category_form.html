@@ -1,0 +1,221 @@
+{% extends "base.html" %}
+{% block title %}{% if category %}{{ category.name }}{% else %}Новая категория{% endif %}{% endblock %}
+{% block content %}
+<div class="page-header">
+    <h1>{% if category %}Категория «{{ category.name }}»{% else %}Новая категория{% endif %}</h1>
+</div>
+
+<details class="help-callout" open>
+    <summary>Как устроена категория — прочитать перед первым разом</summary>
+    <ul>
+        <li><b>Summary</b> — короткое описание по-английски для быстрого первого прохода: что должно быть
+            видно на фото, чтобы модель вообще присмотрелась к этой категории.</li>
+        <li><b>Правила (Full)</b> — подробное описание признаков для второго, внимательного прохода.
+            Пишите отдельными абзацами через кнопку «Добавить правило» — например, один абзац на то,
+            что вообще ищем, ещё один — список конкретных примет, ещё один — при каком их сочетании
+            считать сигнал найденным и как это влияет на уровень риска. Тег
+            <code>&lt;signal_category&gt;</code> оборачивается автоматически — писать его самому не нужно.</li>
+        <li><b>Служебное слово <code>__OUTPUT_LANGUAGE__</code></b> — если в правиле нужно попросить
+            модель что-то написать (например, в detail/rationale), не пишите конкретный язык («напиши
+            по-русски») — анализ может идти и на английском. Вместо этого вставьте буквально
+            <code>__OUTPUT_LANGUAGE__</code> — сервер сам подставит нужный язык перед отправкой модели.
+            Работает только в Full/Compact, в Summary — нет смысла, там его никто не подставляет.
+            Кнопка «Вставить __OUTPUT_LANGUAGE__» рядом с полем делает это без опечаток — от них не
+            спасает ничего, кроме точного совпадения: ни лишний пробел, ни другое число подчёркиваний
+            не сработают, а сохранение такого текста форма не пропустит и подскажет, что не так.</li>
+        <li><b>Compact</b> — та же суть, но сжато: применяется только если модель на первом проходе
+            не смогла уверенно определить категории. Можно собрать нажатием «Скопировать из Full»
+            и сократить вручную.</li>
+        <li><b>Пример сцены</b> — необязательно; готовый разбор похожей ситуации помогает модели.</li>
+    </ul>
+</details>
+
+<form method="post" class="card form category-form" novalidate>
+    {{ form.hidden_tag() }}
+
+    <div class="field-row">
+        <div class="field">
+            {{ form.name.label }}
+            {{ form.name(class_="input") }}
+            <p class="field-hint">Только латиница, цифры и «_». Меняйте с осторожностью — это же имя сервер анализа видит в промпте.</p>
+            {% for error in form.name.errors %}<div class="field-error">{{ error }}</div>{% endfor %}
+        </div>
+        <div class="field">
+            {{ form.title.label }}
+            {{ form.title(class_="input") }}
+            <p class="field-hint">Только для списка в этой панели, на анализ не влияет.</p>
+            {% for error in form.title.errors %}<div class="field-error">{{ error }}</div>{% endfor %}
+        </div>
+        <div class="field field-narrow">
+            {{ form.position.label }}
+            {{ form.position(class_="input") }}
+            {% for error in form.position.errors %}<div class="field-error">{{ error }}</div>{% endfor %}
+        </div>
+    </div>
+
+    <div class="field">
+        {{ form.summary.label }}
+        {{ form.summary(class_="input input-mono") }}
+        {% for error in form.summary.errors %}<div class="field-error">{{ error }}</div>{% endfor %}
+    </div>
+
+    <div class="field">
+        <label>Правила (Full) — используются во внимательном, втором проходе</label>
+        <p class="field-hint">Каждый блок ниже — отдельный абзац итогового текста. Добавляйте по одному
+            смысловому блоку: что ищем → конкретные приметы → когда считать сигнал найденным → как это
+            влияет на риск.</p>
+        <div id="full-rules" class="rule-list-wrap">
+            <div class="rule-list"></div>
+            <div class="rule-list-toolbar">
+                <button type="button" class="btn btn-secondary btn-sm" data-add>+ Добавить правило</button>
+                <button type="button" class="btn btn-secondary btn-sm" data-insert-placeholder>Вставить __OUTPUT_LANGUAGE__</button>
+            </div>
+        </div>
+        {{ form.full(id="full", style="display:none") }}
+        {% for error in form.full.errors %}<div class="field-error">{{ error }}</div>{% endfor %}
+    </div>
+
+    <div class="field">
+        <div class="field-label-row">
+            <label>Compact — сокращённая версия, fallback</label>
+            <button type="button" id="copy-to-compact" class="btn btn-secondary btn-sm">Скопировать из Full</button>
+        </div>
+        <div id="compact-rules" class="rule-list-wrap">
+            <div class="rule-list"></div>
+            <div class="rule-list-toolbar">
+                <button type="button" class="btn btn-secondary btn-sm" data-add>+ Добавить правило</button>
+                <button type="button" class="btn btn-secondary btn-sm" data-insert-placeholder>Вставить __OUTPUT_LANGUAGE__</button>
+            </div>
+        </div>
+        {{ form.compact(id="compact", style="display:none") }}
+        {% for error in form.compact.errors %}<div class="field-error">{{ error }}</div>{% endfor %}
+    </div>
+
+    <details class="advanced-fields">
+        <summary>Доп. блоки к Full/Compact (нужно очень редко)</summary>
+        <p class="field-hint">
+            Почти всегда не нужно. Сюда попадает вспомогательный текст, который в промпте должен идти
+            <i>после</i> закрывающего <code>&lt;signal_category&gt;</code> как отдельный блок (например,
+            справочник известных фраз для транскрипции) — а не как ещё один абзац правил внутри него.
+        </p>
+        <div class="field-row">
+            <div class="field">
+                {{ form.full_extra.label }}
+                {{ form.full_extra(class_="input input-mono") }}
+            </div>
+            <div class="field">
+                {{ form.compact_extra.label }}
+                {{ form.compact_extra(class_="input input-mono") }}
+            </div>
+        </div>
+    </details>
+
+    <div class="field-row">
+        <div class="field">
+            {{ form.example_en.label }}
+            {{ form.example_en(class_="input input-mono") }}
+            {% for error in form.example_en.errors %}<div class="field-error">{{ error }}</div>{% endfor %}
+        </div>
+        <div class="field">
+            {{ form.example_ru.label }}
+            {{ form.example_ru(class_="input input-mono") }}
+            {% for error in form.example_ru.errors %}<div class="field-error">{{ error }}</div>{% endfor %}
+        </div>
+    </div>
+
+    <label class="switch">
+        {{ form.is_active(class_="switch-input") }}
+        <span class="switch-track"></span>
+        {{ form.is_active.label.text }}
+    </label>
+
+    <div class="form-actions">
+        <button type="submit" class="btn btn-primary">Сохранить</button>
+        <a href="{{ url_for('panel.categories_list') }}" class="btn btn-secondary">Отмена</a>
+    </div>
+</form>
+{% endblock %}
+
+{% block scripts_extra %}
+<script>
+function createRuleList(rootId, hiddenId, initialParagraphs) {
+    const root = document.getElementById(rootId);
+    const hidden = document.getElementById(hiddenId);
+    const list = root.querySelector('.rule-list');
+    const addBtn = root.querySelector('[data-add]');
+    const insertBtn = root.querySelector('[data-insert-placeholder]');
+    let lastFocused = null;
+
+    function addItem(value) {
+        const row = document.createElement('div');
+        row.className = 'rule-item';
+
+        const ta = document.createElement('textarea');
+        ta.className = 'input input-mono';
+        ta.rows = 3;
+        ta.value = value || '';
+        ta.addEventListener('focus', () => { lastFocused = ta; });
+
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'btn btn-secondary btn-sm rule-item-remove';
+        btn.textContent = '✕';
+        btn.title = 'Удалить это правило';
+        btn.addEventListener('click', () => {
+            row.remove();
+            if (lastFocused === ta) lastFocused = null;
+            if (!list.children.length) addItem('');
+        });
+
+        row.append(ta, btn);
+        list.appendChild(row);
+        return ta;
+    }
+
+    function values() {
+        return [...list.querySelectorAll('textarea')].map((t) => t.value.trim()).filter(Boolean);
+    }
+
+    function setValues(vals) {
+        list.innerHTML = '';
+        lastFocused = null;
+        (vals.length ? vals : ['']).forEach(addItem);
+    }
+
+    setValues(initialParagraphs);
+    addBtn.addEventListener('click', () => addItem('').focus());
+
+    if (insertBtn) {
+        insertBtn.addEventListener('click', () => {
+            // Вставляем в последний активный textarea этого списка, а если ни
+            // один ещё не был в фокусе (например сразу после загрузки страницы) —
+            // в самый последний из них.
+            const textareas = list.querySelectorAll('textarea');
+            const target = (lastFocused && list.contains(lastFocused)) ? lastFocused : textareas[textareas.length - 1];
+            if (!target) return;
+            const start = target.selectionStart ?? target.value.length;
+            const end = target.selectionEnd ?? target.value.length;
+            const token = '__OUTPUT_LANGUAGE__';
+            target.value = target.value.slice(0, start) + token + target.value.slice(end);
+            target.focus();
+            target.selectionStart = target.selectionEnd = start + token.length;
+        });
+    }
+
+    root.closest('form').addEventListener('submit', () => {
+        hidden.value = values().join('\n\n');
+    });
+
+    return { values, setValues };
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    const fullList = createRuleList('full-rules', 'full', {{ full_paragraphs|tojson }});
+    const compactList = createRuleList('compact-rules', 'compact', {{ compact_paragraphs|tojson }});
+
+    document.getElementById('copy-to-compact').addEventListener('click', () => {
+        compactList.setValues(fullList.values());
+    });
+});
+</script>
+{% endblock %}

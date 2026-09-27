@@ -9,7 +9,7 @@ from sqlalchemy.orm import joinedload
 
 from ..decorators import head_admin_required, staff_required
 from ..extensions import db
-from ..forms import AccountForm, DeleteAccountForm
+from ..forms import AccountForm, CategoryForm, DeleteAccountForm, DeleteCategoryForm
 from ..history import delete_finished, delete_user_account
 from ..settings_store import (
     RUNTIME_SETTINGS,
@@ -19,7 +19,7 @@ from ..settings_store import (
     runtime_setting_unchanged,
     set_runtime_setting,
 )
-from ..models import ROLE_CHOICES, ROLE_LABELS, AnalysisResult, Role, Status, User
+from ..models import ROLE_CHOICES, ROLE_LABELS, AnalysisResult, Category, Role, Status, User
 from ..services import VisionApiError, check_health
 from ..utils import paginate, plural
 
@@ -350,3 +350,110 @@ def settings():
         for spec in RUNTIME_SETTINGS
     ]
     return render_template("panel/settings.html", rows=rows)
+
+
+# ----------------------------------------------------------------------------
+# Категории оценивания
+# ----------------------------------------------------------------------------
+@bp.route("/categories/")
+@staff_required
+def categories_list():
+    """Список категорий оценивания — единственное место, где они хранятся
+    (см. models.Category); при каждом анализе текущий набор целиком уходит
+    на сервер анализа как разовый оверлей (см. services.analyze_image)."""
+    rows = db.session.scalars(select(Category).order_by(Category.position, Category.id)).all()
+    delete_form = DeleteCategoryForm()
+    return render_template("panel/categories.html", rows=rows, delete_form=delete_form)
+
+
+@bp.route("/categories/new/", methods=["GET", "POST"])
+@staff_required
+def category_new():
+    form = CategoryForm()
+    if form.validate_on_submit():
+        next_position = db.session.scalar(select(func.count(Category.id)))
+        category = Category(
+            name=form.name.data.strip(),
+            title=(form.title.data or "").strip(),
+            summary=form.summary.data.strip(),
+            full=form.full.data.strip(),
+            compact=form.compact.data.strip(),
+            full_extra=(form.full_extra.data or "").strip(),
+            compact_extra=(form.compact_extra.data or "").strip(),
+            example_en=(form.example_en.data or "").strip(),
+            example_ru=(form.example_ru.data or "").strip(),
+            position=form.position.data if form.position.data is not None else next_position,
+            is_active=form.is_active.data,
+        )
+        db.session.add(category)
+        db.session.commit()
+        flash(f"Категория «{category.name}» добавлена.", "success")
+        return redirect(url_for("panel.categories_list"))
+
+    return render_template(
+        "panel/category_form.html",
+        form=form,
+        category=None,
+        full_paragraphs=[""],
+        compact_paragraphs=[""],
+    )
+
+
+@bp.route("/categories/<int:pk>/", methods=["GET", "POST"])
+@staff_required
+def category_edit(pk: int):
+    category = db.get_or_404(Category, pk)
+    form = CategoryForm(obj=category, current_id=category.id)
+
+    if form.validate_on_submit():
+        category.name = form.name.data.strip()
+        category.title = (form.title.data or "").strip()
+        category.summary = form.summary.data.strip()
+        category.full = form.full.data.strip()
+        category.compact = form.compact.data.strip()
+        category.full_extra = (form.full_extra.data or "").strip()
+        category.compact_extra = (form.compact_extra.data or "").strip()
+        category.example_en = (form.example_en.data or "").strip()
+        category.example_ru = (form.example_ru.data or "").strip()
+        category.position = form.position.data if form.position.data is not None else category.position
+        category.is_active = form.is_active.data
+        db.session.commit()
+        flash(f"Категория «{category.name}» обновлена.", "success")
+        return redirect(url_for("panel.categories_list"))
+
+    return render_template(
+        "panel/category_form.html",
+        form=form,
+        category=category,
+        full_paragraphs=category.full_paragraphs(),
+        compact_paragraphs=category.compact_paragraphs(),
+    )
+
+
+@bp.route("/categories/<int:pk>/delete/", methods=["POST"])
+@staff_required
+def category_delete(pk: int):
+    category = db.get_or_404(Category, pk)
+    form = DeleteCategoryForm()
+    if form.validate_on_submit():
+        name = category.name
+        db.session.delete(category)
+        db.session.commit()
+        flash(f"Категория «{name}» удалена.", "success")
+    else:
+        flash("Не удалось удалить категорию — сессия устарела, попробуйте ещё раз.", "error")
+    return redirect(url_for("panel.categories_list"))
+
+
+@bp.route("/categories/<int:pk>/toggle-active/", methods=["POST"])
+@staff_required
+def category_toggle_active(pk: int):
+    """Быстрое включение/выключение без открытия формы редактирования."""
+    category = db.get_or_404(Category, pk)
+    category.is_active = not category.is_active
+    db.session.commit()
+    flash(
+        f"Категория «{category.name}» {'включена' if category.is_active else 'выключена'}.",
+        "success",
+    )
+    return redirect(_safe_referrer(url_for("panel.categories_list")))

@@ -29,6 +29,7 @@ from pathlib import Path
 
 from sqlalchemy import or_, select, update
 
+from .categories_store import build_categories_payload
 from .extensions import db
 from .models import AnalysisResult, Status, utcnow
 from .services import VisionApiError, analyze_image
@@ -91,10 +92,15 @@ def _run_analysis(app, image_path: str, image_mime: str, caption: str = ""):
 
     # Бэкенд и модель берём В МОМЕНТ обработки, а не загрузки: выбор из «Статуса сервера» действует сразу.
     backend, model = get_analysis_target()
+    # Категории — тоже в момент обработки: правки в /panel/categories/ применяются
+    # сразу, без перезапуска, даже к задачам, которые уже стояли в очереди.
+    categories = build_categories_payload()
     db.session.rollback()  # не держим транзакцию на время долгого HTTP-запроса
 
     try:
-        outcome = analyze_image(data, mime, lang="ru", backend=backend, model=model, caption=caption)
+        outcome = analyze_image(
+            data, mime, lang="ru", backend=backend, model=model, caption=caption, categories=categories,
+        )
         return outcome, ""
     except VisionApiError as exc:
         return None, str(exc)

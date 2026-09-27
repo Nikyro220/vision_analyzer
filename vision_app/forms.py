@@ -13,20 +13,21 @@ from flask_wtf import FlaskForm
 from flask_wtf.file import FileRequired, MultipleFileField
 from PIL import Image
 from sqlalchemy import func, select
-from wtforms import PasswordField, SelectField, StringField
+from wtforms import BooleanField, IntegerField, PasswordField, SelectField, StringField, TextAreaField
 from wtforms.fields import EmailField
 from wtforms.validators import (
     DataRequired,
     Email,
     EqualTo,
     Length,
+    NumberRange,
     Optional,
     Regexp,
     ValidationError,
 )
 
 from .extensions import db
-from .models import User
+from .models import CATEGORY_NAME_RE, Category, User
 
 # Небольшой встроенный список самых частых паролей (аналог CommonPasswordValidator).
 COMMON_PASSWORDS = {
@@ -155,6 +156,124 @@ class DeleteAccountForm(FlaskForm):
         validators=[DataRequired("Введите команду подтверждения.")],
         render_kw={"placeholder": "DELETE FROM users WHERE id = ...;", "autocomplete": "off"},
     )
+
+
+# ----------------------------------------------------------------------------
+# Категории оценивания (/panel/categories/)
+# ----------------------------------------------------------------------------
+
+# Единственный плейсхолдер, который сервер анализа подставляет ВНУТРИ текста
+# правил Full/Compact (см. inference/prompt.py: get_system_prompt — финальный
+# .replace("__OUTPUT_LANGUAGE__", ...) применяется уже после того, как правила
+# категории вставлены в промпт). Пишется ровно так — регистр и число подчёркиваний
+# важны: опечатка не сломает сохранение, но и не заменится языком, а попадёт в
+# промпт как мусорный текст. См. _placeholder_typo_check ниже.
+OUTPUT_LANGUAGE_PLACEHOLDER = "__OUTPUT_LANGUAGE__"
+
+_PLACEHOLDER_LOOKALIKE_RE = re.compile(r"_{0,3}\s*output[\s_]+language\s*_{0,3}", re.IGNORECASE)
+
+
+def _placeholder_typo_check(field):
+    """Ловит похожие-но-не-точные написания __OUTPUT_LANGUAGE__ (не то число
+    подчёркиваний, пробел вместо "_", другой регистр) — они не упадут с ошибкой
+    сами по себе, но и не сработают на сервере анализа, просто протекут в
+    промпт как есть."""
+    text = field.data or ""
+    for match in _PLACEHOLDER_LOOKALIKE_RE.finditer(text):
+        if match.group(0) != OUTPUT_LANGUAGE_PLACEHOLDER:
+            raise ValidationError(
+                f"Похоже на опечатку в служебном слове «{match.group(0).strip()}». "
+                f"Нужно написать ровно «{OUTPUT_LANGUAGE_PLACEHOLDER}» (два подчёркивания "
+                "с каждой стороны, заглавными) — иначе сервер анализа не подставит язык, "
+                "и это слово останется в промпте как есть."
+            )
+
+
+class CategoryForm(FlaskForm):
+    """Создание/редактирование одной категории оценивания.
+
+    full/compact/summary — те же поля, что раньше жили в
+    inference/categories/<имя>.json (см. models.Category)."""
+
+    name = StringField(
+        "Техническое имя",
+        validators=[
+            DataRequired("Введите техническое имя категории."),
+            Length(max=64, message="Не более 64 символов."),
+            Regexp(CATEGORY_NAME_RE, message="Допустимы только латинские буквы, цифры и «_»."),
+        ],
+        render_kw={"placeholder": "weapons_and_dangerous_objects", "autocomplete": "off"},
+    )
+    title = StringField(
+        "Название для интерфейса",
+        validators=[Length(max=150, message="Не более 150 символов.")],
+        render_kw={"placeholder": "Оружие и опасные предметы"},
+    )
+    summary = TextAreaField(
+        "Summary (для первого, классифицирующего прохода)",
+        validators=[DataRequired("Заполните summary.")],
+        render_kw={
+            "rows": 3,
+            "placeholder": "Короткое описание на английском: что должно быть видно на "
+            "изображении, чтобы категория стала кандидатом.",
+        },
+    )
+    full = TextAreaField(
+        "Full (полные правила для второго прохода)",
+        validators=[DataRequired("Заполните full.")],
+        render_kw={"rows": 10, "placeholder": '<signal_category name="...">...</signal_category>'},
+    )
+    compact = TextAreaField(
+        "Compact (сокращённая версия, fallback)",
+        validators=[DataRequired("Заполните compact.")],
+        render_kw={"rows": 6, "placeholder": '<signal_category name="...">...</signal_category>'},
+    )
+    full_extra = TextAreaField(
+        "Доп. блоки к Full (редко нужно)", validators=[Optional()], render_kw={"rows": 4}
+    )
+    compact_extra = TextAreaField(
+        "Доп. блоки к Compact (редко нужно)", validators=[Optional()], render_kw={"rows": 4}
+    )
+    example_en = TextAreaField(
+        "Пример сцены (en)", validators=[Optional()], render_kw={"rows": 3}
+    )
+    example_ru = TextAreaField(
+        "Пример сцены (ru)", validators=[Optional()], render_kw={"rows": 3}
+    )
+    position = IntegerField(
+        "Порядок появления в промпте",
+        validators=[Optional(), NumberRange(min=0, max=100000, message="От 0 до 100000.")],
+        render_kw={"placeholder": "0"},
+    )
+    is_active = BooleanField("Включена (участвует в анализе)", default=True)
+
+    def __init__(self, *args, current_id: int | None = None, **kwargs):
+        """current_id — id редактируемой категории, чтобы не спотыкаться о её же имя."""
+        self._current_id = current_id
+        super().__init__(*args, **kwargs)
+
+    def validate_name(self, field):
+        stmt = select(func.count(Category.id)).where(Category.name == field.data.strip())
+        if self._current_id is not None:
+            stmt = stmt.where(Category.id != self._current_id)
+        if db.session.scalar(stmt):
+            raise ValidationError("Категория с таким именем уже существует.")
+
+    def validate_full(self, field):
+        _placeholder_typo_check(field)
+
+    def validate_compact(self, field):
+        _placeholder_typo_check(field)
+
+    def validate_full_extra(self, field):
+        _placeholder_typo_check(field)
+
+    def validate_compact_extra(self, field):
+        _placeholder_typo_check(field)
+
+
+class DeleteCategoryForm(FlaskForm):
+    """Пустая форма-обёртка ради CSRF-токена на кнопке «Удалить»."""
 
 
 # Форматы Pillow -> (расширение файла, MIME-тип)

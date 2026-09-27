@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from datetime import datetime, timezone
 
 from flask_login import UserMixin
@@ -222,3 +223,142 @@ class Setting(db.Model):
 
     key = db.Column(db.String(64), primary_key=True)
     value = db.Column(db.Text, nullable=False, default="")
+
+
+# ----------------------------------------------------------------------------
+# Категории оценивания (сигналов), которые распознаёт нейросеть на изображении
+# ----------------------------------------------------------------------------
+
+# Имя категории передаётся серверу анализа как есть и там же используется как
+# имя файла на диске (см. inference/categories.py) — поэтому те же ограничения:
+# только латинские буквы, цифры и «_».
+CATEGORY_NAME_RE = re.compile(r"^[A-Za-z0-9_]+$")
+
+# Раньше full/compact хранились ЦЕЛИКОМ как <signal_category name="...">...</signal_category>
+# (так их ждёт сервер анализа — см. inference/categories.py: full_signals_block/
+# compact_signals_block просто склеивают эти строки). Начиная с админ-панели эта
+# обёртка больше не часть того, что редактирует человек: хранится и правится только
+# «тело» правил, а тег с именем категории достраивается автоматически в
+# to_overlay_dict(). Изредка после закрывающего тега шёл ещё один вспомогательный
+# блок (например <known_phrase_reference>) — такой «хвост» не относится к телу
+# правил и сохраняется отдельно в full_extra/compact_extra, чтобы не потерять его
+# при переносе в новый формат (см. _split_wrapper) и не завернуть по ошибке внутрь
+# <signal_category>.
+_OPEN_TAG_RE = re.compile(r'^\s*<signal_category\s+name="[^"]*"\s*>\s*\n?')
+_CLOSE_TAG = "</signal_category>"
+
+
+def _split_wrapper(text: str) -> tuple[str, str]:
+    """Если text — это (или начинается с) готовый <signal_category>...</signal_category>,
+    возвращает (тело, всё-что-после-закрывающего-тега). Иначе — (text как есть, "")."""
+    text = (text or "").strip()
+    match = _OPEN_TAG_RE.match(text)
+    if not match:
+        return text, ""
+    rest = text[match.end():]
+    idx = rest.find(_CLOSE_TAG)
+    if idx == -1:
+        return text, ""  # тег открыт, но не закрыт — не похоже на валидную обёртку, не трогаем
+    body = rest[:idx].strip()
+    extra = rest[idx + len(_CLOSE_TAG):].strip()
+    return body, extra
+
+
+def _split_paragraphs(text: str) -> list[str]:
+    """Разбивает текст правил на абзацы (по пустой строке) — единица
+    редактирования в UI («+ Добавить абзац/правило»). Всегда возвращает
+    хотя бы один (возможно пустой) элемент, чтобы в форме было куда писать."""
+    parts = [p.strip() for p in re.split(r"\n\s*\n", (text or "").strip()) if p.strip()]
+    return parts or [""]
+
+
+class Category(db.Model):
+    """Одна категория оценивания (сигнала), которую сервер анализа ищет на
+    изображении. Раньше жили файлами в inference/categories/*.json — теперь
+    единственное место хранения и редактирования — эта таблица в vision_app;
+    при каждом вызове /analyze текущий набор целиком уходит на сервер анализа
+    как разовый оверлей (см. services.build_categories_payload и
+    inference/categories.py: build_overlay).
+    """
+
+    __tablename__ = "categories"
+
+    id = db.Column(db.Integer, primary_key=True)
+
+    # Техническое имя (== имя категории на сервере анализа): только латиница/цифры/«_».
+    name = db.Column(db.String(64), unique=True, nullable=False, index=True)
+    # Человекочитаемое название для интерфейса — на имя не влияет.
+    title = db.Column(db.String(150), nullable=False, default="")
+
+    # summary — короткое описание для первого (классифицирующего) прохода.
+    summary = db.Column(db.Text, nullable=False, default="")
+    # full/compact — ТЕЛО правил категории для второго (полного) прохода, БЕЗ
+    # обёртки <signal_category>...</signal_category> (см. _split_wrapper выше и
+    # to_overlay_dict ниже). compact — сокращённая версия, используется как fallback.
+    full = db.Column(db.Text, nullable=False, default="")
+    compact = db.Column(db.Text, nullable=False, default="")
+    # Редкий «хвост» после закрывающего </signal_category> (см. _split_wrapper) —
+    # например вспомогательный <known_phrase_reference>. Почти всегда пусто;
+    # в форме это отдельное, свёрнутое по умолчанию поле "доп. блоки".
+    # server_default="" (а не только default="") нужен, чтобы schema.py смог
+    # добавить эти колонки в уже существующую таблицу через ALTER TABLE — без
+    # него ensure_schema не знает, каким значением заполнить старые строки, и
+    # просто пропускает NOT NULL колонку с предупреждением (см. schema.py).
+    full_extra = db.Column(db.Text, nullable=False, default="", server_default="")
+    compact_extra = db.Column(db.Text, nullable=False, default="", server_default="")
+    # Необязательные разобранные примеры сцены на каждом языке.
+    example_en = db.Column(db.Text, nullable=False, default="")
+    example_ru = db.Column(db.Text, nullable=False, default="")
+
+    # Порядок появления в промпте (по возрастанию), затем — по id.
+    position = db.Column(db.Integer, nullable=False, default=0, index=True)
+    # Выключенная категория хранится, но не отправляется на сервер анализа.
+    is_active = db.Column(db.Boolean, nullable=False, default=True)
+
+    created_at = db.Column(db.DateTime, nullable=False, default=utcnow)
+    updated_at = db.Column(db.DateTime, nullable=False, default=utcnow, onupdate=utcnow)
+
+    def full_paragraphs(self) -> list[str]:
+        """Тело full, разбитое на абзацы — то, что рисует форма как список
+        отдельных правил с кнопками добавить/удалить."""
+        return _split_paragraphs(self.full)
+
+    def compact_paragraphs(self) -> list[str]:
+        return _split_paragraphs(self.compact)
+
+    def _wrap(self, body: str, extra: str = "") -> str:
+        """Оборачивает тело правил в <signal_category name="...">...</signal_category>
+        и, если есть, дописывает «хвост» (extra) после закрывающего тега. Если в
+        body всё же оказался вставленный вручную готовый блок с тегом — сначала
+        разворачивает его, чтобы не получить двойную обёртку."""
+        body = (body or "").strip()
+        extra = (extra or "").strip()
+        inner_body, inner_extra = _split_wrapper(body)
+        if inner_body != body:
+            body = inner_body
+            extra = f"{inner_extra}\n\n{extra}" if extra else inner_extra
+        wrapped = f'<signal_category name="{self.name}">\n{body}\n</signal_category>'
+        return f"{wrapped}\n\n{extra}" if extra else wrapped
+
+    def to_overlay_dict(self) -> dict:
+        """Формат одного элемента списка "categories" в теле /analyze (см.
+        inference/categories.py: build_overlay / _merge_category_payload).
+        full/compact оборачиваются в <signal_category name="...">...</signal_category>
+        здесь — это единственное место, где тег вообще появляется."""
+        item: dict = {
+            "name": self.name,
+            "summary": self.summary,
+            "full": self._wrap(self.full, self.full_extra),
+            "compact": self._wrap(self.compact, self.compact_extra),
+        }
+        examples = {}
+        if self.example_en.strip():
+            examples["en"] = self.example_en
+        if self.example_ru.strip():
+            examples["ru"] = self.example_ru
+        if examples:
+            item["examples"] = examples
+        return item
+
+    def __repr__(self) -> str:
+        return f"<Category {self.name}>"

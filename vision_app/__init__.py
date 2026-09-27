@@ -10,6 +10,7 @@ from flask import Flask, flash, redirect, render_template, request, url_for
 from flask_login import current_user
 from flask_wtf.csrf import CSRFError
 
+from .categories_store import normalize_legacy_wrappers, seed_default_categories
 from .config import Config
 from .extensions import csrf, db, login_manager, migrate
 from .models import ROLE_CHOICES, ROLE_LABELS, RISK_LABELS, Role, User
@@ -121,6 +122,8 @@ def create_app(config: dict | None = None) -> Flask:
         with app.app_context():
             db.create_all()
             ensure_schema(db.engine)  # добавляет новые колонки в уже существующие таблицы
+            seed_default_categories()  # на пустой БД — стартовый набор категорий оценивания
+            normalize_legacy_wrappers()  # разово приводит старые записи к новому формату полей
 
     _register_cli(app)
     return app
