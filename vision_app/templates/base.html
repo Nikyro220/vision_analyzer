@@ -17,6 +17,8 @@
     <title>{% block title %}Vision Triage{% endblock %} · Панель анализа</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/queue.css') }}">
+    {# Тема применяется до отрисовки страницы, чтобы не было вспышки; хранится локально в браузере #}
+    <script src="{{ url_for('static', filename='js/theme.js') }}"></script>
     {% block head_extra %}{% endblock %}
     <link rel="icon" href="data:,">
 </head>
@@ -70,6 +72,9 @@
         <div class="sidebar-footer">
             <a class="nav-link" href="{{ url_for('accounts.profile') }}">
                 <span class="nav-ic">●</span> {{ current_user.username }}
+            </a>
+            <a class="nav-link {% if ep == 'accounts.appearance' %}is-active{% endif %}" href="{{ url_for('accounts.appearance') }}">
+                <span class="nav-ic">◑</span> Оформление
             </a>
             <span class="role-badge role-{{ current_user.role }}">{{ current_user.role_display_ru }}</span>
             <form method="post" action="{{ url_for('accounts.logout') }}" class="logout-form">

@@ -4,6 +4,31 @@
    ============================================================ */
 
 :root {
+    /* Акцент. accent-strong / accent-soft / on-accent пересчитывает theme.js,
+       если пользователь поменял акцент или выбрал не тёмную тему. */
+    --accent: #3fa7a0;
+    --accent-strong: #5fc2bb;
+    --accent-soft: rgba(63, 167, 160, 0.14);
+    --on-accent: #06201d;
+
+    --font-body: -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    --font-mono: ui-monospace, "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+
+    --radius: 3px;
+    --font-size-base: 15px;
+    --line-height-base: 1.5;
+    --content-max: 1100px;
+    --sidebar-w: 240px;
+}
+
+/* ---------------- Пресеты тем ----------------
+   Пресет задаёт ТОЛЬКО палитру поверхностей, текста, статусов и цвета ролей.
+   Акцент, шрифты и форма от пресета не зависят (см. theme.js).
+   Селектор [data-theme] (а не только :root) — чтобы карточки-превью в
+   настройках могли показывать пресет у себя внутри. */
+:root,
+[data-theme="dark"] {
+    color-scheme: dark;
     --bg: #0f1417;
     --bg-panel: #141a1e;
     --bg-elevated: #1b2328;
@@ -14,20 +39,91 @@
     --text-muted: #8b9aa2;
     --text-dim: #5f6e76;
 
-    --accent: #3fa7a0;
-    --accent-strong: #5fc2bb;
-    --accent-soft: rgba(63, 167, 160, 0.14);
-
     --risk-low: #4fae70;
     --risk-medium: #e0a039;
     --risk-high: #dd5b4d;
     --danger: #dd5b4d;
     --danger-strong: #ef7263;
+    --on-risk: #0b1113;
 
-    --font-body: -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-    --font-mono: ui-monospace, "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+    --stripe: rgba(255, 255, 255, 0.02);
+    --stripe-strong: rgba(255, 255, 255, 0.03);
 
-    --radius: 3px;
+    /* Цвета ролей не настраиваются пользователем, зависят только от схемы */
+    --role-user-fg: #5fc2bb;
+    --role-user-bd: #3fa7a0;
+    --role-admin-fg: #c9a6f2;
+    --role-admin-bd: #7a52a8;
+    --role-head-fg: #f2c96a;
+    --role-head-bd: #a3822f;
+}
+
+[data-theme="light"] {
+    color-scheme: light;
+    --bg: #f4f6f7;
+    --bg-panel: #ffffff;
+    --bg-elevated: #eef1f3;
+    --bg-hover: #e3e8eb;
+    --border: #c6ced3;
+    --border-soft: #dde3e6;
+    --text: #182126;
+    --text-muted: #506069;
+    --text-dim: #6a7981;
+
+    --risk-low: #2f8a53;
+    --risk-medium: #b9770e;
+    --risk-high: #c63d2f;
+    --danger: #c63d2f;
+    --danger-strong: #b1301f;
+    --on-risk: #ffffff;
+
+    --stripe: rgba(0, 0, 0, 0.025);
+    --stripe-strong: rgba(0, 0, 0, 0.04);
+
+    --role-user-fg: #1f6f69;
+    --role-user-bd: #3fa7a0;
+    --role-admin-fg: #6b3fa0;
+    --role-admin-bd: #a988d6;
+    --role-head-fg: #8a6100;
+    --role-head-bd: #d0a23a;
+}
+
+[data-theme="contrast"] {
+    color-scheme: dark;
+    --bg: #000000;
+    --bg-panel: #000000;
+    --bg-elevated: #0d0d0d;
+    --bg-hover: #1f1f1f;
+    --border: #ffffff;
+    --border-soft: #8c8c8c;
+    --text: #ffffff;
+    --text-muted: #e0e0e0;
+    --text-dim: #b8b8b8;
+
+    --risk-low: #3dff8a;
+    --risk-medium: #ffd21f;
+    --risk-high: #ff5a4a;
+    --danger: #ff5a4a;
+    --danger-strong: #ff8a7d;
+    --on-risk: #000000;
+
+    --stripe: rgba(255, 255, 255, 0.08);
+    --stripe-strong: rgba(255, 255, 255, 0.12);
+
+    --role-user-fg: #7fe6de;
+    --role-user-bd: #5fc2bb;
+    --role-admin-fg: #e2c6ff;
+    --role-admin-bd: #c9a6f2;
+    --role-head-fg: #ffe28a;
+    --role-head-bd: #ffd21f;
+}
+
+/* Пользовательская опция «меньше движения» (theme.js ставит data-motion) */
+[data-motion="reduced"] *,
+[data-motion="reduced"] *::before,
+[data-motion="reduced"] *::after {
+    transition: none !important;
+    animation: none !important;
 }
 
 * { box-sizing: border-box; }
@@ -38,8 +134,8 @@ html, body {
     background: var(--bg);
     color: var(--text);
     font-family: var(--font-body);
-    font-size: 15px;
-    line-height: 1.5;
+    font-size: var(--font-size-base);
+    line-height: var(--line-height-base);
 }
 
 a { color: var(--accent-strong); text-decoration: none; }
@@ -60,7 +156,7 @@ h1, h2, h3 {
 }
 
 .sidebar {
-    width: 240px;
+    width: var(--sidebar-w);
     flex-shrink: 0;
     background: var(--bg-panel);
     border-right: 1px solid var(--border-soft);
@@ -121,7 +217,7 @@ h1, h2, h3 {
 .content {
     flex: 1;
     padding: 32px 40px 60px;
-    max-width: 1100px;
+    max-width: var(--content-max);
 }
 
 /* ---------------- Page header ---------------- */
@@ -213,12 +309,12 @@ input:focus, select:focus {
     cursor: pointer;
     font-family: var(--font-body);
 }
-.btn-primary { background: var(--accent); color: #06201d; }
+.btn-primary { background: var(--accent); color: var(--on-accent); }
 .btn-primary:hover { background: var(--accent-strong); text-decoration: none; }
 .btn-secondary { background: transparent; border-color: var(--border); color: var(--text); }
 .btn-secondary:hover { border-color: var(--accent); color: var(--accent-strong); text-decoration: none; }
 .btn-danger { background: transparent; border-color: var(--danger); color: var(--danger-strong); }
-.btn-danger:hover { background: rgba(221, 91, 77, 0.12); text-decoration: none; }
+.btn-danger:hover { background: color-mix(in srgb, var(--danger) 12%, transparent); text-decoration: none; }
 .btn-block { width: 100%; }
 
 /* ---------------- Auth screens ---------------- */
@@ -339,9 +435,9 @@ input:focus, select:focus {
     border-radius: 999px;
     font-size: 12px;
     font-weight: 600;
-    color: #0b1113;
+    color: var(--on-risk);
 }
-.risk-pill-unknown { background: var(--text-dim); color: #0b1113; }
+.risk-pill-unknown { background: var(--text-dim); color: var(--on-risk); }
 .risk-pill-lg { font-size: 13px; padding: 5px 14px; }
 
 .risk-header { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; }
@@ -369,9 +465,9 @@ input:focus, select:focus {
     border: 1px solid var(--border);
 }
 .role-badge-lg { font-size: 13px; padding: 5px 12px; }
-.role-badge.role-user { color: var(--accent-strong); border-color: var(--accent); }
-.role-badge.role-admin { color: #c9a6f2; border-color: #7a52a8; }
-.role-badge.role-head_admin { color: #f2c96a; border-color: #a3822f; }
+.role-badge.role-user { color: var(--role-user-fg); border-color: var(--role-user-bd); }
+.role-badge.role-admin { color: var(--role-admin-fg); border-color: var(--role-admin-bd); }
+.role-badge.role-head_admin { color: var(--role-head-fg); border-color: var(--role-head-bd); }
 .role-badge.role-blocked { color: var(--danger-strong); border-color: var(--danger); }
 
 /* ---------------- Tables ---------------- */
@@ -681,7 +777,7 @@ textarea.input {
     font-weight: 600;
     white-space: nowrap;
 }
-.chat-turn-text tbody tr:nth-child(even) td { background: rgba(255, 255, 255, 0.02); }
+.chat-turn-text tbody tr:nth-child(even) td { background: var(--stripe); }
 
 /* ---------------- Карточки-ссылки на анализы под ответом ассистента ---------------- */
 .chat-refs {
@@ -884,3 +980,135 @@ textarea.input {
 .scene-head { display: flex; justify-content: space-between; align-items: center; }
 .signal-id { flex: none; margin-top: 8px; font-family: monospace; opacity: .7; min-width: 32px; }
 .scene-check { display: flex; align-items: center; gap: 6px; }
+
+
+/* ============================================================
+   Вкладки и настройки оформления (theme.js / theme-ui.js)
+   ============================================================ */
+
+.tabs {
+    display: flex;
+    gap: 2px;
+    border-bottom: 1px solid var(--border-soft);
+    margin-bottom: 20px;
+}
+.tab {
+    background: transparent;
+    border: 0;
+    border-bottom: 2px solid transparent;
+    color: var(--text-muted);
+    font-family: var(--font-mono);
+    font-size: 14px;
+    padding: 10px 16px;
+    margin-bottom: -1px;
+    cursor: pointer;
+}
+.tab:hover { color: var(--text); background: var(--bg-hover); }
+.tab.is-active { color: var(--accent-strong); border-bottom-color: var(--accent); }
+.tab:focus-visible, .vs-preset:focus-visible, .vs-swatch:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+}
+.tab-panel[hidden] { display: none; }
+
+.tag-bad { color: var(--danger-strong); border-color: var(--danger); }
+
+.vs { display: flex; flex-direction: column; gap: 16px; }
+.vs-module-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 4px; }
+.vs-module-head .card-title { margin: 0; }
+.vs-module-hint { margin: 0 0 12px; }
+.vs-row { align-items: start; }
+
+.vs-toolbar-buttons { display: flex; flex-wrap: wrap; gap: 8px; }
+.vs-btn { padding: 7px 14px; font-size: 13px; }
+.vs-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+.vs-toolbar-note { margin: 10px 0 0; }
+.vs-status { display: block; min-height: 1.3em; margin-top: 6px; font-size: 13px; color: var(--text-muted); }
+.vs-status-ok { color: var(--risk-low); }
+.vs-status-error { color: var(--danger-strong); }
+
+.vs-presets { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
+.vs-preset {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    text-align: left;
+    padding: 10px;
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    color: var(--text);
+    font-family: var(--font-body);
+    cursor: pointer;
+}
+.vs-preset:hover { border-color: var(--accent); }
+.vs-preset.is-active { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-soft); }
+.vs-preset-name { font-weight: 600; font-size: 14px; margin-top: 4px; }
+.vs-preset-hint { font-size: 12px; color: var(--text-dim); }
+
+.vs-mock {
+    display: flex;
+    height: 62px;
+    overflow: hidden;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+}
+.vs-mock-side { width: 22%; background: var(--bg-panel); border-right: 1px solid var(--border-soft); }
+.vs-mock-body { flex: 1; display: flex; flex-direction: column; gap: 5px; padding: 8px; justify-content: center; }
+.vs-mock-line { height: 5px; border-radius: 3px; background: var(--text-muted); opacity: 0.8; }
+.vs-mock-line-short { width: 55%; background: var(--text-dim); }
+.vs-mock-btn { width: 30px; height: 8px; border-radius: 3px; background: var(--accent); }
+.vs-mock-split { display: grid; grid-template-columns: 1fr 1fr; gap: 0; }
+.vs-mock-split .vs-mock:first-child { border-right: 0; border-radius: var(--radius) 0 0 var(--radius); }
+.vs-mock-split .vs-mock:last-child { border-left: 0; border-radius: 0 var(--radius) var(--radius) 0; }
+.vs-mock-split .vs-mock-side { display: none; }
+
+.vs-preview h3 { font-size: 16px; }
+.vs-preview p { margin: 6px 0 12px; }
+.vs-preview-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 12px; }
+.vs-preview .btn { cursor: default; padding: 7px 14px; }
+.vs-muted { color: var(--text-muted); }
+.vs-dim { color: var(--text-dim); }
+
+.vs-control-stack { display: flex; flex-direction: column; gap: 8px; }
+.vs-color-row { display: flex; align-items: center; gap: 8px; }
+.vs-color {
+    width: 44px;
+    height: 34px;
+    padding: 2px;
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    cursor: pointer;
+}
+.vs-hex { width: 110px; }
+.vs-swatches { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.vs-swatch {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    border: 2px solid var(--border);
+    cursor: pointer;
+    padding: 0;
+}
+.vs-swatch:hover { transform: scale(1.1); }
+.vs-swatch.is-active { border-color: var(--text); }
+.vs-random { margin-left: 4px; }
+.vs-range-row { display: flex; align-items: center; gap: 12px; }
+.vs-range { flex: 1; max-width: 280px; accent-color: var(--accent); }
+.vs-range-out { min-width: 56px; font-family: var(--font-mono); font-size: 13px; color: var(--text-muted); }
+.vs-font-sample {
+    padding: 8px 12px;
+    background: var(--bg-elevated);
+    border: 1px dashed var(--border);
+    border-radius: var(--radius);
+    font-size: 14px;
+    color: var(--text-muted);
+}
+.vs-contrast { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 8px 20px; margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--border-soft); }
+.vs-contrast-item { display: flex; align-items: center; justify-content: space-between; gap: 10px; font-size: 13px; color: var(--text-muted); }
+
+@media (max-width: 880px) {
+    .vs-toolbar-buttons .vs-btn { flex: 1 1 auto; }
+}

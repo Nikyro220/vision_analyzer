@@ -93,6 +93,16 @@ def blocked():
     return render_template("accounts/blocked.html")
 
 
+@bp.route("/appearance/")
+@login_required
+def appearance():
+    """Личное оформление интерфейса. Хранится в localStorage браузера (см. static/js/theme.js),
+    сервер ничего не сохраняет — страница только отдаёт UI настроек."""
+    if current_user.role == Role.BLOCKED:
+        return redirect(url_for("accounts.blocked"))
+    return render_template("accounts/appearance.html")
+
+
 @bp.route("/profile/", methods=["GET", "POST"])
 @login_required
 def profile():

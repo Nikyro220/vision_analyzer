@@ -26,9 +26,9 @@
     padding: 9px 10px;
     border: 1px solid var(--border-soft);
     border-radius: 3px;
-    background: rgba(255, 255, 255, 0.02);
+    background: var(--stripe);
 }
-.queue-item--processing { border-color: var(--accent); background: rgba(63, 167, 160, 0.07); }
+.queue-item--processing { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 7%, transparent); }
 
 .queue-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13.5px; }
 .queue-status { font-size: 12px; color: var(--text-dim); white-space: nowrap; }
@@ -42,7 +42,7 @@
 }
 .queue-item--processing .queue-icon,
 .pending-note .queue-item--processing {
-    border-color: rgba(63, 167, 160, 0.25);
+    border-color: color-mix(in srgb, var(--accent) 25%, transparent);
     border-top-color: var(--accent-strong);
     animation: queue-spin 0.9s linear infinite;
 }
@@ -54,9 +54,9 @@
     border: 1px solid transparent; border-radius: 3px;
     background: none; color: var(--text-dim); cursor: pointer; font-size: 12px;
 }
-.queue-cancel-btn:hover { color: #dd5b4d; border-color: #dd5b4d; }
+.queue-cancel-btn:hover { color: var(--danger); border-color: var(--danger); }
 
-.queue-error { color: #e0a039; }
+.queue-error { color: var(--risk-medium); }
 
 .pending-note { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; }
 .pending-note .queue-icon { width: 22px; height: 22px; border-width: 3px; }
@@ -91,7 +91,7 @@
 .file-thumb {
     width: 40px; height: 40px; flex: 0 0 auto; object-fit: cover;
     border-radius: 3px; border: 1px solid var(--border-soft);
-    background: rgba(255, 255, 255, 0.03);
+    background: var(--stripe-strong);
 }
 .caption-row-name {
     flex: 1 1 30%; min-width: 0; overflow: hidden; text-overflow: ellipsis;
@@ -100,7 +100,7 @@
 .file-row input[type="text"] {
     flex: 2 1 45%; min-width: 0; box-sizing: border-box;
     padding: 6px 8px; font-size: 12.5px;
-    background: rgba(255, 255, 255, 0.02);
+    background: var(--stripe);
     border: 1px solid var(--border-soft); border-radius: 3px; color: inherit;
 }
 .file-remove-btn {
@@ -109,7 +109,7 @@
     border: 1px solid transparent; border-radius: 3px;
     background: none; color: var(--text-dim); cursor: pointer; font-size: 12px;
 }
-.file-remove-btn:hover { color: #dd5b4d; border-color: #dd5b4d; }
+.file-remove-btn:hover { color: var(--danger); border-color: var(--danger); }
 
 .caption-note { margin-bottom: 18px; padding-bottom: 14px; border-bottom: 1px solid var(--border-soft); }
 
