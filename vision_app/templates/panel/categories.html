@@ -27,7 +27,7 @@
         </thead>
         <tbody>
             {% for row in rows %}
-            <tr>
+            <tr onclick="window.location.href='{{ url_for('panel.category_edit', pk=row.id) }}'">
                 <td>{{ row.position }}</td>
                 <td><code>{{ row.name }}</code></td>
                 <td>{{ row.title or "—" }}</td>

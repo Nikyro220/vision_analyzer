@@ -138,6 +138,11 @@
 
 {% block scripts_extra %}
 <script>
+function fitHeight(ta) {
+    ta.style.height = 'auto';
+    ta.style.height = ta.scrollHeight + 'px';
+}
+
 function createRuleList(rootId, hiddenId, initialParagraphs) {
     const root = document.getElementById(rootId);
     const hidden = document.getElementById(hiddenId);
@@ -146,7 +151,7 @@ function createRuleList(rootId, hiddenId, initialParagraphs) {
     const insertBtn = root.querySelector('[data-insert-placeholder]');
     let lastFocused = null;
 
-    function addItem(value) {
+    function addItem(value, fit) {
         const row = document.createElement('div');
         row.className = 'rule-item';
 
@@ -169,6 +174,7 @@ function createRuleList(rootId, hiddenId, initialParagraphs) {
 
         row.append(ta, btn);
         list.appendChild(row);
+        if (fit) fitHeight(ta);
         return ta;
     }
 
@@ -176,20 +182,17 @@ function createRuleList(rootId, hiddenId, initialParagraphs) {
         return [...list.querySelectorAll('textarea')].map((t) => t.value.trim()).filter(Boolean);
     }
 
-    function setValues(vals) {
+    function setValues(vals, fit) {
         list.innerHTML = '';
         lastFocused = null;
-        (vals.length ? vals : ['']).forEach(addItem);
+        (vals.length ? vals : ['']).forEach((v) => addItem(v, fit));
     }
 
-    setValues(initialParagraphs);
+    setValues(initialParagraphs, true);
     addBtn.addEventListener('click', () => addItem('').focus());
 
     if (insertBtn) {
         insertBtn.addEventListener('click', () => {
-            // Вставляем в последний активный textarea этого списка, а если ни
-            // один ещё не был в фокусе (например сразу после загрузки страницы) —
-            // в самый последний из них.
             const textareas = list.querySelectorAll('textarea');
             const target = (lastFocused && list.contains(lastFocused)) ? lastFocused : textareas[textareas.length - 1];
             if (!target) return;
@@ -214,7 +217,11 @@ document.addEventListener('DOMContentLoaded', () => {
     const compactList = createRuleList('compact-rules', 'compact', {{ compact_paragraphs|tojson }});
 
     document.getElementById('copy-to-compact').addEventListener('click', () => {
-        compactList.setValues(fullList.values());
+        compactList.setValues(fullList.values(), true);
+    });
+
+    document.querySelectorAll('textarea.input-mono').forEach((ta) => {
+        if (!ta.closest('.rule-item')) fitHeight(ta);
     });
 });
 </script>

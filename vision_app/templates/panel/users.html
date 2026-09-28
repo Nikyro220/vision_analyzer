@@ -28,7 +28,7 @@
             </tr>
         </thead>
         <tbody>
-            {% for u in page.items %}rwwww
+            {% for u in page.items %}
             <tr onclick="window.location.href='{{ url_for('panel.user_detail', pk=u.id) }}';">
                 <td>{{ u.username }}</td>
                 <td>{{ u.email or "—" }}</td>
