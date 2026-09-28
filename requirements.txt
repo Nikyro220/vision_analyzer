@@ -1,6 +1,7 @@
 aiohttp
 Pillow
 numpy
+fastembed  # inference: POST /embeddings — CPU-модель для векторного поиска, см. inference/config.py
 Flask
 Flask-SQLAlchemy
 Flask-Login
@@ -8,4 +9,4 @@ Flask-WTF
 Flask-Migrate
 requests
 email-validator
-tzdata           
+tzdata

@@ -38,6 +38,7 @@ import backends
 import categories_api
 import chat
 import config
+import embeddings
 from analyze import _json, handle_analyze
 from config import locales
 
@@ -67,6 +68,11 @@ async def handle_health(request: web.Request) -> web.Response:
                 "vllm": vllm_status,
                 "ollama": ollama_status,
             },
+            # Эмбеддинги — вспомогательная возможность (см. embeddings.py), а не
+            # основная функция сервера, поэтому её статус НЕ влияет на "ok"
+            # выше: если модель эмбеддингов недоступна, риск-анализ и чат
+            # продолжают работать как обычно.
+            "embeddings": embeddings.status(),
         },
         status=200 if overall_ok else 503,
     )
@@ -298,6 +304,8 @@ def build_app() -> web.Application:
     app.router.add_get("/sampling", handle_sampling)
     app.router.add_post("/sampling", handle_sampling)
     app.router.add_get("/models", handle_models)
+    app.router.add_get("/embeddings", embeddings.handle_embeddings_info)
+    app.router.add_post("/embeddings", embeddings.handle_embeddings)
     # Статический /categories/summaries — раньше динамического
     # /categories/{name}, иначе он перехватит его как имя категории
     # (aiohttp резолвит роуты в порядке регистрации). Только чтение —

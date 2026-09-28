@@ -39,5 +39,11 @@
 	"error.empty_message": "Не передано или пустое поле 'message'.",
 	"error.chat_failed": "Не удалось получить ответ от модели.",
 	"error.chat_unsupported_content_type": "Ожидается application/json либо multipart/form-data (поле 'message', необязательные 'images'/'image').",
-	"error.invalid_json_body": "Некорректный JSON в теле запроса."
+	"error.invalid_json_body": "Некорректный JSON в теле запроса.",
+	"error.empty_text": "Не передано или пустое поле 'text'.",
+	"error.text_too_long": "Поле 'text' слишком длинное (максимум {max_chars} символов).",
+	"error.embeddings_disabled": "Сервис эмбеддингов отключён на сервере (EMBEDDING_ENABLED=0).",
+	"error.embeddings_unavailable": "Модель эмбеддингов недоступна: {detail}",
+	"error.embeddings_failed": "Не удалось получить эмбеддинг текста.",
+	"error.embeddings_unsupported_content_type": "Ожидается application/json с полем 'text' или 'texts'."
 }

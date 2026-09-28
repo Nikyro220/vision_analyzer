@@ -84,6 +84,15 @@ except ImportError:
         "апскейлинг маленьких изображений отключён"
     )
 
+try:
+    import fastembed as _fastembed_probe  # noqa: F401 — только проверка наличия пакета
+except ImportError:
+    _fastembed_probe = None
+    logging.warning(
+        "config: пакет fastembed не установлен, POST /embeddings будет недоступен "
+        "(pip install fastembed)"
+    )
+
 
 def _current_lang() -> str:
     """Текущий язык сервера (для промпта модели и текстов ответов)."""
@@ -157,6 +166,39 @@ VLLM_URL = os.environ.get("VISION_ANALYZER_VLLM_URL", "http://host.docker.intern
 
 SERVER_HOST = "0.0.0.0"
 SERVER_PORT = 6769
+
+# ---------------------------------------------------------------------------
+# Эмбеддинги текста (POST /embeddings)
+# ---------------------------------------------------------------------------
+# Отдельная лёгкая CPU-модель (ONNX через fastembed), никак не связана с
+# BACKEND/OLLAMA_HOST/VLLM_URL выше — те выбирают модель для риск-анализа
+# картинок (/analyze) и диалога (/chat), а эта только превращает текст в
+# вектор для последующего векторного поиска на стороне vision_app.
+#
+# Модель фиксирована конфигом, а не переключается "на лету" через API, в
+# отличие от BACKEND: разные модели эмбеддингов дают векторы в разных,
+# несовместимых друг с другом пространствах, и подмена модели без явного
+# намерения незаметно бы испортила уже посчитанные векторы (см. ручку
+# /embeddings/info ниже — vision_app сверяет по ней, той ли моделью
+# посчитан вектор, прежде чем доверять результату).
+#
+# EMBEDDING_MODEL должен быть именем модели из fastembed.TextEmbedding.
+# list_supported_models() — список мультиязычных вариантов (нужен русский):
+#   sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2 (384-мерный, ~0.22 ГБ, самый быстрый на CPU)
+#   sentence-transformers/paraphrase-multilingual-mpnet-base-v2 (768-мерный, ~1.0 ГБ, дефолт — баланс качества/скорости)
+#   intfloat/multilingual-e5-large                              (1024-мерный, ~2.24 ГБ, лучшее качество, медленнее на CPU)
+EMBEDDING_MODEL = os.environ.get(
+    "VISION_ANALYZER_EMBEDDING_MODEL", "sentence-transformers/paraphrase-multilingual-mpnet-base-v2"
+).strip()
+EMBEDDING_ENABLED = os.environ.get("VISION_ANALYZER_EMBEDDING_ENABLED", "1") == "1"
+EMBEDDING_MAX_CHARS = int(os.environ.get("VISION_ANALYZER_EMBEDDING_MAX_CHARS", "8000"))
+# Модель грузится в память процесса лениво, при первом запросе (см. embeddings.py:
+# _get_model) — но веса ДОЛЖНЫ быть прогреты на диск заранее, на этапе сборки
+# образа (репозиторий сейчас без Dockerfile; если/когда он появится, туда нужен
+# шаг вида `RUN python -c "from fastembed import TextEmbedding; \
+# TextEmbedding('<EMBEDDING_MODEL>')"`), иначе первый запрос в проде уйдёт в
+# скачивание с HuggingFace Hub, которое может и не сработать вовсе, если у
+# контейнера в рантайме нет сети наружу. См. также scripts/warm_embeddings.py.
 
 SAMPLING_DEFAULTS = {
     "temperature": float(os.environ.get("VISION_ANALYZER_TEMPERATURE", 0)),

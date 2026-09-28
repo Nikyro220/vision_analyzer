@@ -429,3 +429,54 @@ Examples:
   curl -X POST -H "Content-Type: application/json" \
     -d '{"message": "Hi", "system": "Reply only in Kazakh."}' \
     http://xxx.xxx.xxx.xxx:6769/chat
+
+========================================================
+GET /embeddings — embeddings service status
+========================================================
+Offline check: whether the service is enabled
+(VISION_ANALYZER_EMBEDDING_ENABLED), whether the fastembed package is
+installed, the configured model and its vector dimension, and whether
+the model is currently loaded in memory. Does not trigger a model
+load and does not run inference. 200 if the service is healthy,
+otherwise 503 (same response body either way).
+
+  curl http://xxx.xxx.xxx.xxx:6769/embeddings
+
+
+========================================================
+POST /embeddings — text(s) -> vector(s) for vector search
+========================================================
+A separate lightweight CPU model (fastembed/ONNX), unrelated to the
+BACKEND (vllm/ollama) above — that one picks the model for image risk
+analysis and chat; this one only turns text into a fixed-length vector.
+Body is JSON only (no multipart, no images):
+
+  {"text": "..."}              — a single text, response includes "embedding"
+  {"texts": ["...", "..."]}    — several at once (for batch re-embedding
+                                  of existing records), max 64 per call
+
+lang can be passed as a query parameter (?lang=en) or in the body —
+only affects the language of the error text.
+
+Response:
+  {"model": "...", "dim": 768, "count": 1,
+   "embeddings": [[...]], "embedding": [...]}
+
+The model is fixed by server config (VISION_ANALYZER_EMBEDDING_MODEL),
+not chosen per request — vectors from different models are not
+compatible with each other; the "model" field in the response shows
+which model actually produced the vector. 503 if the service is
+disabled by config, the fastembed package isn't installed, or the
+model weights failed to load (see GET /embeddings and GET /health).
+
+Examples:
+
+  # 1) A single text
+  curl -X POST -H "Content-Type: application/json" \
+    -d '{"text": "person in a black jacket near a shop"}' \
+    http://xxx.xxx.xxx.xxx:6769/embeddings
+
+  # 2) Several texts at once (batch re-embedding)
+  curl -X POST -H "Content-Type: application/json" \
+    -d '{"texts": ["first description", "second description"]}' \
+    http://xxx.xxx.xxx.xxx:6769/embeddings
