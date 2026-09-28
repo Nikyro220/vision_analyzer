@@ -6,10 +6,10 @@ from flask import Blueprint, abort, current_app, jsonify, redirect, render_templ
 from flask_login import current_user, login_required
 from sqlalchemy import select
 
-from ..analysis_query import build_analysis_context
+from ..chat_tools import run_chat_turn
 from ..extensions import db
 from ..models import ChatMessage, ChatRole, ChatSession
-from ..services import VisionApiError, chat_with_model
+from ..services import VisionApiError
 from ..settings_store import get_analysis_target
 
 bp = Blueprint("chat", __name__)
@@ -125,21 +125,11 @@ def send(session_id: int):
 
     target_backend, target_model = get_analysis_target()
 
-    # Если вопрос похож на аналитический ("какие анализы были на этой неделе",
-    # "сколько высокого риска" и т.п.) — подмешиваем в system-промпт сводку
-    # реальных данных из БД (с учётом прав доступа) и получаем карточки-ссылки
-    # на конкретные анализы (см. analysis_query.py).
-    rag = build_analysis_context(current_user, message)
-
+    # Модель сама решает, нужны ли ей данные из истории анализов: при
+    # необходимости она присылает JSON-вызов инструмента, мы его выполняем
+    # (с проверкой прав) и повторно вызываем модель — см. chat_tools/runner.py.
     try:
-        outcome = chat_with_model(
-            message,
-            history=history,
-            backend=target_backend,
-            model=target_model,
-            lang="ru",
-            system=rag.system,
-        )
+        turn = run_chat_turn(current_user, message, history, target_backend, target_model, lang="ru")
     except VisionApiError as exc:
         current_app.logger.warning("chat: ошибка сервера анализа: %s", exc)
         return jsonify({"error": str(exc)}), 502
@@ -149,10 +139,10 @@ def send(session_id: int):
         ChatMessage(
             session_id=session_row.id,
             role=ChatRole.ASSISTANT,
-            content=outcome.reply,
-            backend=outcome.backend,
-            model=outcome.model,
-            refs=rag.references,
+            content=turn.reply,
+            backend=turn.backend,
+            model=turn.model,
+            refs=turn.references,
         )
     )
     if not session_row.title:
@@ -161,10 +151,10 @@ def send(session_id: int):
 
     return jsonify(
         {
-            "reply": outcome.reply,
-            "backend": outcome.backend,
-            "model": outcome.model,
+            "reply": turn.reply,
+            "backend": turn.backend,
+            "model": turn.model,
             "title": session_row.title,
-            "refs": rag.references,
+            "refs": turn.references,
         }
     )

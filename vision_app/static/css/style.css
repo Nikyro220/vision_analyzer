@@ -667,6 +667,22 @@ textarea.input {
 }
 .chat-turn-text a { color: var(--accent-strong); text-decoration: underline; }
 
+/* Таблицы: обёртка даёт горизонтальный скролл, если таблица шире реплики */
+.chat-turn-text .md-table-wrap { overflow-x: auto; margin: 0 0 8px; }
+.chat-turn-text table { border-collapse: collapse; font-size: 12.5px; min-width: 100%; }
+.chat-turn-text th, .chat-turn-text td {
+    border: 1px solid var(--border-soft);
+    padding: 5px 10px;
+    text-align: left;
+    vertical-align: top;
+}
+.chat-turn-text th {
+    background: var(--bg-elevated);
+    font-weight: 600;
+    white-space: nowrap;
+}
+.chat-turn-text tbody tr:nth-child(even) td { background: rgba(255, 255, 255, 0.02); }
+
 /* ---------------- Карточки-ссылки на анализы под ответом ассистента ---------------- */
 .chat-refs {
     display: flex;

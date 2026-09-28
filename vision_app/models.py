@@ -267,7 +267,7 @@ class ChatMessage(db.Model):
     role = db.Column(db.String(16), nullable=False)  # ChatRole.USER / ChatRole.ASSISTANT
     content = db.Column(db.Text, nullable=False, default="")
 
-    # Ссылки на анализы, которые ретрив (analysis_query.py) подложил под этот
+    # Ссылки на анализы, которые инструмент search_analyses (chat_tools/analyses.py) вернул под этот
     # ответ ассистента — список словарей {id, url, thumb_url, label, risk_level,
     # risk_label, date}. Формируются из тех же строк БД, что и текстовая сводка
     # в system-промпте, поэтому не могут "поплыть"/сгаллюцинироваться в отличие

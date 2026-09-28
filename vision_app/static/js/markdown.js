@@ -14,7 +14,8 @@
  * inline code (обратные кавычки), блоки кода в тройных обратных кавычках
  * (с необязательным языком),
  * блок-цитаты (> ...), маркированные (-, *, +) и нумерованные (1.) списки
- * (в т.ч. вложенные по отступу), ссылки [текст](url) — только http(s)/mailto,
+ * (в т.ч. вложенные по отступу), таблицы (| a | b | с строкой |---|---|),
+ * ссылки [текст](url) — только http(s)/mailto,
  * горизонтальная линия (---), переносы строк/абзацы.
  *
  * Использование: window.renderMarkdownToHtml(rawText) -> HTML-строка,
@@ -72,6 +73,68 @@
     });
 
     return text;
+  }
+
+  // ---------- таблицы (GFM-подобные | ячейка | ячейка |) ----------
+  function splitTableRow(line) {
+    var trimmed = line.trim();
+    if (trimmed.charAt(0) === "|") trimmed = trimmed.slice(1);
+    if (trimmed.charAt(trimmed.length - 1) === "|") trimmed = trimmed.slice(0, -1);
+    // Простое разбиение по "|" — экранированные "\|" внутри ячейки не
+    // поддержаны (в чате это не встречается на практике, а поддержка
+    // усложнила бы код без реальной пользы).
+    return trimmed.split("|").map(function (cell) {
+      return cell.trim();
+    });
+  }
+
+  var _TABLE_SEP_CELL_RE = /^:?-{1,}:?$/;
+
+  function isTableSeparatorRow(line) {
+    if (line.indexOf("-") === -1) return false;
+    var cells = splitTableRow(line);
+    if (!cells.length) return false;
+    for (var i = 0; i < cells.length; i += 1) {
+      if (!_TABLE_SEP_CELL_RE.test(cells[i])) return false;
+    }
+    return true;
+  }
+
+  function tableAlign(sepCell) {
+    var left = sepCell.charAt(0) === ":";
+    var right = sepCell.charAt(sepCell.length - 1) === ":";
+    if (left && right) return "center";
+    if (right) return "right";
+    if (left) return "left";
+    return "";
+  }
+
+  function renderTableBlock(headCells, aligns, bodyRows) {
+    function cellStyle(idx) {
+      return aligns[idx] ? ' style="text-align:' + aligns[idx] + '"' : "";
+    }
+    var thead =
+      "<tr>" +
+      headCells
+        .map(function (cell, idx) {
+          return "<th" + cellStyle(idx) + ">" + renderInline(cell) + "</th>";
+        })
+        .join("") +
+      "</tr>";
+    var tbody = bodyRows
+      .map(function (row) {
+        return (
+          "<tr>" +
+          headCells
+            .map(function (_, idx) {
+              return "<td" + cellStyle(idx) + ">" + renderInline(row[idx] || "") + "</td>";
+            })
+            .join("") +
+          "</tr>"
+        );
+      })
+      .join("");
+    return '<div class="md-table-wrap"><table><thead>' + thead + "</thead><tbody>" + tbody + "</tbody></table></div>";
   }
 
   // ---------- списки (группа последовательных строк-пунктов) ----------
@@ -157,6 +220,21 @@
         flushAll();
         out.push("<hr>");
         i += 1;
+        continue;
+      }
+
+      // таблица: строка с "|" и следом строка-разделитель |---|---|
+      if (line.indexOf("|") !== -1 && i + 1 < lines.length && isTableSeparatorRow(lines[i + 1])) {
+        flushAll();
+        var headCells = splitTableRow(line);
+        var aligns = splitTableRow(lines[i + 1]).map(tableAlign);
+        i += 2;
+        var bodyRows = [];
+        while (i < lines.length && lines[i].indexOf("|") !== -1 && !/^\s*$/.test(lines[i])) {
+          bodyRows.push(splitTableRow(lines[i]));
+          i += 1;
+        }
+        out.push(renderTableBlock(headCells, aligns, bodyRows));
         continue;
       }
 
