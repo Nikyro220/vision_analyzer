@@ -26,3 +26,4 @@
 
 - Add a light theme.
 - Add the ability to upload a profile picture.
+- remove the S-n id from json as it have no practical use

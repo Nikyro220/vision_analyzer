@@ -1,5 +1,6 @@
 """Панель управления: обзор, пользователи, роли/блокировки, все анализы."""
 
+import json
 from urllib.parse import urlparse
 
 from flask import Blueprint, current_app, flash, jsonify, redirect, render_template, request, url_for
@@ -7,6 +8,7 @@ from flask_login import current_user
 from sqlalchemy import func, select
 from sqlalchemy.orm import joinedload
 
+from .. import examples_codec
 from ..decorators import head_admin_required, staff_required
 from ..extensions import db
 from ..forms import AccountForm, CategoryForm, DeleteAccountForm, DeleteCategoryForm
@@ -366,6 +368,26 @@ def categories_list():
     return render_template("panel/categories.html", rows=rows, delete_form=delete_form)
 
 
+def _examples_context(form, category) -> dict:
+    """Начальные сцены для редактора примеров: при ошибке валидации — то, что
+    пользователь только что отправил, иначе — разобранный текст из БД."""
+    result = {}
+    for lang, field in (("en", form.examples_en_data), ("ru", form.examples_ru_data)):
+        scenes = None
+        if field.data:
+            try:
+                loaded = json.loads(field.data)
+                if isinstance(loaded, list):
+                    scenes = loaded
+            except ValueError:
+                pass
+        if scenes is None:
+            text = getattr(category, f"example_{lang}", "") if category else ""
+            scenes = examples_codec.parse_examples(text)
+        result[lang] = scenes
+    return result
+
+
 @bp.route("/categories/new/", methods=["GET", "POST"])
 @staff_required
 def category_new():
@@ -380,8 +402,8 @@ def category_new():
             compact=form.compact.data.strip(),
             full_extra=(form.full_extra.data or "").strip(),
             compact_extra=(form.compact_extra.data or "").strip(),
-            example_en=(form.example_en.data or "").strip(),
-            example_ru=(form.example_ru.data or "").strip(),
+            example_en=examples_codec.data_to_text(form.examples_en_data.data, form.name.data.strip()),
+            example_ru=examples_codec.data_to_text(form.examples_ru_data.data, form.name.data.strip()),
             position=form.position.data if form.position.data is not None else next_position,
             is_active=form.is_active.data,
         )
@@ -396,6 +418,7 @@ def category_new():
         category=None,
         full_paragraphs=[""],
         compact_paragraphs=[""],
+        examples_data=_examples_context(form, None),
     )
 
 
@@ -413,8 +436,8 @@ def category_edit(pk: int):
         category.compact = form.compact.data.strip()
         category.full_extra = (form.full_extra.data or "").strip()
         category.compact_extra = (form.compact_extra.data or "").strip()
-        category.example_en = (form.example_en.data or "").strip()
-        category.example_ru = (form.example_ru.data or "").strip()
+        category.example_en = examples_codec.data_to_text(form.examples_en_data.data, category.name)
+        category.example_ru = examples_codec.data_to_text(form.examples_ru_data.data, category.name)
         category.position = form.position.data if form.position.data is not None else category.position
         category.is_active = form.is_active.data
         db.session.commit()
@@ -427,6 +450,7 @@ def category_edit(pk: int):
         category=category,
         full_paragraphs=category.full_paragraphs(),
         compact_paragraphs=category.compact_paragraphs(),
+        examples_data=_examples_context(form, category),
     )
 
 

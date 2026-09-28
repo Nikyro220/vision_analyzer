@@ -13,7 +13,7 @@ from flask_wtf import FlaskForm
 from flask_wtf.file import FileRequired, MultipleFileField
 from PIL import Image
 from sqlalchemy import func, select
-from wtforms import BooleanField, IntegerField, PasswordField, SelectField, StringField, TextAreaField
+from wtforms import BooleanField, HiddenField, IntegerField, PasswordField, SelectField, StringField, TextAreaField
 from wtforms.fields import EmailField
 from wtforms.validators import (
     DataRequired,
@@ -26,6 +26,7 @@ from wtforms.validators import (
     ValidationError,
 )
 
+from . import examples_codec
 from .extensions import db
 from .models import CATEGORY_NAME_RE, Category, User
 
@@ -234,12 +235,10 @@ class CategoryForm(FlaskForm):
     compact_extra = TextAreaField(
         "Доп. блоки к Compact (редко нужно)", validators=[Optional()], render_kw={"rows": 4}
     )
-    example_en = TextAreaField(
-        "Пример сцены (en)", validators=[Optional()], render_kw={"rows": 3}
-    )
-    example_ru = TextAreaField(
-        "Пример сцены (ru)", validators=[Optional()], render_kw={"rows": 3}
-    )
+    # Примеры сцен редактируются структурно (JS в category_form.html) и приходят
+    # сюда JSON-списком сцен; в текст для БД их превращает examples_codec.
+    examples_en_data = HiddenField(validators=[Optional()])
+    examples_ru_data = HiddenField(validators=[Optional()])
     position = IntegerField(
         "Порядок появления в промпте",
         validators=[Optional(), NumberRange(min=0, max=100000, message="От 0 до 100000.")],
@@ -258,6 +257,18 @@ class CategoryForm(FlaskForm):
             stmt = stmt.where(Category.id != self._current_id)
         if db.session.scalar(stmt):
             raise ValidationError("Категория с таким именем уже существует.")
+
+    def _validate_examples(self, field):
+        try:
+            examples_codec.data_to_text(field.data, "x")
+        except (ValueError, TypeError):
+            raise ValidationError("Не удалось разобрать примеры сцен — обновите страницу и повторите.")
+
+    def validate_examples_en_data(self, field):
+        self._validate_examples(field)
+
+    def validate_examples_ru_data(self, field):
+        self._validate_examples(field)
 
     def validate_full(self, field):
         _placeholder_typo_check(field)

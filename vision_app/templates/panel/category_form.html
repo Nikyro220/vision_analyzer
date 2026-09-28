@@ -110,17 +110,19 @@
         </div>
     </details>
 
-    <div class="field-row">
-        <div class="field">
-            {{ form.example_en.label }}
-            {{ form.example_en(class_="input input-mono") }}
-            {% for error in form.example_en.errors %}<div class="field-error">{{ error }}</div>{% endfor %}
+    <div class="field">
+        <label>Примеры сцен</label>
+        <p class="field-hint">Готовые разборы похожих ситуаций для модели — отдельно для каждого языка. Сцена:
+            описание, список сигналов (id и категория проставляются сами), обоснование, уровень риска и
+            флаг «нужна проверка человеком». JSON собирается автоматически.</p>
+        <div class="tabs" role="tablist">
+            <button type="button" class="tab active" data-tab="ru">RU</button>
+            <button type="button" class="tab" data-tab="en">EN</button>
         </div>
-        <div class="field">
-            {{ form.example_ru.label }}
-            {{ form.example_ru(class_="input input-mono") }}
-            {% for error in form.example_ru.errors %}<div class="field-error">{{ error }}</div>{% endfor %}
-        </div>
+        <div class="tab-panel" data-panel="ru"></div>
+        <div class="tab-panel" data-panel="en" hidden></div>
+        {% for error in form.examples_en_data.errors %}<div class="field-error">{{ error }}</div>{% endfor %}
+        {% for error in form.examples_ru_data.errors %}<div class="field-error">{{ error }}</div>{% endfor %}
     </div>
 
     <label class="switch">
@@ -212,6 +214,121 @@ function createRuleList(rootId, hiddenId, initialParagraphs) {
     return { values, setValues };
 }
 
+function createExamplesEditor(panel, hidden, initialScenes) {
+    const list = document.createElement('div');
+    list.className = 'scene-list';
+    const addScene = document.createElement('button');
+    addScene.type = 'button';
+    addScene.className = 'btn btn-secondary btn-sm';
+    addScene.textContent = '+ Добавить сцену';
+    panel.append(list, addScene);
+
+    function el(tag, cls, text) {
+        const e = document.createElement(tag);
+        if (cls) e.className = cls;
+        if (text) e.textContent = text;
+        return e;
+    }
+    function labelled(text, control) {
+        const wrap = el('div', 'field');
+        wrap.append(el('label', '', text), control);
+        return wrap;
+    }
+    function textarea(value, rows) {
+        const ta = el('textarea', 'input input-mono');
+        ta.rows = rows;
+        ta.value = value || '';
+        ta.addEventListener('input', () => fitHeight(ta));
+        return ta;
+    }
+
+    function renumber() {
+        [...list.children].forEach((card, i) => {
+            const letter = i < 26 ? String.fromCharCode(65 + i) : String(i + 1);
+            card.querySelector('.scene-title').textContent = 'Сцена ' + letter;
+        });
+    }
+
+    function addSignal(sigList, value) {
+        const row = el('div', 'rule-item');
+        const ta = textarea(value, 2);
+        const rm = el('button', 'btn btn-secondary btn-sm rule-item-remove', '✕');
+        rm.type = 'button';
+        rm.title = 'Удалить сигнал';
+        rm.addEventListener('click', () => { row.remove(); renumberSignals(sigList); });
+        row.append(el('span', 'signal-id'), ta, rm);
+        sigList.appendChild(row);
+        renumberSignals(sigList);
+        fitHeight(ta);
+        return ta;
+    }
+    function renumberSignals(sigList) {
+        [...sigList.children].forEach((row, i) => { row.querySelector('.signal-id').textContent = 'S-' + (i + 1); });
+    }
+
+    function addSceneCard(scene) {
+        scene = scene || {};
+        const card = el('div', 'scene-card');
+        const head = el('div', 'scene-head');
+        head.append(el('b', 'scene-title'));
+        const rm = el('button', 'btn btn-secondary btn-sm', '✕ Удалить сцену');
+        rm.type = 'button';
+        rm.addEventListener('click', () => { card.remove(); renumber(); });
+        head.append(rm);
+
+        const desc = textarea(scene.scene, 2);
+        desc.dataset.role = 'scene';
+        const sigList = el('div', 'rule-list');
+        sigList.dataset.role = 'signals';
+        (scene.signals || []).forEach((d) => addSignal(sigList, d));
+        const addSig = el('button', 'btn btn-secondary btn-sm', '+ Добавить сигнал');
+        addSig.type = 'button';
+        addSig.addEventListener('click', () => addSignal(sigList, '').focus());
+        const sigWrap = el('div', 'field');
+        sigWrap.append(el('label', '', 'Сигналы (пусто — сигналов нет)'), sigList, addSig);
+
+        const rationale = textarea(scene.rationale, 2);
+        rationale.dataset.role = 'rationale';
+        const risk = el('select', 'input');
+        risk.dataset.role = 'risk';
+        ['low', 'medium', 'high'].forEach((v) => {
+            const o = el('option', '', v); o.value = v;
+            if (v === (scene.risk_level || 'low')) o.selected = true;
+            risk.append(o);
+        });
+        const review = document.createElement('input');
+        review.type = 'checkbox';
+        review.dataset.role = 'review';
+        review.checked = !!scene.needs_human_review;
+        const reviewLabel = el('label', 'scene-check');
+        reviewLabel.append(review, ' needs_human_review');
+
+        const meta = el('div', 'field-row');
+        meta.append(labelled('risk_level', risk), reviewLabel);
+
+        card.append(head, labelled('Описание сцены', desc), sigWrap, labelled('rationale', rationale), meta);
+        list.appendChild(card);
+        renumber();
+        fitHeight(desc); fitHeight(rationale);
+        return card;
+    }
+
+    (initialScenes || []).forEach(addSceneCard);
+    addScene.addEventListener('click', () => addSceneCard({ signals: [''] }).querySelector('textarea').focus());
+
+    function collect() {
+        return [...list.children].map((card) => ({
+            scene: card.querySelector('[data-role=scene]').value,
+            signals: [...card.querySelectorAll('[data-role=signals] textarea')].map((t) => t.value),
+            rationale: card.querySelector('[data-role=rationale]').value,
+            risk_level: card.querySelector('[data-role=risk]').value,
+            needs_human_review: card.querySelector('[data-role=review]').checked,
+        }));
+    }
+    panel.closest('form').addEventListener('submit', () => { hidden.value = JSON.stringify(collect()); });
+    return { refit: () => panel.querySelectorAll('textarea').forEach(fitHeight) };
+}
+
 document.addEventListener('DOMContentLoaded', () => {
     const fullList = createRuleList('full-rules', 'full', {{ full_paragraphs|tojson }});
     const compactList = createRuleList('compact-rules', 'compact', {{ compact_paragraphs|tojson }});
@@ -221,7 +338,24 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     document.querySelectorAll('textarea.input-mono').forEach((ta) => {
-        if (!ta.closest('.rule-item')) fitHeight(ta);
+        if (!ta.closest('.rule-item') && !ta.closest('.scene-card')) fitHeight(ta);
+    });
+
+    const examplesData = {{ examples_data|tojson }};
+    const editors = {};
+    ['ru', 'en'].forEach((lang) => {
+        editors[lang] = createExamplesEditor(
+            document.querySelector('.tab-panel[data-panel=' + lang + ']'),
+            document.getElementById('examples_' + lang + '_data'),
+            examplesData[lang]
+        );
+    });
+    document.querySelectorAll('.tab').forEach((tab) => {
+        tab.addEventListener('click', () => {
+            document.querySelectorAll('.tab').forEach((t) => t.classList.toggle('active', t === tab));
+            document.querySelectorAll('.tab-panel').forEach((p) => { p.hidden = p.dataset.panel !== tab.dataset.tab; });
+            editors[tab.dataset.tab].refit();
+        });
     });
 });
 </script>

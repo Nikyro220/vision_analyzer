@@ -875,3 +875,12 @@ textarea.input {
     .chat-card { height: auto; }
     .chat-log { max-height: 50vh; }
 }
+/* Редактор примеров сцен (panel/category_form.html) */
+.tabs { display: flex; gap: 4px; margin: 8px 0; }
+.tab { padding: 6px 16px; border: 1px solid var(--border); border-radius: 6px; background: transparent; color: inherit; cursor: pointer; }
+.tab.active { font-weight: 600; border-color: var(--accent); color: var(--accent-strong); }
+.scene-list { display: flex; flex-direction: column; gap: 12px; margin-bottom: 10px; }
+.scene-card { border: 1px solid var(--border); border-radius: 8px; padding: 12px; display: flex; flex-direction: column; gap: 10px; }
+.scene-head { display: flex; justify-content: space-between; align-items: center; }
+.signal-id { flex: none; margin-top: 8px; font-family: monospace; opacity: .7; min-width: 32px; }
+.scene-check { display: flex; align-items: center; gap: 6px; }
