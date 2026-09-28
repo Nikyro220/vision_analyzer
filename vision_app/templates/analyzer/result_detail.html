@@ -8,10 +8,12 @@
 </div>
 
 <div class="result-layout">
-    <div class="card result-image-card">
-        {% if result.image_path %}
-        <img src="{{ url_for('analyzer.media', filename=result.image_path) }}" alt="{{ result.original_name }}" class="result-image">
-        {% endif %}
+    <div class="result-image-col" id="result-image-col">
+        <div class="card result-image-card">
+            {% if result.image_path %}
+            <img src="{{ url_for('analyzer.media', filename=result.image_path) }}" alt="{{ result.original_name }}" class="result-image">
+            {% endif %}
+        </div>
     </div>
 
     <div class="card result-report-card">
@@ -89,4 +91,26 @@
         {% endif %}
     </div>
 </div>
+{% endblock %}
+{% block scripts_extra %}
+<script>
+/* Высота карточки с картинкой = высоте текста, но не ниже нижней границы окна. */
+(function () {
+    var col = document.getElementById("result-image-col");
+    if (!col) return;
+    var card = col.firstElementChild;
+    var GAP = 20;
+    function update() {
+        if (window.matchMedia("(max-width: 880px)").matches) {
+            card.style.maxHeight = "";
+            return;
+        }
+        var top = Math.max(col.getBoundingClientRect().top, GAP);
+        card.style.maxHeight = Math.max(window.innerHeight - top - GAP, 200) + "px";
+    }
+    window.addEventListener("scroll", update, { passive: true });
+    window.addEventListener("resize", update);
+    update();
+})();
+</script>
 {% endblock %}

@@ -530,9 +530,28 @@ input:focus, select:focus {
 
 /* ---------------- Result page ---------------- */
 
-.result-layout { display: grid; grid-template-columns: 1fr 1.3fr; gap: 18px; align-items: start; }
-.result-image-card { padding: 10px; }
-.result-image { width: 100%; border-radius: var(--radius); display: block; }
+.result-layout { display: grid; grid-template-columns: 1fr 1.3fr; gap: 18px; align-items: stretch; }
+.result-report-card { align-self: start; }
+/* Колонка тянется на высоту текста; сама карточка прилипает к верху и не выходит за низ окна
+   (max-height выставляется в result_detail.html, здесь — запасное значение). */
+.result-image-col { min-width: 0; }
+.result-image-card {
+    position: sticky;
+    top: 20px;
+    height: 100%;
+    min-height: 220px;
+    max-height: calc(100vh - 40px);
+    padding: 10px;
+}
+/* Картинка вынута из потока, поэтому не раздувает строку сетки — высоту задаёт текст. */
+.result-image {
+    position: absolute;
+    inset: 10px;
+    width: calc(100% - 20px);
+    height: calc(100% - 20px);
+    object-fit: contain;
+    border-radius: var(--radius);
+}
 .report-text { font-size: 14px; line-height: 1.6; margin: 0 0 4px; white-space: pre-wrap; }
 .report-error { color: var(--danger-strong); }
 .report-error-text { color: var(--danger-strong); font-size: 14px; }
@@ -557,6 +576,7 @@ input:focus, select:focus {
     .nav-divider { width: 100%; }
     .content { padding: 20px; }
     .panel-grid, .panel-grid-uneven, .panel-grid-3, .result-layout, .stat-grid { grid-template-columns: 1fr; }
+    .result-image-card { position: relative; top: auto; height: 60vh; min-height: 0; max-height: 60vh; }
 }
 
 @media (prefers-reduced-motion: reduce) {
