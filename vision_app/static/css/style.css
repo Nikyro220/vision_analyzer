@@ -489,7 +489,8 @@ input:focus, select:focus {
     padding: 11px 14px;
     border-bottom: 1px solid var(--border-soft);
 }
-.data-table tbody tr[onclick] { cursor: pointer; }
+.data-table tbody tr[onclick],
+.data-table tbody tr.row-clickable { cursor: pointer; }
 .data-table tbody tr:hover { background: var(--bg-hover); }
 .table-actions { text-align: right; }
 
@@ -1112,3 +1113,19 @@ textarea.input {
 @media (max-width: 880px) {
     .vs-toolbar-buttons .vs-btn { flex: 1 1 auto; }
 }
+
+/* миниатюра в таблицах истории */
+.cell-file { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.cell-file-name { min-width: 0; overflow-wrap: anywhere; }
+.row-thumb {
+    flex: none;
+    width: 44px;
+    height: 44px;
+    object-fit: cover;
+    display: block;
+    border-radius: 3px;
+    border: 1px solid var(--border-soft);
+    background: var(--bg-panel);
+}
+.mini-list-row .row-thumb { width: 36px; height: 36px; }
+

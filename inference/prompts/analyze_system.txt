@@ -39,7 +39,7 @@ Fill "description" in this order, one sentence per item that has visible content
 </scene_coverage>
 
 <risk_signals>
-Record every instance found as a separate signal with its own id (S-1, S-2, ...).
+Record every instance found as a separate signal.
 
 __RISK_SIGNALS__
 </risk_signals>
@@ -72,7 +72,7 @@ Respond with one valid JSON object and nothing else: no markdown fences, no text
   "text_on_image": "verbatim transcription of readable text, or an empty string",
   "context": "one short label from context_classification, written in __OUTPUT_LANGUAGE__",
   "signals": [
-    {"id": "S-1", "category": "one signal_category name in English", "detail": "observed features and feature codes"}
+    {"category": "one signal_category name in English", "detail": "observed features and feature codes"}
   ],
   "rationale": "the feature codes or overrides that lead to the risk_level below",
   "risk_level": "exactly one of: low, medium, high",

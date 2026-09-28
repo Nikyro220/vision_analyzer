@@ -63,7 +63,7 @@
             <h2 class="card-title">Сигналы</h2>
             <ul class="signal-list">
                 {% for s in signals %}
-                <li><strong>{{ s.id or "?" }}</strong> · {{ s.category or "—" }} — {{ s.detail }}</li>
+                <li><strong>{{ s.category or "—" }}</strong> — {{ s.detail }}</li>
                 {% endfor %}
             </ul>
             {% endif %}

@@ -128,6 +128,20 @@ def user_detail(pk: int):
     )
 
 
+@bp.route("/users/<int:pk>/history/")
+@staff_required
+def user_history(pk: int):
+    """Вся история завершённых анализов одного пользователя (с пагинацией)."""
+    target = db.get_or_404(User, pk)
+    stmt = (
+        select(AnalysisResult)
+        .where(AnalysisResult.user_id == target.id, AnalysisResult.status == Status.DONE)
+        .order_by(AnalysisResult.created_at.desc(), AnalysisResult.id.desc())
+    )
+    page = paginate(stmt, per_page=20)
+    return render_template("panel/user_history.html", target=target, page=page)
+
+
 @bp.route("/users/<int:pk>/edit/", methods=["POST"])
 @staff_required
 def user_edit(pk: int):

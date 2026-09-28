@@ -10,16 +10,28 @@ from sqlalchemy import delete, func, select
 
 from .extensions import db
 from .models import AnalysisResult, Status, User
+from .thumbs import THUMBS_DIR, thumb_rel
 
 log = logging.getLogger("vision_app.history")
 
 _CHUNK = 500  # не упираемся в лимит числа параметров SQL
 
 
+def _prune_empty_dirs(parent: Path, stop_root: Path) -> None:
+    """Убирает пустые папки ГГГГ/ММ/ДД вверх до stop_root (сам stop_root не трогаем)."""
+    while stop_root in parent.parents:
+        try:
+            parent.rmdir()
+        except OSError:
+            break
+        parent = parent.parent
+
+
 def remove_image_files(paths: list[str]) -> None:
-    """Удаляет файлы загрузок и пустые папки с датой. Никогда не выходит за UPLOAD_FOLDER."""
+    """Удаляет файлы загрузок, их миниатюры и пустые папки с датой. Никогда не выходит за UPLOAD_FOLDER."""
     root = Path(current_app.config["UPLOAD_FOLDER"]).resolve()
     uploads_root = root / "uploads"
+    thumbs_root = root / THUMBS_DIR
 
     for rel in paths:
         if not rel:
@@ -36,14 +48,16 @@ def remove_image_files(paths: list[str]) -> None:
         except OSError as exc:
             log.warning("Не удалось удалить файл %s: %s", target, exc)
             continue
-        # подчищаем пустые папки uploads/ГГГГ/ММ/ДД
-        parent = target.parent
-        while uploads_root in parent.parents:
+        _prune_empty_dirs(target.parent, uploads_root)  # uploads/ГГГГ/ММ/ДД
+
+        thumb = (root / thumb_rel(rel)).resolve()
+        if thumbs_root in thumb.parents:
             try:
-                parent.rmdir()
-            except OSError:
-                break
-            parent = parent.parent
+                thumb.unlink(missing_ok=True)
+            except OSError as exc:
+                log.warning("Не удалось удалить миниатюру %s: %s", thumb, exc)
+            else:
+                _prune_empty_dirs(thumb.parent, thumbs_root)
 
 
 def delete_finished(*conditions) -> int:

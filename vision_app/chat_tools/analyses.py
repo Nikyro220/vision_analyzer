@@ -219,7 +219,7 @@ def _build_reference_cards(rows: list[AnalysisResult], show_user: bool) -> list[
         card = {
             "id": row.id,
             "url": url_for("analyzer.result_detail", pk=row.id),
-            "thumb_url": url_for("analyzer.media", filename=row.image_path) if row.image_path else "",
+            "thumb_url": url_for("analyzer.thumb", filename=row.image_path) if row.image_path else "",
             "label": row.original_name or f"Анализ #{row.id}",
             "risk_level": row.risk_level,
             "risk_label": row.risk_level_display,

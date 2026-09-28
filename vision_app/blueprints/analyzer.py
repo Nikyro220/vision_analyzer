@@ -13,6 +13,7 @@ from flask import (
     redirect,
     render_template,
     request,
+    send_file,
     send_from_directory,
     url_for,
 )
@@ -34,6 +35,7 @@ from ..services import (
     set_sampling,
 )
 from ..settings_store import clear_analysis_target, get_analysis_target, set_analysis_target
+from ..thumbs import ensure_thumb
 from ..utils import is_safe_next, local_dt, paginate, plural
 
 bp = Blueprint("analyzer", __name__)
@@ -112,6 +114,7 @@ def queue_snapshot() -> dict:
             "is_new": row.is_new,
             "date": local_dt(row.created_at, "%d.%m %H:%M"),
             "url": url_for("analyzer.result_detail", pk=row.id),
+            "thumb_url": url_for("analyzer.thumb", filename=row.image_path) if row.image_path else "",
         }
         for row in db.session.scalars(_own_results().limit(6)).all()
     ]
@@ -297,7 +300,7 @@ def delete_result(pk: int):
 
 
 def _normalize_signals(raw) -> list[dict]:
-    """Приводим сигналы к списку словарей id/category/detail (модель может вернуть что угодно)."""
+    """Приводим сигналы к списку словарей category/detail (модель может вернуть что угодно)."""
     if not isinstance(raw, list):
         return []
     out = []
@@ -305,13 +308,12 @@ def _normalize_signals(raw) -> list[dict]:
         if isinstance(item, dict):
             out.append(
                 {
-                    "id": item.get("id", ""),
                     "category": item.get("category", ""),
                     "detail": item.get("detail", ""),
                 }
             )
         elif item not in (None, ""):
-            out.append({"id": "", "category": "", "detail": str(item)})
+            out.append({"category": "", "detail": str(item)})
     return out
 
 
@@ -351,16 +353,35 @@ def result_detail(pk: int):
     )
 
 
-@bp.route("/media/<path:filename>")
-@login_required
-def media(filename: str):
-    """Отдача загруженных файлов. В отличие от Django-версии — только владельцу и админам."""
+def _require_file_access(filename: str) -> None:
+    """404, если файла нет в БД или он чужой (доступ только владельцу и админам)."""
     result = db.session.scalars(
         select(AnalysisResult).where(AnalysisResult.image_path == filename)
     ).first()
     if result is None or not _can_view(result):
         abort(404)
+
+
+@bp.route("/media/<path:filename>")
+@login_required
+def media(filename: str):
+    """Отдача загруженных файлов. В отличие от Django-версии — только владельцу и админам."""
+    _require_file_access(filename)
     return send_from_directory(current_app.config["UPLOAD_FOLDER"], filename)
+
+
+@bp.route("/thumb/<path:filename>")
+@login_required
+def thumb(filename: str):
+    """Миниатюра загруженного файла (JPEG ~96x96, кэшируется на диске). Права те же, что у /media/."""
+    _require_file_access(filename)
+    path = ensure_thumb(Path(current_app.config["UPLOAD_FOLDER"]), filename)
+    if path is None:
+        abort(404)
+    resp = send_file(path, mimetype="image/jpeg", max_age=7 * 24 * 3600, conditional=True)
+    resp.cache_control.public = False  # картинки приватные: только в браузере пользователя
+    resp.cache_control.private = True
+    return resp
 
 
 MAX_MODEL_LEN = 200

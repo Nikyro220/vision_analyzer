@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block title %}История · {{ target.username }}{% endblock %}
+{% block content %}
+<div class="page-header">
+    <h1>История: {{ target.username }}</h1>
+    <p class="page-sub">Завершённых анализов: {{ page.total }} · <a href="{{ url_for('panel.user_detail', pk=target.id) }}">← К профилю</a></p>
+</div>
+
+{% if page.items %}
+<div class="table-wrap">
+    <table class="data-table">
+        <thead>
+            <tr>
+                <th>Файл</th>
+                <th>Риск</th>
+                <th>Проверка</th>
+                <th>Бэкенд</th>
+                <th>Дата</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for item in page.items %}
+            <tr class="row-clickable" data-href="{{ url_for('analyzer.result_detail', pk=item.id) }}">
+                <td><span class="cell-file"><img class="row-thumb" src="{{ url_for('analyzer.thumb', filename=item.image_path) }}" alt="" loading="lazy" width="44" height="44" onerror="this.style.visibility='hidden'"><span class="cell-file-name">{{ (item.original_name or '—')|trunc(40) }}</span></span></td>
+                <td><span class="risk-pill risk-pill-{{ item.risk_level }}">{{ item.risk_level_display }}</span>{% if item.is_error %} <span class="tag tag-warn">ошибка</span>{% endif %}</td>
+                <td>{% if item.needs_human_review %}<span class="tag tag-warn">да</span>{% else %}<span class="tag">нет</span>{% endif %}</td>
+                <td>{{ item.backend or '—' }}</td>
+                <td>{{ item.created_at|localdt('%d.%m.%Y %H:%M') }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% include "partials/pagination.html" %}
+{% else %}
+<p class="empty-hint">У этого пользователя нет завершённых анализов.</p>
+{% endif %}
+{% endblock %}

@@ -70,6 +70,7 @@
             {% for item in recent %}
             <li>
                 <a href="{{ item.url }}" class="mini-list-row">
+                    {% if item.thumb_url %}<img class="row-thumb" src="{{ item.thumb_url }}" alt="" loading="lazy" width="36" height="36" onerror="this.style.visibility='hidden'">{% endif %}
                     <span class="risk-dot risk-{{ item.risk_level }}"></span>
                     <span class="mini-list-name">{{ item.name|trunc(28) }}</span>{% if item.is_new %} <span class="tag tag-new">новое</span>{% endif %}
                     <span class="mini-list-date">{{ item.date }}</span>

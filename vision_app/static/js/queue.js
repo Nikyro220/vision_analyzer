@@ -172,6 +172,7 @@
   var recentList = document.getElementById("recent-list");
   var recentMore = document.getElementById("recent-more");
   var recentEmpty = document.getElementById("recent-empty");
+  var lastRecentSig = null;
   var statusUrl = root.dataset.statusUrl;
   var csrf = root.dataset.csrf;
 
@@ -229,6 +230,16 @@
     var li = document.createElement("li");
     var a = el("a", "mini-list-row");
     a.href = item.url;
+    if (item.thumb_url) {
+      var img = el("img", "row-thumb");
+      img.src = item.thumb_url;
+      img.alt = "";
+      img.loading = "lazy";
+      img.width = 36;
+      img.height = 36;
+      img.onerror = function () { this.style.visibility = "hidden"; };
+      a.appendChild(img);
+    }
     a.appendChild(el("span", "risk-dot risk-" + item.risk_level));
     a.appendChild(el("span", "mini-list-name", truncate(item.name, 28)));
     if (item.is_new) {
@@ -254,7 +265,11 @@
     root.dataset.pending = data.pending.length;
 
     if (recentList) {
-      replaceChildren(recentList, data.recent.map(renderRecentItem));
+      var recentSig = JSON.stringify(data.recent);
+      if (recentSig !== lastRecentSig) {   // перерисовываем только при изменениях, чтобы миниатюры не мигали
+        lastRecentSig = recentSig;
+        replaceChildren(recentList, data.recent.map(renderRecentItem));
+      }
       recentList.hidden = data.recent.length === 0;
       if (recentMore) recentMore.hidden = data.recent.length === 0;
       if (recentEmpty) recentEmpty.hidden = data.recent.length > 0;

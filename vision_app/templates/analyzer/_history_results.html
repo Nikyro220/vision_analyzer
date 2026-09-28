@@ -20,7 +20,7 @@
             {% for item in page.items %}
             <tr class="row-clickable" data-href="{{ url_for('analyzer.result_detail', pk=item.id) }}">
                 {% if can_delete %}<td class="col-check" onclick="event.stopPropagation()"><input type="checkbox" name="ids" value="{{ item.id }}" aria-label="Выбрать запись {{ item.id }}"></td>{% endif %}
-                <td>{{ (item.original_name or '—')|trunc(40) }}{% if item.is_new %} <span class="tag tag-new">новое</span>{% endif %}</td>
+                <td><span class="cell-file"><img class="row-thumb" src="{{ url_for('analyzer.thumb', filename=item.image_path) }}" alt="" loading="lazy" width="44" height="44" onerror="this.style.visibility='hidden'"><span class="cell-file-name">{{ (item.original_name or '—')|trunc(40) }}{% if item.is_new %} <span class="tag tag-new">новое</span>{% endif %}</span></span></td>
                 <td><span class="risk-pill risk-pill-{{ item.risk_level }}">{{ item.risk_level_display }}</span>{% if item.is_error %} <span class="tag tag-warn">ошибка</span>{% endif %}</td>
                 <td>{% if item.needs_human_review %}<span class="tag tag-warn">да</span>{% else %}<span class="tag">нет</span>{% endif %}</td>
                 <td>{{ item.backend or '—' }}</td>
