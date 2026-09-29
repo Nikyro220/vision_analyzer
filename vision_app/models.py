@@ -188,6 +188,9 @@ class AnalysisResult(db.Model):
     finished_at = db.Column(db.DateTime, nullable=True)
     caption = db.Column(db.Text, nullable=False, default="", server_default="")
     is_new = db.Column(db.Boolean, nullable=False, default=False, server_default="0")
+    # SHA-256 содержимого файла (image_dedup.py): по нему повторные загрузки одного и того же
+    # файла склеиваются в один снимок. NULL — ещё не посчитан, "" — файл на диске потерян.
+    image_hash = db.Column(db.String(64), nullable=True, index=True)
 
     @property
     def is_error(self) -> bool:
@@ -208,6 +211,36 @@ class AnalysisResult(db.Model):
 
     def __repr__(self) -> str:
         return f"<AnalysisResult {self.id} {self.risk_level}>"
+
+
+class AnalysisEmbedding(db.Model):
+    """Вектор описания анализа для поиска «по смыслу» (см. vector_search.py).
+
+    Отдельная таблица, а не колонка в analysis_results: BLOB на несколько КБ не
+    должен тянуться в каждый select(AnalysisResult) (история, панель), а вектор
+    можно пересчитать (смена модели, правка описания), не трогая сам анализ.
+    Один вектор на анализ; `model` — имя модели, которой он посчитан: векторы
+    разных моделей несовместимы, поиск использует только векторы «текущей» модели.
+
+    FK с ondelete=CASCADE в SQLite сам по себе НЕ срабатывает (PRAGMA foreign_keys
+    в приложении не включён), поэтому удаление вручную дублируется в history.py,
+    а поиск идёт через JOIN с analysis_results — «сирота» в результат не попадёт.
+    """
+
+    __tablename__ = "analysis_embeddings"
+
+    analysis_id = db.Column(
+        db.Integer, db.ForeignKey("analysis_results.id", ondelete="CASCADE"), primary_key=True
+    )
+    model = db.Column(db.String(200), nullable=False, index=True)
+    dim = db.Column(db.Integer, nullable=False)
+    # float32 little-endian, L2-нормализован: cosine-сходство == скалярное произведение.
+    vector = db.Column(db.LargeBinary, nullable=False)
+    text_hash = db.Column(db.String(40), nullable=False, default="")
+    created_at = db.Column(db.DateTime, nullable=False, default=utcnow)
+
+    def __repr__(self) -> str:
+        return f"<AnalysisEmbedding {self.analysis_id} {self.model} dim={self.dim}>"
 
 
 # ----------------------------------------------------------------------------

@@ -292,8 +292,16 @@ async def handle_models(request: web.Request) -> web.Response:
     return _json(result)
 
 
+async def _start_embeddings_download(app: web.Application) -> None:
+    """on_startup: запускает скачивание/загрузку модели эмбеддингов в
+    отдельном потоке и СРАЗУ возвращается — сервер начинает принимать запросы,
+    не дожидаясь весов (см. embeddings.py: start_background_load)."""
+    embeddings.start_background_load()
+
+
 def build_app() -> web.Application:
     app = web.Application(client_max_size=64 * 1024 * 1024)  # до 64 МБ на запрос
+    app.on_startup.append(_start_embeddings_download)
     app.router.add_get("/", handle_index)
     app.router.add_get("/health", handle_health)
     app.router.add_post("/analyze", handle_analyze)
@@ -306,6 +314,7 @@ def build_app() -> web.Application:
     app.router.add_get("/models", handle_models)
     app.router.add_get("/embeddings", embeddings.handle_embeddings_info)
     app.router.add_post("/embeddings", embeddings.handle_embeddings)
+    app.router.add_post("/embeddings/download", embeddings.handle_embeddings_download)
     # Статический /categories/summaries — раньше динамического
     # /categories/{name}, иначе он перехватит его как имя категории
     # (aiohttp резолвит роуты в порядке регистрации). Только чтение —

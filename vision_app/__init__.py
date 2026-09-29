@@ -16,6 +16,7 @@ from .extensions import csrf, db, login_manager, migrate
 from .models import ROLE_CHOICES, ROLE_LABELS, RISK_LABELS, Role, User
 from .queue_worker import ensure_worker, worker_enabled
 from .schema import ensure_schema
+from . import image_dedup, vector_search
 from .utils import local_dt, page_url, plural, truncate_chars
 
 # Эндпоинты, доступные заблокированному пользователю.
@@ -148,3 +149,66 @@ def _register_cli(app: Flask) -> None:
         user.role = role
         db.session.commit()
         click.echo(f"«{username}» → {ROLE_LABELS[role]}")
+
+    @app.cli.command("reindex-embeddings")
+    @click.option("--all", "everything", is_flag=True,
+                  help="Пересчитать векторы ВСЕХ анализов, а не только недостающие.")
+    def reindex_embeddings(everything: bool):
+        """Проиндексировать описания анализов для поиска по смыслу (нужен запущенный сервер анализа
+        с готовой моделью эмбеддингов: GET /embeddings -> state=ready)."""
+        result = vector_search.backfill(everything=everything)
+        click.echo(f"Проиндексировано анализов: {result.indexed}")
+        if result.reason:
+            raise click.ClickException(f"Остановлено раньше времени: {result.reason}")
+
+    @app.cli.command("semantic-search")
+    @click.argument("queries", nargs=-1, required=True)
+    @click.option("--limit", default=15, show_default=True, help="Сколько строк показать на запрос.")
+    @click.option("--user", "username", default=None, help="Только анализы этого пользователя (по умолчанию — все).")
+    def semantic_search_cmd(queries: tuple[str, ...], limit: int, username: str | None):
+        """Сырые скоры поиска по смыслу БЕЗ участия LLM и БЕЗ отсечек — для подбора формулировок и порогов.
+
+        Можно передать несколько запросов сразу, чтобы сравнить формулировки:
+        flask semantic-search "человек в головном уборе" "кепка, шапка, шляпа, головной убор"
+        """
+        from .models import AnalysisResult, Status
+
+        conditions = [AnalysisResult.status == Status.DONE]
+        if username:
+            user = db.session.scalars(db.select(User).where(User.username == username)).first()
+            if user is None:
+                raise click.ClickException(f"Пользователь «{username}» не найден.")
+            conditions.append(AnalysisResult.user_id == user.id)
+
+        for query in queries:
+            try:
+                qvec, model = vector_search.embed_query(query)
+            except Exception as exc:  # noqa: BLE001 — для CLI важнее понятное сообщение
+                raise click.ClickException(f"Не удалось получить эмбеддинг запроса: {exc}")
+            result = vector_search.semantic_search(
+                conditions, qvec, model, limit=limit, min_similarity=-1.0,
+                scan_limit=int(app.config.get("EMBEDDING_SCAN_LIMIT", 5000)),
+            )
+            rows = {
+                r.id: r for r in db.session.scalars(
+                    db.select(AnalysisResult).where(AnalysisResult.id.in_([i for i, _ in result.hits]))
+                )
+            }
+            click.echo(f"\n=== {query!r}  (сравнено {result.scanned}, модель {model}) ===")
+            for analysis_id, score in result.hits:
+                desc = " ".join((rows[analysis_id].description or "").split())
+                click.echo(f"  #{analysis_id:<5} {score:.3f}  {rows[analysis_id].risk_level:<8} {desc[:100]}")
+            if result.hits:
+                click.echo(f"  разброс среди показанных: {result.hits[0][1] - result.hits[-1][1]:.3f}")
+
+    @app.cli.command("backfill-image-hashes")
+    def backfill_image_hashes():
+        """Посчитать хеши файлов у анализов, где их ещё нет (для склейки повторных загрузок одного файла)."""
+        total = missing = 0
+        while True:
+            hashed, lost = image_dedup.backfill_hashes(limit=500)
+            if not hashed and not lost:
+                break
+            total += hashed
+            missing += lost
+        click.echo(f"Хешей посчитано: {total}, файл не найден: {missing}")

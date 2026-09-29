@@ -9,7 +9,7 @@ from flask import current_app
 from sqlalchemy import delete, func, select
 
 from .extensions import db
-from .models import AnalysisResult, Status, User
+from .models import AnalysisEmbedding, AnalysisResult, Status, User
 from .thumbs import THUMBS_DIR, thumb_rel
 
 log = logging.getLogger("vision_app.history")
@@ -77,6 +77,12 @@ def delete_finished(*conditions) -> int:
 
     ids = [r.id for r in rows]
     for i in range(0, len(ids), _CHUNK):
+        # SQLite не выполняет ON DELETE CASCADE без PRAGMA foreign_keys — чистим векторы сами.
+        db.session.execute(
+            delete(AnalysisEmbedding)
+            .where(AnalysisEmbedding.analysis_id.in_(ids[i : i + _CHUNK]))
+            .execution_options(synchronize_session=False)
+        )
         db.session.execute(
             delete(AnalysisResult)
             .where(AnalysisResult.id.in_(ids[i : i + _CHUNK]), AnalysisResult.status == Status.DONE)
@@ -100,6 +106,11 @@ def delete_user_account(user: User) -> None:
         select(AnalysisResult.image_path).where(AnalysisResult.user_id == user.id)
     ).all()
 
+    db.session.execute(
+        delete(AnalysisEmbedding)
+        .where(AnalysisEmbedding.analysis_id.in_(select(AnalysisResult.id).where(AnalysisResult.user_id == user.id)))
+        .execution_options(synchronize_session=False)
+    )
     db.session.delete(user)
     db.session.commit()
 

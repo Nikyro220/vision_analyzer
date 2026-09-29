@@ -29,6 +29,7 @@ from pathlib import Path
 
 from sqlalchemy import or_, select, update
 
+from . import image_dedup, vector_search
 from .categories_store import build_categories_payload
 from .extensions import db
 from .models import AnalysisResult, Status, utcnow
@@ -132,6 +133,10 @@ def _finish(job_id: int, outcome, error: str) -> None:
     db.session.commit()
     if result.rowcount != 1:
         log.warning("Задача %s изменилась во время обработки — результат не записан", job_id)
+    elif outcome is not None:
+        # Вектор описания для поиска по смыслу. Best-effort: не вышло (модель эмбеддингов ещё
+        # качается, сервер недоступен) — анализ уже сохранён, вектор добьёт idle_backfill.
+        vector_search.index_analysis(job_id)
 
 
 def process_next(app) -> bool:
@@ -225,6 +230,8 @@ class QueueWorker(threading.Thread):
                 busy = False
                 time.sleep(2)
             if not busy:
+                vector_search.idle_backfill(self.app)  # добирает векторы, пропущенные при анализе
+                image_dedup.idle_backfill(self.app)  # считает хеши файлов у старых записей
                 # Читаем интервал заново на каждом холостом цикле (а не один раз при
                 # запуске потока) — так изменение в /panel/settings/ действует сразу,
                 # а не только для новых потоков.

@@ -192,13 +192,23 @@ EMBEDDING_MODEL = os.environ.get(
 ).strip()
 EMBEDDING_ENABLED = os.environ.get("VISION_ANALYZER_EMBEDDING_ENABLED", "1") == "1"
 EMBEDDING_MAX_CHARS = int(os.environ.get("VISION_ANALYZER_EMBEDDING_MAX_CHARS", "8000"))
-# Модель грузится в память процесса лениво, при первом запросе (см. embeddings.py:
-# _get_model) — но веса ДОЛЖНЫ быть прогреты на диск заранее, на этапе сборки
-# образа (репозиторий сейчас без Dockerfile; если/когда он появится, туда нужен
-# шаг вида `RUN python -c "from fastembed import TextEmbedding; \
-# TextEmbedding('<EMBEDDING_MODEL>')"`), иначе первый запрос в проде уйдёт в
-# скачивание с HuggingFace Hub, которое может и не сработать вовсе, если у
-# контейнера в рантайме нет сети наружу. См. также scripts/warm_embeddings.py.
+# Явная папка для весов модели эмбеддингов — ТОЛЬКО сюда fastembed скачивает
+# и отсюда читает модель (cache_dir), а не в системный temp/HF-кэш. Можно
+# переопределить VISION_ANALYZER_EMBEDDING_DIR (например, на общий том в
+# Docker). Папка в .gitignore, в репозиторий веса не попадают.
+EMBEDDING_CACHE_DIR = Path(
+    os.environ.get(
+        "VISION_ANALYZER_EMBEDDING_DIR",
+        Path(__file__).resolve().parent / "models" / "embeddings",
+    )
+).resolve()
+# Скачивание (при первом запуске) и загрузка модели в память идут в
+# отдельном фоновом потоке, который стартует вместе с сервером (см.
+# embeddings.py: start_background_load, server.py: on_startup). Сервер
+# отвечает на запросы сразу; пока модель не готова, POST /embeddings
+# отдаёт 503 + Retry-After, а прогресс виден в GET /embeddings и /health.
+# Предварительный прогрев на этапе сборки образа по-прежнему возможен —
+# см. warm_embeddings.py (использует ту же папку EMBEDDING_CACHE_DIR).
 
 SAMPLING_DEFAULTS = {
     "temperature": float(os.environ.get("VISION_ANALYZER_TEMPERATURE", 0)),

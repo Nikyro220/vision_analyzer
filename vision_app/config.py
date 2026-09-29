@@ -37,6 +37,18 @@ class Config:
     QUEUE_MAX_FILES_PER_UPLOAD = int(os.environ.get("QUEUE_MAX_FILES_PER_UPLOAD", "20"))
     QUEUE_MAX_PENDING_PER_USER = int(os.environ.get("QUEUE_MAX_PENDING_PER_USER", "30"))
 
+    # --- Поиск «по смыслу» в чате (vector_search.py) ---
+    # Порог cosine-сходства: ниже — результат в выдачу не попадает. 0.35 — стартовое
+    # значение, НЕ откалиброванное: подберите по реальным данным (в ответе тулза есть
+    # поле similarity и best_similarity — по ним видно, где проходит граница).
+    EMBEDDING_MIN_SIMILARITY = float(os.environ.get("EMBEDDING_MIN_SIMILARITY", "0.35"))
+    # Отступ от лучшего результата: в выдачу идёт только то, что не ниже «лучший скор − отступ»
+    # (и не ниже порога выше). 0 — выключить. 0.15 — стартовое значение, подбирается по логу
+    # «vector_search: сравнено ...» (там видны топ-скоры каждого запроса).
+    EMBEDDING_RELATIVE_MARGIN = float(os.environ.get("EMBEDDING_RELATIVE_MARGIN", "0.15"))
+    # Сколько векторов (самых свежих анализов после фильтров) сравнивается за один запрос.
+    EMBEDDING_SCAN_LIMIT = int(os.environ.get("EMBEDDING_SCAN_LIMIT", "5000"))
+
     # Часовой пояс для отображения дат (в БД всё хранится в UTC).
     TIMEZONE = os.environ.get("APP_TIMEZONE", "Asia/Aqtobe")
 

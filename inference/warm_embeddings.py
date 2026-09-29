@@ -4,12 +4,13 @@ warm_embeddings.py — скачивает (или подтверждает уж�
 VISION_ANALYZER_EMBEDDING_MODEL и делает один тестовый вызов, чтобы
 убедиться, что модель реально грузится и считает эмбеддинг.
 
-Назначение: запускать на этапе СБОРКИ образа (пока есть сеть наружу), а
-не на старте сервера — сам сервер грузит модель лениво, при первом
-запросе (см. embeddings.py: _get_model), и если веса не прогреты
-заранее, первый пользовательский запрос в проде может уйти в скачивание
-с HuggingFace Hub — которое к тому же может не сработать вовсе, если у
-контейнера в рантайме нет сети наружу.
+Назначение: скачать веса заранее — на этапе СБОРКИ образа (пока есть сеть
+наружу) или вручную, не дожидаясь первого запуска сервера. Сервер и без
+этого сам скачает модель при первом старте в фоновом потоке (см.
+embeddings.py: start_background_load), но если у контейнера в рантайме
+нет сети наружу, скачивание там не сработает — тогда веса должны уже
+лежать в папке config.EMBEDDING_CACHE_DIR (VISION_ANALYZER_EMBEDDING_DIR).
+Скрипт качает именно в эту папку — ту же, откуда читает сервер.
 
 Использование:
     python warm_embeddings.py
@@ -41,10 +42,11 @@ def main() -> int:
         print(f"VISION_ANALYZER_EMBEDDING_ENABLED=0 — прогрев пропущен, модель {config.EMBEDDING_MODEL} не тронута.")
         return 0
 
-    print(f"Прогреваю модель эмбеддингов: {config.EMBEDDING_MODEL} ...")
+    print(f"Прогреваю модель эмбеддингов: {config.EMBEDDING_MODEL}")
+    print(f"Папка весов: {config.EMBEDDING_CACHE_DIR}")
     started = time.monotonic()
     try:
-        model = embeddings._get_model()
+        model = embeddings.load_blocking()
         vector = list(model.embed(["тестовый текст для проверки загрузки модели"]))[0]
     except embeddings.EmbeddingUnavailableError as exc:
         print(f"ОШИБКА: модель эмбеддингов недоступна: {exc}", file=sys.stderr)

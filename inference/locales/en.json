@@ -44,6 +44,7 @@
 	"error.text_too_long": "'text' field is too long (max {max_chars} characters).",
 	"error.embeddings_disabled": "Embeddings service is disabled on the server (EMBEDDING_ENABLED=0).",
 	"error.embeddings_unavailable": "Embedding model unavailable: {detail}",
+	"error.embeddings_downloading": "The embedding model is still downloading or loading (state: {state}) — retry later.",
 	"error.embeddings_failed": "Failed to get a text embedding.",
 	"error.embeddings_unsupported_content_type": "Expected application/json with a 'text' or 'texts' field."
 }

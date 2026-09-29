@@ -21,6 +21,7 @@ from flask_login import current_user, login_required
 from sqlalchemy import delete, func, select, update
 
 from ..decorators import staff_required
+from .. import image_dedup
 from ..extensions import db
 from ..forms import SAMPLING_FORMS, ImageUploadForm
 from ..history import delete_finished, remove_image_files
@@ -155,6 +156,7 @@ def _enqueue_uploads(form: ImageUploadForm):
                     image_path=rel_path,
                     original_name=item.filename[:255],
                     image_mime=item.mime,
+                    image_hash=image_dedup.sha256_bytes(item.data),
                     caption=item.caption,
                     status=Status.QUEUED,
                 )

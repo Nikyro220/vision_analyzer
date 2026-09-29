@@ -433,14 +433,30 @@ Examples:
 ========================================================
 GET /embeddings — embeddings service status
 ========================================================
-Offline check: whether the service is enabled
+Service status: whether it is enabled
 (VISION_ANALYZER_EMBEDDING_ENABLED), whether the fastembed package is
-installed, the configured model and its vector dimension, and whether
-the model is currently loaded in memory. Does not trigger a model
-load and does not run inference. 200 if the service is healthy,
-otherwise 503 (same response body either way).
+installed, the configured model, its vector dimension, the weights
+folder (cache_dir) and the background-load state:
+  downloading — no weights in the folder yet, download in progress (on
+                first run; downloaded_mb and an approximate
+                download_progress are shown);
+  loading     — weights are on disk, the model is being read into memory;
+  ready       — model is ready, /embeddings computes vectors;
+  error       — download/load failed (reason in load_error);
+  disabled / unavailable — turned off by config / fastembed not installed.
+The model is downloaded at server start in a separate thread — the
+server and all other endpoints keep working as usual meanwhile. The
+request itself starts nothing and computes nothing. 200 only when
+state=ready, otherwise 503 (same body; while downloading/loading it
+also carries a Retry-After header).
 
   curl http://xxx.xxx.xxx.xxx:6769/embeddings
+
+POST /embeddings/download — retry the download after state=error
+(e.g. HuggingFace Hub was unreachable). Does not wait: 202 — an attempt
+was started, 200 — already downloading or ready.
+
+  curl -X POST http://xxx.xxx.xxx.xxx:6769/embeddings/download
 
 
 ========================================================
@@ -467,7 +483,10 @@ not chosen per request — vectors from different models are not
 compatible with each other; the "model" field in the response shows
 which model actually produced the vector. 503 if the service is
 disabled by config, the fastembed package isn't installed, or the
-model weights failed to load (see GET /embeddings and GET /health).
+model weights failed to download (see GET /embeddings and GET /health)
+— or the model is still downloading/loading: then the response carries
+the state and progress, and a Retry-After header says how many seconds
+to wait before retrying.
 
 Examples:
 

@@ -36,6 +36,15 @@ class VisionApiError(Exception):
     """Любая ошибка при обращении к API анализа изображений."""
 
 
+class EmbeddingNotReady(VisionApiError):
+    """Модель эмбеддингов на сервере ещё скачивается/загружается (HTTP 503 с
+    state=downloading|loading). Не поломка: запрос стоит повторить позже."""
+
+    def __init__(self, message: str, retry_after: int | None = None):
+        super().__init__(message)
+        self.retry_after = retry_after
+
+
 @dataclass
 class AnalysisOutcome:
     backend: str = ""
@@ -184,6 +193,70 @@ def analyze_image(
         raw_report=report,
         is_raw_fallback=False,
     )
+
+
+# ----------------------------------------------------------------------------
+# Эмбеддинги текста (POST/GET /embeddings на сервере анализа)
+# ----------------------------------------------------------------------------
+def get_embedding_status() -> dict:
+    """GET /embeddings -> {"state": "ready"|"downloading"|"loading"|"error"|..., "model": ...}.
+
+    Сервер отвечает 503 и в штатных состояниях (пока модель качается), поэтому тело
+    разбирается независимо от HTTP-статуса. Бросает VisionApiError, если сервер
+    недоступен или не знает такой ручки (старая версия)."""
+    try:
+        resp = requests.get(f"{_base_url()}/embeddings", timeout=10)
+    except requests.exceptions.RequestException as exc:
+        raise VisionApiError(f"Не удалось получить статус эмбеддингов: {exc}") from exc
+    try:
+        data = resp.json()
+    except ValueError:
+        data = None
+    if not isinstance(data, dict):
+        raise VisionApiError("Сервер анализа не отдаёт статус эмбеддингов (устаревшая версия?).")
+    return data
+
+
+def embed_texts(texts: list[str], timeout: int = 30) -> tuple[list[list[float]], str]:
+    """Тексты -> (векторы в порядке texts, имя модели, которой они посчитаны).
+
+    texts не должны содержать пустых строк и быть длиннее 64 штук: сервер молча
+    выкидывает пустые и усекает батч, из-за чего порядок «текст -> вектор» поплыл бы.
+    Бросает EmbeddingNotReady, пока модель качается/грузится (с retry_after из
+    заголовка Retry-After), и VisionApiError при любой другой ошибке."""
+    if not texts:
+        return [], ""
+    try:
+        resp = requests.post(f"{_base_url()}/embeddings", json={"texts": texts}, timeout=timeout)
+    except requests.exceptions.ConnectionError as exc:
+        raise VisionApiError("Не удалось подключиться к серверу анализа изображений.") from exc
+    except requests.exceptions.Timeout as exc:
+        raise VisionApiError("Сервер анализа изображений не отвечает (таймаут).") from exc
+    except requests.exceptions.RequestException as exc:
+        raise VisionApiError(f"Ошибка запроса к серверу анализа: {exc}") from exc
+
+    try:
+        data = resp.json()
+    except ValueError:
+        data = None
+
+    if resp.status_code == 503 and isinstance(data, dict) and data.get("state") in ("downloading", "loading"):
+        try:
+            retry_after = int(resp.headers.get("Retry-After", ""))
+        except ValueError:
+            retry_after = None
+        raise EmbeddingNotReady(
+            "Модель эмбеддингов ещё скачивается или загружается.", retry_after=retry_after
+        )
+    if resp.status_code >= 400:
+        message = data.get("error") if isinstance(data, dict) and data.get("error") else resp.text
+        raise VisionApiError(f"Сервер вернул ошибку ({resp.status_code}): {str(message)[:300]}")
+
+    vectors = data.get("embeddings") if isinstance(data, dict) else None
+    model = data.get("model") if isinstance(data, dict) else None
+    if not isinstance(vectors, list) or len(vectors) != len(texts) or not model:
+        raise VisionApiError("Сервер вернул некорректный ответ /embeddings.")
+    return vectors, str(model)
 
 
 # ----------------------------------------------------------------------------
