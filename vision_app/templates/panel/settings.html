@@ -3,15 +3,9 @@
 {% block content %}
 <div class="page-header">
     <h1>Настройки</h1>
-    <p class="page-sub">Очередь анализов и клиент сервера анализа — действуют сразу, без перезапуска. Оформление — только для вас, хранится в браузере.</p>
+    <p class="page-sub">Очередь анализов и клиент сервера анализа — действуют сразу, без перезапуска. Тема, шрифты и размеры интерфейса настраиваются в разделе <a href="{{ url_for('accounts.appearance') }}">«Оформление»</a> — он доступен всем пользователям.</p>
 </div>
 
-<div class="tabs" role="tablist" aria-label="Разделы настроек">
-    <button type="button" class="tab is-active" role="tab" id="tab-btn-system" data-tab="system" aria-controls="tab-system" aria-selected="true">Система</button>
-    <button type="button" class="tab" role="tab" id="tab-btn-visual" data-tab="visual" aria-controls="tab-visual" aria-selected="false">Визуал</button>
-</div>
-
-<div id="tab-system" class="tab-panel" role="tabpanel" aria-labelledby="tab-btn-system">
 <form method="post" class="card settings-form" novalidate>
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 
@@ -70,41 +64,13 @@
 
     <button type="submit" class="btn btn-primary">Сохранить</button>
 </form>
-</div>
 
-<div id="tab-visual" class="tab-panel" role="tabpanel" aria-labelledby="tab-btn-visual" hidden>
-{% include "partials/visual_settings.html" %}
-</div>
 {% endblock %}
 
 {% block scripts_extra %}
 <script>
-// Вкладки «Система» / «Визуал»; выбранная запоминается в hash (#visual)
-document.addEventListener("DOMContentLoaded", () => {
-    const tabs = Array.from(document.querySelectorAll(".tabs .tab"));
-    const show = (name, focus) => {
-        tabs.forEach((t) => {
-            const on = t.dataset.tab === name;
-            t.classList.toggle("is-active", on);
-            t.setAttribute("aria-selected", on ? "true" : "false");
-            t.tabIndex = on ? 0 : -1;
-            document.getElementById("tab-" + t.dataset.tab).hidden = !on;
-            if (on && focus) t.focus();
-        });
-    };
-    tabs.forEach((t, i) => {
-        t.addEventListener("click", () => {
-            show(t.dataset.tab);
-            history.replaceState(null, "", t.dataset.tab === "visual" ? "#visual" : location.pathname + location.search);
-        });
-        t.addEventListener("keydown", (e) => {
-            if (e.key !== "ArrowRight" && e.key !== "ArrowLeft") return;
-            const next = tabs[(i + (e.key === "ArrowRight" ? 1 : tabs.length - 1)) % tabs.length];
-            show(next.dataset.tab, true);
-        });
-    });
-    show(location.hash === "#visual" ? "visual" : "system");
-});
+// Старые ссылки вида /panel/settings/#visual ведут на единую страницу оформления
+if (location.hash === "#visual") location.replace("{{ url_for('accounts.appearance') }}");
 </script>
 <script>
 document.addEventListener("DOMContentLoaded", () => {

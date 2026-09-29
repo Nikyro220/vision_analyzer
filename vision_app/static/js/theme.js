@@ -78,14 +78,30 @@
     }
 
     // ------------------------------------------------------------- пресеты
+    // mode — светлая или тёмная схема (нужно для расчёта производных цветов);
+    // panel — фон панели пресета (те же значения, что в style.css).
     var PRESETS = [
-        { id: "auto", label: "Авто", hint: "Как в системе" },
-        { id: "dark", label: "Тёмная", hint: "Стандартная" },
-        { id: "light", label: "Светлая", hint: "Для яркого освещения" },
-        { id: "contrast", label: "Контрастная", hint: "Максимальная читаемость" }
+        { id: "auto", label: "Авто", hint: "Как в системе", group: "" },
+        { id: "dark", label: "Тёмная", hint: "Стандартная", group: "Тёмные", mode: "dark", panel: "#141a1e" },
+        { id: "graphite", label: "Графит", hint: "Нейтральный серый", group: "Тёмные", mode: "dark", panel: "#1a1a1a" },
+        { id: "oled", label: "OLED", hint: "Чёрный фон для экономии", group: "Тёмные", mode: "dark", panel: "#0a0a0a" },
+        { id: "midnight", label: "Полночь", hint: "Глубокий синий", group: "Тёмные", mode: "dark", panel: "#111834" },
+        { id: "forest", label: "Лес", hint: "Тёмный зелёный", group: "Тёмные", mode: "dark", panel: "#111c16" },
+        { id: "plum", label: "Слива", hint: "Тёмный фиолетовый", group: "Тёмные", mode: "dark", panel: "#1c1423" },
+        { id: "coffee", label: "Кофе", hint: "Тёплый коричневый", group: "Тёмные", mode: "dark", panel: "#1b1612" },
+        { id: "nord", label: "Арктика", hint: "Холодная сине-серая", group: "Тёмные", mode: "dark", panel: "#2e3440" },
+        { id: "solarized-dark", label: "Solarized тёмная", hint: "Классика для кода", group: "Тёмные", mode: "dark", panel: "#073642" },
+        { id: "light", label: "Светлая", hint: "Для яркого освещения", group: "Светлые", mode: "light", panel: "#ffffff" },
+        { id: "paper", label: "Бумага", hint: "Тёплая, как книжная страница", group: "Светлые", mode: "light", panel: "#fbf6ea" },
+        { id: "mint", label: "Мята", hint: "Светлая зеленоватая", group: "Светлые", mode: "light", panel: "#ffffff" },
+        { id: "sky", label: "Небо", hint: "Светлая голубоватая", group: "Светлые", mode: "light", panel: "#ffffff" },
+        { id: "solarized-light", label: "Solarized светлая", hint: "Классика для кода", group: "Светлые", mode: "light", panel: "#fffbee" },
+        { id: "contrast", label: "Контрастная", hint: "Максимальная читаемость", group: "Контрастные", mode: "dark", panel: "#000000" },
+        { id: "contrast-light", label: "Контрастная светлая", hint: "Чёрное на белом", group: "Контрастные", mode: "light", panel: "#ffffff" }
     ];
-    // Фон панели каждой схемы — нужен для расчёта читаемости производных цветов
-    var PANEL_BG = { dark: "#141a1e", light: "#ffffff", contrast: "#000000" };
+    function presetOf(id) { return PRESETS.filter(function (p) { return p.id === id; })[0]; }
+    function isLightTheme(id) { var p = presetOf(id); return !!p && p.mode === "light"; }
+    function panelOf(id) { var p = presetOf(id); return (p && p.panel) || "#141a1e"; }
 
     // ------------------------------------------------------------- шрифты
     var DEFAULT_BODY = '-apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif';
@@ -125,6 +141,8 @@
 
     // ---------------------------------------------------------------- реестр
     // kind: color | range | select | text | toggle
+    // deferred (range): значение применяется по отпусканию ползунка (событие change), а не на каждом
+    // шаге — иначе раскладка перестраивается под курсором, и ползунок «убегает».
     // scope "palette" — сбрасывается при смене пресета; остальное пресет не трогает.
     var MODULES = [
         {
@@ -179,8 +197,9 @@
             fields: [
                 { key: "font", label: "Основной шрифт", kind: "font", list: FONTS_BODY, defaultId: "system", customKey: "fontCustom" },
                 { key: "fontMono", label: "Шрифт заголовков и данных", kind: "font", list: FONTS_MONO, defaultId: "default", customKey: "fontMonoCustom" },
-                { key: "fontSize", label: "Размер текста", kind: "range", min: 13, max: 19, step: 1, unit: "px", cssVar: "--font-size-base", def: 15 },
-                { key: "lineHeight", label: "Межстрочный интервал", kind: "range", min: 1.3, max: 1.8, step: 0.05, unit: "", cssVar: "--line-height-base", def: 1.5 }
+                { key: "fontSize", label: "Размер текста", kind: "range", min: 13, max: 19, step: 1, unit: "px", cssVar: "--font-size-base", def: 15, deferred: true,
+                  hint: "Масштабирует текст во всём интерфейсе. Применяется, когда вы отпустите ползунок." },
+                { key: "lineHeight", label: "Межстрочный интервал", kind: "range", min: 1.3, max: 1.8, step: 0.05, unit: "", cssVar: "--line-height-base", def: 1.5, deferred: true }
             ]
         },
         {
@@ -188,8 +207,13 @@
             hint: "Скругления и размеры основных областей.",
             fields: [
                 { key: "radius", label: "Скругление углов", kind: "range", min: 0, max: 14, step: 1, unit: "px", cssVar: "--radius", def: 3 },
-                { key: "contentMax", label: "Максимальная ширина контента", kind: "range", min: 800, max: 1800, step: 50, unit: "px", cssVar: "--content-max", def: 1100 },
-                { key: "sidebarW", label: "Ширина боковой панели", kind: "range", min: 200, max: 320, step: 10, unit: "px", cssVar: "--sidebar-w", def: 240 }
+                { key: "contentMax", label: "Максимальная ширина контента", kind: "range", min: 800, max: 1800, step: 50, unit: "px", cssVar: "--content-max", def: 1100, deferred: true,
+                  fit: true, disabledWhen: "contentFull",
+                  hint: "Ограничивает ширину контента; шире окна браузера он стать не может. Применяется, когда вы отпустите ползунок." },
+                { key: "contentFull", label: "Контент на всю ширину окна", kind: "toggle", def: false,
+                  hint: "Снимает ограничение ширины: контент занимает всё место справа от боковой панели." },
+                { key: "sidebarW", label: "Ширина боковой панели", kind: "range", min: 200, max: 320, step: 10, unit: "px", cssVar: "--sidebar-w", def: 240, deferred: true,
+                  hint: "Применяется, когда вы отпустите ползунок." }
             ]
         },
         {
@@ -298,8 +322,8 @@
         if (fm) setInline("--font-mono", fm);
 
         // Производные цвета
-        var isLight = theme === "light";
-        var panel = parseColor(v.bgPanel) || parseColor(PANEL_BG[theme]);
+        var isLight = isLightTheme(theme);
+        var panel = parseColor(v.bgPanel) || parseColor(panelOf(theme));
 
         if (v.accent || theme !== "dark") {
             var base = parseColor(v.accent) || parseColor("#3fa7a0");
@@ -316,6 +340,8 @@
                 .map(parseColor).filter(Boolean);
             if (pills.length) setInline("--on-risk", onColor(pills));
         }
+
+        if (v.contentFull) setInline("--content-max", "none");
 
         root.setAttribute("data-motion", v.reduceMotion ? "reduced" : "normal");
     }

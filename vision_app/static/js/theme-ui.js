@@ -116,13 +116,49 @@
         var id = nextId(f.key);
         var input = el("input", { cls: "vs-range", attrs: { type: "range", id: id, min: f.min, max: f.max, step: f.step } });
         var out = el("output", { cls: "vs-range-out", attrs: { for: id } });
-        input.addEventListener("input", function () { T.setValue(f.key, input.value); });
+        var dragging = false;
+        if (f.deferred) {
+            // Во время перетаскивания меняем только подпись значения; в тему пишем по отпусканию.
+            // Так раскладка не перестраивается под курсором.
+            input.addEventListener("input", function () {
+                dragging = true;
+                out.textContent = input.value + (f.unit || "");
+            });
+            input.addEventListener("change", function () {
+                dragging = false;
+                T.setValue(f.key, input.value);
+            });
+        } else {
+            input.addEventListener("input", function () { T.setValue(f.key, input.value); });
+        }
+        var fitEl = f.fit ? el("p", { cls: "field-hint vs-fit" }) : null;
+        // Сколько места реально есть под контент в этом окне (ширина окна минус боковая панель)
+        function available() {
+            var sb = document.querySelector(".sidebar");
+            var win = document.documentElement.clientWidth;
+            var side = sb && sb.offsetWidth < win - 1 ? sb.offsetWidth : 0;
+            return win - side;
+        }
+        function syncFit() {
+            if (!fitEl) return;
+            var avail = available(), cur = Number(input.value);
+            var full = f.disabledWhen && T.effective(f.disabledWhen);
+            fitEl.classList.toggle("is-over", !full && cur > avail);
+            fitEl.textContent = "Сейчас окно вмещает до " + avail + " px."
+                + (full ? " Включено «на всю ширину» — ползунок не действует."
+                    : cur > avail ? " Выбрано больше — фактически ширину ограничивает окно; расширьте его или включите «Контент на всю ширину окна»." : "");
+        }
+        if (fitEl) window.addEventListener("resize", syncFit);
         syncers.push(function () {
+            if (dragging) return;
             var v = T.effective(f.key);
             if (String(input.value) !== String(v)) input.value = v;
             out.textContent = v + (f.unit || "");
+            if (f.disabledWhen) input.disabled = !!T.effective(f.disabledWhen);
+            syncFit();
         });
-        return { id: id, node: el("div", { cls: "vs-range-row", kids: [input, out] }) };
+        if (fitEl) input.addEventListener("input", syncFit);
+        return { id: id, node: el("div", { cls: "vs-control-stack", kids: [el("div", { cls: "vs-range-row", kids: [input, out] }), fitEl] }) };
     }
 
     function toggleControl(f) {
@@ -220,7 +256,12 @@
     }
     function buildPresets() {
         var grid = el("div", { cls: "vs-presets", attrs: { role: "radiogroup", "aria-label": "Тема" } });
+        var lastGroup = null;
         var cards = T.presets.map(function (p) {
+            if (p.group && p.group !== lastGroup) {
+                grid.appendChild(el("div", { cls: "vs-preset-group", text: p.group, attrs: { role: "presentation" } }));
+            }
+            lastGroup = p.group;
             var preview = p.id === "auto"
                 ? el("div", { cls: "vs-mock-split", kids: [mock("dark"), mock("light")] })
                 : mock(p.id);
@@ -245,7 +286,7 @@
         });
         return el("section", { cls: "card vs-module", kids: [
             el("h2", { cls: "card-title", text: "Тема" }),
-            el("p", { cls: "field-hint vs-module-hint", text: "Пресет меняет только палитру. Акцентный цвет, шрифты и форма остаются вашими." }),
+            el("p", { cls: "field-hint vs-module-hint", text: "Пресет меняет только палитру. Акцентный цвет, шрифты и форма остаются вашими. Светлые темы подходят для яркого освещения, тёмные — для вечера." }),
             grid
         ] });
     }
