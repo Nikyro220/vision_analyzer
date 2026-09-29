@@ -40,7 +40,11 @@
 
     <div class="card chat-card" id="chat-root"
          data-send-url="{{ url_for('chat.send', session_id=session.id) }}"
-         data-csrf="{{ csrf_token() }}">
+         data-csrf="{{ csrf_token() }}"
+         data-pending-url="{{ url_for('chat.pending', session_id=session.id) }}"
+         data-pending="{{ pending_analyses }}"
+         data-max-images="{{ max_images }}"
+         data-max-image-mb="{{ max_image_mb }}">
         <div class="chat-log" id="chat-log">
             {% for m in messages %}
             <div class="chat-turn chat-turn-{{ m.role }}">
@@ -48,7 +52,16 @@
                     <span class="chat-turn-role">{{ 'вы' if m.role == 'user' else 'модель' }}</span>
                     <span class="chat-turn-time">{{ m.created_at|localdt('%H:%M') }}</span>
                 </div>
-                <div class="chat-turn-body"><span class="chat-turn-text" data-raw-text>{{ m.content }}</span>{% if m.role == 'assistant' and m.backend %}<span class="chat-turn-meta">{{ m.backend }}{% if m.model %} · {{ m.model }}{% endif %}</span>{% endif %}</div>
+                {% if attachments.get(m.id) %}
+                <div class="chat-turn-images">
+                    {% for a in attachments[m.id] %}
+                    <a class="chat-turn-image" href="{{ a.url }}" target="_blank" rel="noopener noreferrer" title="{{ a.name }}">
+                        <img src="{{ a.thumb_url }}" alt="{{ a.name }}" loading="lazy">
+                    </a>
+                    {% endfor %}
+                </div>
+                {% endif %}
+                {% if m.content or m.role == 'assistant' %}<div class="chat-turn-body"><span class="chat-turn-text" data-raw-text>{{ m.content }}</span>{% if m.role == 'assistant' and m.backend %}<span class="chat-turn-meta">{{ m.backend }}{% if m.model %} · {{ m.model }}{% endif %}</span>{% endif %}</div>{% endif %}
                 {% if m.role == 'assistant' and m.refs %}
                 <div class="chat-refs" data-refs='{{ m.refs|tojson }}'></div>
                 {% endif %}
@@ -56,18 +69,24 @@
             {% else %}
             <div class="chat-empty" id="chat-empty">
                 <p class="chat-empty-title">чат пуст</p>
-                <p class="chat-empty-hint">Спросите про категории риска, что значит уже готовый отчёт /analyze, настройки сэмплинга — или просто поздоровайтесь.</p>
+                <p class="chat-empty-hint">Спросите про категории риска, что значит уже готовый отчёт /analyze, настройки сэмплинга — или прикрепите изображение (скрепка, перетаскивание или вставка из буфера) и задайте вопрос о нём — модель увидит картинку сама. Чтобы запустить полноценный риск-анализ, попросите добавить изображение в анализ: оно встанет в общую очередь, а результат появится в чате сам.</p>
             </div>
             {% endfor %}
         </div>
 
+        <div class="chat-attachments" id="chat-attachments" hidden></div>
+
         <form class="chat-composer" id="chat-form" novalidate>
+            <input type="file" id="chat-file-input" accept="image/*" multiple hidden>
+            <button type="button" class="btn btn-secondary chat-attach-btn" id="chat-attach-btn"
+                    title="Прикрепить изображение (до {{ max_images }} шт., до {{ max_image_mb }} МБ каждое)"
+                    aria-label="Прикрепить изображение">📎</button>
             <textarea id="chat-input" class="chat-input" rows="1" maxlength="8000"
                       placeholder="Сообщение…" autofocus></textarea>
             <button type="submit" class="btn btn-primary" id="chat-send-btn">Отправить</button>
         </form>
         <div class="chat-composer-foot">
-            <span class="chat-composer-hint">Enter — отправить · Shift+Enter — новая строка</span>
+            <span class="chat-composer-hint">Enter — отправить · Shift+Enter — новая строка · изображение можно перетащить или вставить из буфера</span>
             <p class="chat-error" id="chat-error" hidden></p>
         </div>
     </div>

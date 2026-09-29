@@ -280,6 +280,12 @@ class ChatSession(db.Model):
         cascade="all, delete-orphan",
         order_by="ChatMessage.id",
     )
+    analysis_jobs = db.relationship(
+        "ChatAnalysisJob",
+        backref="session",
+        cascade="all, delete-orphan",
+        order_by="ChatAnalysisJob.id",
+    )
 
     @property
     def display_title(self) -> str:
@@ -308,6 +314,12 @@ class ChatMessage(db.Model):
     # и для ответов без сработавшего ретрива.
     refs = db.Column(db.JSON, nullable=False, default=list, server_default="[]")
 
+    # Изображения, прикреплённые пользователем к сообщению (только role=user): список
+    # словарей {path, name, mime}; path — относительно UPLOAD_FOLDER (chat_uploads/...),
+    # см. chat_images.py. Порядок в списке и по сообщениям чата задаёт номера вложений #1, #2, …,
+    # по которым модель ставит их в очередь анализа инструментом analyze_image (chat_tools/images.py).
+    images = db.Column(db.JSON, nullable=False, default=list, server_default="[]")
+
     # Только для role=assistant — чем/на чём был получен этот ответ (для отображения).
     backend = db.Column(db.String(32), nullable=False, default="")
     model = db.Column(db.String(120), nullable=False, default="")
@@ -316,6 +328,36 @@ class ChatMessage(db.Model):
 
     def __repr__(self) -> str:
         return f"<ChatMessage {self.id} {self.role}>"
+
+
+class ChatAnalysisJob(db.Model):
+    """Изображение из чата, поставленное моделью в общую очередь анализа (chat_jobs.py).
+
+    Инструмент analyze_image только создаёт AnalysisResult со статусом «queued» и эту запись.
+    Когда очередь доходит до анализа и он завершается, blueprints/chat.py (GET .../pending)
+    «доставляет» результат: передаёт его модели и добавляет её ответ в чат. `delivered`
+    переключается атомарным UPDATE, поэтому результат приходит в чат ровно один раз, даже если
+    страница открыта в нескольких вкладках.
+    """
+
+    __tablename__ = "chat_analysis_jobs"
+
+    id = db.Column(db.Integer, primary_key=True)
+    session_id = db.Column(
+        db.Integer, db.ForeignKey("chat_sessions.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    # Анализ в общей очереди (у него своя копия файла в uploads/). Если запись удалили
+    # (отмена из очереди) — analysis_id указывает в пустоту, доставка это переживает.
+    analysis_id = db.Column(db.Integer, db.ForeignKey("analysis_results.id", ondelete="SET NULL"), nullable=True, index=True)
+    # Исходное вложение чата (chat_uploads/...): по нему не даём поставить один файл в очередь дважды.
+    image_path = db.Column(db.String(500), nullable=False, default="")
+    image_name = db.Column(db.String(255), nullable=False, default="")
+    image_number = db.Column(db.Integer, nullable=False, default=0)
+    delivered = db.Column(db.Boolean, nullable=False, default=False, server_default="0", index=True)
+    created_at = db.Column(db.DateTime, nullable=False, default=utcnow)
+
+    def __repr__(self) -> str:
+        return f"<ChatAnalysisJob {self.id} analysis={self.analysis_id} delivered={self.delivered}>"
 
 
 # ----------------------------------------------------------------------------

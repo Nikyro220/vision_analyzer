@@ -99,12 +99,15 @@ def delete_user_account(user: User) -> None:
     """Удаляет пользователя целиком: все его анализы (любого статуса) вместе с
     файлами изображений, а затем саму учётную запись.
 
-    Записи AnalysisResult удалились бы каскадом на уровне БД (ondelete="CASCADE"),
-    но файлы изображений так не подчистить — поэтому собираем пути заранее.
+    Записи AnalysisResult (и чаты) удалились бы каскадом на уровне БД (ondelete="CASCADE"),
+    но файлы изображений — загрузки и вложения чатов — так не подчистить, поэтому собираем пути заранее.
     """
+    from . import chat_images  # локально: chat_images сам импортирует этот модуль
+
     paths = db.session.scalars(
         select(AnalysisResult.image_path).where(AnalysisResult.user_id == user.id)
     ).all()
+    chat_paths = chat_images.user_paths(user.id)  # вложения чатов — собираем до удаления записей
 
     db.session.execute(
         delete(AnalysisEmbedding)
@@ -115,3 +118,4 @@ def delete_user_account(user: User) -> None:
     db.session.commit()
 
     remove_image_files([p for p in paths if p])
+    chat_images.remove_files(chat_paths)

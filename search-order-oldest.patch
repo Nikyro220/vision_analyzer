@@ -1,0 +1,123 @@
+diff --git a/vision_app/chat_tools/analyses.py b/vision_app/chat_tools/analyses.py
+index 7d57514..fd1a882 100644
+--- a/vision_app/chat_tools/analyses.py
++++ b/vision_app/chat_tools/analyses.py
+@@ -55,6 +55,17 @@ _MAX_QUERY_CHARS = 300
+ _MAX_KEYWORDS = 8
+ _VALID_RISKS = {RiskLevel.LOW, RiskLevel.MEDIUM, RiskLevel.HIGH, RiskLevel.UNKNOWN}
+ 
++# Порядок выдачи: по умолчанию от новых к старым; «самый первый / самый старый анализ» —
++# order=oldest. Модель иногда присылает синонимы — принимаем самые очевидные.
++_ORDER_NEWEST = "newest"
++_ORDER_OLDEST = "oldest"
++_ORDER_ALIASES = {
++    "newest": _ORDER_NEWEST, "new": _ORDER_NEWEST, "latest": _ORDER_NEWEST, "recent": _ORDER_NEWEST,
++    "desc": _ORDER_NEWEST, "newest_first": _ORDER_NEWEST,
++    "oldest": _ORDER_OLDEST, "old": _ORDER_OLDEST, "earliest": _ORDER_OLDEST, "first": _ORDER_OLDEST,
++    "asc": _ORDER_OLDEST, "oldest_first": _ORDER_OLDEST,
++}
++
+ 
+ @dataclass
+ class ToolResult:
+@@ -178,7 +189,7 @@ def normalize_args(raw) -> tuple[dict, list[str]]:
+ 
+     known = {
+         "limit", "since_days", "risk_level", "categories", "needs_review", "own_only", "count_only",
+-        "query", "similar_to", "keywords",
++        "query", "similar_to", "keywords", "order",
+     }
+     unknown = sorted(str(k) for k in raw if k not in known)
+     if unknown:
+@@ -194,12 +205,22 @@ def normalize_args(raw) -> tuple[dict, list[str]]:
+         "count_only": _bool_arg(raw.get("count_only")),
+         "query": _query_arg(raw.get("query")),
+         "similar_to": _int_arg(raw.get("similar_to"), 1, 2_000_000_000),
++        "order": _ORDER_NEWEST,
+     }
++    order = raw.get("order")
++    if order not in (None, ""):
++        resolved = _ORDER_ALIASES.get(str(order).strip().lower())
++        if resolved:
++            args["order"] = resolved
++        else:
++            warnings.append(f"order '{order}' не распознан (допустимо: newest, oldest) — использован newest")
+     args["keywords"], keyword_words = _keywords_arg(raw.get("keywords"), warnings)
+     args["keywords_text"] = ", ".join(keyword_words)  # для запасного поиска по смыслу, если точные слова ничего не нашли
+     if args["query"] and args["similar_to"]:
+         warnings.append("указаны и query, и similar_to — query проигнорирован")
+         args["query"] = None
++    if args["order"] == _ORDER_OLDEST and (args["query"] or args["similar_to"]):
++        warnings.append("order игнорируется при query/similar_to — записи упорядочены по сходству, а не по дате")
+ 
+     risk = raw.get("risk_level")
+     if risk not in (None, ""):
+@@ -263,12 +284,12 @@ def _conditions(user: User, args: dict) -> list:
+ 
+ 
+ def _fetch_rows(user: User, args: dict) -> list[AnalysisResult]:
+-    stmt = (
+-        select(AnalysisResult)
+-        .where(*_conditions(user, args))
+-        .order_by(AnalysisResult.created_at.desc())
+-        .limit(_SCAN_LIMIT)
+-    )
++    # id — вторым ключом: у анализов, созданных в одну секунду, порядок иначе не определён.
++    if args["order"] == _ORDER_OLDEST:
++        ordering = (AnalysisResult.created_at.asc(), AnalysisResult.id.asc())
++    else:
++        ordering = (AnalysisResult.created_at.desc(), AnalysisResult.id.desc())
++    stmt = select(AnalysisResult).where(*_conditions(user, args)).order_by(*ordering).limit(_SCAN_LIMIT)
+     rows = list(db.session.scalars(stmt).all())
+ 
+     if args["categories"]:
+@@ -523,8 +544,9 @@ def search_analyses(user: User, raw_args) -> ToolResult:
+         if "error" not in json.loads(fallback.text):  # эмбеддинги недоступны — честный «0» ниже лучше ошибки
+             return fallback
+ 
+-    # Один и тот же файл, загруженный несколько раз, — один снимок: показываем самый свежий
+-    # анализ, номера остальных перечисляем в same_image_analyses.
++    # Один и тот же файл, загруженный несколько раз, — один снимок: показываем первый по порядку
++    # выдачи (при order=newest — самый свежий анализ, при oldest — самый ранний), номера
++    # остальных перечисляем в same_image_analyses.
+     raw_count = len(rows)
+     rep_ids, same_image = image_dedup.dedupe_ordered([(r.id, r.image_hash) for r in rows])
+     by_id = {r.id: r for r in rows}
+@@ -538,6 +560,7 @@ def search_analyses(user: User, raw_args) -> ToolResult:
+ 
+     payload: dict = {
+         "scope": "все пользователи" if show_user else "только анализы самого пользователя",
++        "order": args["order"],  # newest — от новых к старым, oldest — от старых к новым
+         "total_matched": len(rows),
+         "by_risk": by_risk,
+         "needs_review_count": sum(1 for r in rows if r.needs_human_review),
+@@ -547,7 +570,8 @@ def search_analyses(user: User, raw_args) -> ToolResult:
+     if raw_count > len(rows):
+         payload["duplicates_merged"] = raw_count - len(rows)  # повторные анализы тех же файлов, склеены
+     if raw_count >= _SCAN_LIMIT:
+-        payload["note"] = f"учтены только {_SCAN_LIMIT} самых свежих записей"
++        which = "самых старых" if args["order"] == _ORDER_OLDEST else "самых свежих"
++        payload["note"] = f"учтены только {_SCAN_LIMIT} {which} записей"
+     if warnings:
+         payload["warnings"] = warnings
+ 
+diff --git a/vision_app/chat_tools/runner.py b/vision_app/chat_tools/runner.py
+index 4905d08..b7d13cc 100644
+--- a/vision_app/chat_tools/runner.py
++++ b/vision_app/chat_tools/runner.py
+@@ -159,8 +159,13 @@ def build_tool_system_prompt(user=None, images: list[ChatImage] | None = None) -
+         f"{TOOL_NAME} — поиск и статистика по завершённым анализам. Права доступа применяет "
+         "система: чужие данные ты получить не можешь.\n"
+         "Аргументы (все необязательные):\n"
+-        "  - limit (число 1..15, по умолчанию 5) — сколько записей вернуть (последних; при query/"
+-        "similar_to — самых подходящих); «последний анализ» → 1.\n"
++        "  - limit (число 1..15, по умолчанию 5) — сколько записей вернуть (по умолчанию последних; при "
++        "query/similar_to — самых подходящих); «последний анализ» → 1.\n"
++        "  - order — порядок записей: \"newest\" (по умолчанию, от новых к старым) или \"oldest\" (от старых к "
++        "новым). «Самый первый / самый ранний / самый старый анализ», «с самого начала», «первый в базе» → "
++        "order=\"oldest\" (обычно вместе с limit=1); «последний», «свежий», «новый» → newest. Никогда не "
++        "подменяй «первый» на «последний»: у каждой записи есть дата — сверь её с вопросом. При query/"
++        "similar_to порядок задаёт сходство, и order не действует.\n"
+         "  - since_days (число 1..365) — только за последние N дней "
+         "(«сегодня» → 1, «за неделю» → 7, «за месяц» → 30).\n"
+         '  - risk_level — "low" | "medium" | "high" | "unknown".\n'

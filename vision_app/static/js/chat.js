@@ -1,6 +1,15 @@
 /* Страница «Чат». История хранится на сервере (ChatSession/ChatMessage) —
  * этот файл только отправляет сообщения в уже открытую сессию и подрисовывает
- * ответ, ничего не кладёт в localStorage. */
+ * ответ, ничего не кладёт в localStorage.
+ *
+ * Вложения: изображения выбираются скрепкой, перетаскиванием или вставкой из буфера,
+ * показываются превью-чипами над полем ввода и уходят вместе с сообщением как
+ * multipart/form-data (поля message + images). Проверки размера/числа здесь — только
+ * для удобства, настоящие лимиты применяет сервер (chat_images.py).
+ *
+ * Анализ изображений идёт через общую очередь и занимает время: пока в чате есть
+ * задачи, ждущие результата, страница раз в несколько секунд опрашивает
+ * GET .../pending, а пришедшие ответы модели дорисовывает в лог. */
 (function () {
   "use strict";
 
@@ -20,10 +29,18 @@
   var input = document.getElementById("chat-input");
   var sendBtn = document.getElementById("chat-send-btn");
   var errorMsg = document.getElementById("chat-error");
+  var fileInput = document.getElementById("chat-file-input");
+  var attachBtn = document.getElementById("chat-attach-btn");
+  var attachBox = document.getElementById("chat-attachments");
   var sendUrl = root.dataset.sendUrl;
   var csrf = root.dataset.csrf;
+  var maxImages = parseInt(root.dataset.maxImages, 10) || 4;
+  var maxImageMb = parseInt(root.dataset.maxImageMb, 10) || 15;
+  var pendingUrl = root.dataset.pendingUrl;
+  var pendingJobs = parseInt(root.dataset.pending, 10) || 0; // сколько изображений ещё ждут анализа
 
   var sending = false;
+  var pending = []; // вложения, ещё не отправленные: [{file, url}]
 
   var ROLE_LABELS = { user: "вы", assistant: "модель", error: "ошибка" };
 
@@ -132,7 +149,7 @@
 
   // Реплика — не пузырь, а строка «журнала сессии»: роль + время сверху
   // (моноширинным, как остальные технические метки в панели), текст снизу.
-  function renderTurn(role, text, meta, refs) {
+  function renderTurn(role, text, meta, refs, images) {
     var emptyHint = document.getElementById("chat-empty");
     if (emptyHint) emptyHint.remove();
 
@@ -159,7 +176,28 @@
     }
 
     turn.appendChild(head);
-    turn.appendChild(body);
+
+    if (images && images.length) {
+      var imagesEl = el("div", "chat-turn-images");
+      images.forEach(function (item) {
+        var link = el("a", "chat-turn-image");
+        link.href = item.url;
+        link.target = "_blank";
+        link.rel = "noopener noreferrer";
+        link.title = item.name || "";
+        var img = document.createElement("img");
+        img.src = item.url;
+        img.alt = item.name || "";
+        link.appendChild(img);
+        imagesEl.appendChild(link);
+      });
+      turn.appendChild(imagesEl);
+    }
+
+    // Реплика из одних картинок (без текста) — без пустого блока текста.
+    if (text || meta || role !== "user" || !(images && images.length)) {
+      turn.appendChild(body);
+    }
 
     if (refs && refs.length) {
       var refsEl = el("div", "chat-refs");
@@ -192,7 +230,69 @@
     sending = state;
     sendBtn.disabled = state;
     input.disabled = state;
+    attachBtn.disabled = state;
     sendBtn.textContent = state ? "Отправка…" : "Отправить";
+  }
+
+  // ---------- вложения ----------
+
+  function renderAttachments() {
+    attachBox.innerHTML = "";
+    attachBox.hidden = pending.length === 0;
+    pending.forEach(function (item, index) {
+      var chip = el("div", "chat-attach-chip");
+      chip.title = item.file.name;
+
+      var img = document.createElement("img");
+      img.src = item.url;
+      img.alt = item.file.name;
+      chip.appendChild(img);
+
+      var name = el("span", "chat-attach-name");
+      name.textContent = item.file.name || "изображение";
+      chip.appendChild(name);
+
+      var remove = el("button", "chat-attach-remove");
+      remove.type = "button";
+      remove.textContent = "✕";
+      remove.setAttribute("aria-label", "Убрать вложение");
+      remove.addEventListener("click", function () {
+        if (sending) return;
+        URL.revokeObjectURL(item.url);
+        pending.splice(index, 1);
+        renderAttachments();
+      });
+      chip.appendChild(remove);
+
+      attachBox.appendChild(chip);
+    });
+  }
+
+  function addFiles(fileList) {
+    var skipped = [];
+    Array.prototype.forEach.call(fileList, function (file) {
+      if (!file.type || file.type.indexOf("image/") !== 0) {
+        skipped.push("«" + (file.name || "файл") + "» — не изображение");
+        return;
+      }
+      if (file.size > maxImageMb * 1024 * 1024) {
+        skipped.push("«" + (file.name || "файл") + "» — больше " + maxImageMb + " МБ");
+        return;
+      }
+      if (pending.length >= maxImages) {
+        skipped.push("«" + (file.name || "файл") + "» — максимум " + maxImages + " изображений в сообщении");
+        return;
+      }
+      pending.push({ file: file, url: URL.createObjectURL(file) });
+    });
+    renderAttachments();
+    showError(skipped.length ? "Не прикреплено: " + skipped.join("; ") + "." : "");
+  }
+
+  function clearPending() {
+    // blob-URL не отзываем: превью уже перекочевали в реплику пользователя в логе.
+    pending = [];
+    renderAttachments();
   }
 
   function showError(text) {
@@ -209,30 +309,99 @@
     document.title = title + " · " + document.title.split(" · ").slice(1).join(" · ");
   }
 
-  function sendMessage(message) {
-    renderTurn("user", message);
+  // ---------- ожидание результатов анализа из очереди ----------
+
+  var POLL_MS = 4000;
+  var pollTimer = null;
+  var polling = false; // запрос в полёте — не накладываем опросы друг на друга
+
+  function pollPending() {
+    pollTimer = null;
+    if (!pendingUrl || polling || pendingJobs <= 0) return;
+    polling = true;
+    fetch(pendingUrl, {
+      credentials: "same-origin",
+      headers: { Accept: "application/json" },
+      cache: "no-store",
+    })
+      .then(function (r) {
+        return r.ok ? r.json() : null;
+      })
+      .then(function (data) {
+        if (!data) return;
+        (data.messages || []).forEach(function (m) {
+          var meta = m.backend ? m.backend + (m.model ? " · " + m.model : "") : "";
+          renderTurn("assistant", m.reply || "", meta, m.refs);
+        });
+        pendingJobs = data.pending || 0;
+      })
+      .catch(function () {
+        /* временный сбой сети — попробуем в следующий раз */
+      })
+      .finally(function () {
+        polling = false;
+        schedulePoll();
+      });
+  }
+
+  function schedulePoll() {
+    if (pollTimer !== null || pendingJobs <= 0) return;
+    // вкладка в фоне — опрашиваем реже
+    pollTimer = window.setTimeout(pollPending, document.hidden ? POLL_MS * 3 : POLL_MS);
+  }
+
+  document.addEventListener("visibilitychange", function () {
+    if (!document.hidden && pendingJobs > 0 && !polling) {
+      if (pollTimer !== null) window.clearTimeout(pollTimer);
+      pollTimer = null;
+      pollPending(); // вернулись на вкладку — проверяем сразу
+    }
+  });
+
+  function sendMessage(message, attachments) {
+    renderTurn(
+      "user",
+      message,
+      "",
+      null,
+      attachments.map(function (item) {
+        return { url: item.url, name: item.file.name };
+      })
+    );
     showError("");
     setSending(true);
 
-    var pending = renderPending();
+    var pendingTurn = renderPending();
+
+    // multipart: без ручного Content-Type — браузер сам поставит boundary.
+    var formData = new FormData();
+    formData.append("message", message);
+    attachments.forEach(function (item) {
+      formData.append("images", item.file, item.file.name || "image");
+    });
 
     fetch(sendUrl, {
       method: "POST",
       credentials: "same-origin",
       headers: {
-        "Content-Type": "application/json",
         "X-CSRFToken": csrf,
         Accept: "application/json",
       },
-      body: JSON.stringify({ message: message }),
+      body: formData,
     })
       .then(function (r) {
-        return r.json().then(function (data) {
-          return { ok: r.ok, data: data };
-        });
+        return r.json().then(
+          function (data) {
+            return { ok: r.ok, data: data };
+          },
+          function () {
+            // Не JSON (например, редирект на страницу ошибки при слишком большом запросе).
+            return { ok: false, data: { error: "Сервер отклонил запрос (возможно, файлы слишком большие)." } };
+          }
+        );
       })
       .then(function (result) {
-        pending.remove();
+        pendingTurn.remove();
         if (!result.ok) {
           showError((result.data && result.data.error) || "Не удалось получить ответ.");
           return;
@@ -241,9 +410,11 @@
         var meta = data.backend ? data.backend + (data.model ? " · " + data.model : "") : "";
         renderTurn("assistant", data.reply || "", meta, data.refs);
         updateSidebarTitle(data.title);
+        pendingJobs = data.pending || 0;
+        schedulePoll();
       })
       .catch(function () {
-        pending.remove();
+        pendingTurn.remove();
         showError("Не удалось связаться с сервером. Проверьте соединение и повторите.");
       })
       .finally(function () {
@@ -256,10 +427,63 @@
     e.preventDefault();
     if (sending) return;
     var message = input.value.trim();
-    if (!message) return;
+    if (!message && !pending.length) return;
+    var attachments = pending.slice();
     input.value = "";
     autoGrow();
-    sendMessage(message);
+    clearPending();
+    sendMessage(message, attachments);
+  });
+
+  attachBtn.addEventListener("click", function () {
+    if (!sending) fileInput.click();
+  });
+  fileInput.addEventListener("change", function () {
+    if (fileInput.files && fileInput.files.length) addFiles(fileInput.files);
+    fileInput.value = ""; // чтобы тот же файл можно было выбрать повторно
+  });
+
+  // Вставка изображения из буфера обмена (скриншот, «копировать картинку»).
+  input.addEventListener("paste", function (e) {
+    var items = (e.clipboardData && e.clipboardData.items) || [];
+    var files = [];
+    for (var i = 0; i < items.length; i += 1) {
+      if (items[i].kind === "file" && items[i].type.indexOf("image/") === 0) {
+        var file = items[i].getAsFile();
+        if (file) files.push(file);
+      }
+    }
+    if (files.length && !sending) {
+      e.preventDefault(); // текст из буфера (если был) не вставляем — вставляем именно картинку
+      addFiles(files);
+    }
+  });
+
+  // Перетаскивание файлов на карточку чата.
+  var dragDepth = 0;
+  function hasFiles(e) {
+    return !!(e.dataTransfer && Array.prototype.indexOf.call(e.dataTransfer.types || [], "Files") !== -1);
+  }
+  root.addEventListener("dragenter", function (e) {
+    if (!hasFiles(e)) return;
+    e.preventDefault();
+    dragDepth += 1;
+    root.classList.add("is-dragover");
+  });
+  root.addEventListener("dragover", function (e) {
+    if (hasFiles(e)) e.preventDefault();
+  });
+  root.addEventListener("dragleave", function (e) {
+    if (!hasFiles(e)) return;
+    dragDepth = Math.max(0, dragDepth - 1);
+    if (!dragDepth) root.classList.remove("is-dragover");
+  });
+  root.addEventListener("drop", function (e) {
+    if (!hasFiles(e)) return;
+    e.preventDefault();
+    dragDepth = 0;
+    root.classList.remove("is-dragover");
+    if (!sending && e.dataTransfer.files.length) addFiles(e.dataTransfer.files);
   });
 
   input.addEventListener("input", autoGrow);
@@ -272,4 +496,5 @@
 
   renderExistingTurns();
   log.scrollTop = log.scrollHeight;
+  if (pendingJobs > 0) pollPending(); // страницу открыли/перезагрузили, пока анализ шёл — сразу проверяем
 })();
