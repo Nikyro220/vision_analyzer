@@ -39,7 +39,7 @@
                     <span class="tag">выключена</span>
                     {% endif %}
                 </td>
-                <td class="table-actions">
+                <td class="table-actions" onclick="event.stopPropagation()">
                     <div class="row-actions">
                         <a href="{{ url_for('panel.category_edit', pk=row.id) }}" class="btn btn-secondary btn-sm">Изменить</a>
                         <form method="post" action="{{ url_for('panel.category_toggle_active', pk=row.id) }}" class="form-inline-tight">
