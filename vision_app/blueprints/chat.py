@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from flask import (
@@ -17,7 +18,7 @@ from flask import (
     url_for,
 )
 from flask_login import current_user, login_required
-from sqlalchemy import select
+from sqlalchemy import func, or_, select, update
 
 from .. import chat_images, chat_jobs
 from ..chat_tools import ChatImage, attachment_note, delivery_message, run_chat_turn
@@ -27,11 +28,43 @@ from ..models import ChatMessage, ChatRole, ChatSession, utcnow
 from ..services import VisionApiError
 from ..settings_store import get_analysis_target
 from ..thumbs import ensure_thumb
+from ..utils import local_dt
 
 bp = Blueprint("chat", __name__)
 
 # Лимиты чата (длина сообщения, глубина истории, длина названия, ...) — в config.py: CHAT_*.
 DEFAULT_IMAGE_MESSAGE = "Опиши прикреплённое изображение."  # если пользователь приложил картинку без текста
+
+
+def _aware(value: datetime) -> datetime:
+    """SQLite отдаёт DateTime без часового пояса; в БД мы всегда кладём UTC."""
+    return value if value.tzinfo is not None else value.replace(tzinfo=timezone.utc)
+
+
+def _turn_busy(session_row: ChatSession) -> bool:
+    """Модель сейчас отвечает на сообщение этого чата."""
+    started = session_row.turn_started_at
+    if started is None:
+        return False
+    return (utcnow() - _aware(started)).total_seconds() < conf("CHAT_TURN_STALE_SECONDS")
+
+
+def _claim_turn(session_id: int) -> bool:
+    """Атомарно помечает чат «модель отвечает». False — предыдущий ход ещё не закончен
+    (например, сообщение отправили из двух вкладок сразу)."""
+    now = utcnow()
+    cutoff = now - timedelta(seconds=conf("CHAT_TURN_STALE_SECONDS"))
+    claimed = db.session.execute(
+        update(ChatSession)
+        .where(
+            ChatSession.id == session_id,
+            or_(ChatSession.turn_started_at.is_(None), ChatSession.turn_started_at < cutoff),
+        )
+        .values(turn_started_at=now)
+        .execution_options(synchronize_session=False)
+    )
+    db.session.commit()
+    return claimed.rowcount == 1
 
 
 def _own_sessions():
@@ -112,10 +145,10 @@ def _history_for_model(session_row: ChatSession, by_message: dict[int, list[Chat
     return history
 
 
-def _attachment_urls(session_row: ChatSession) -> dict[int, list[dict]]:
+def _attachment_urls(session_row: ChatSession, messages=None) -> dict[int, list[dict]]:
     """message.id -> [{url, thumb_url, name}] для отрисовки вложений в шаблоне."""
     out: dict[int, list[dict]] = {}
-    for m in session_row.messages:
+    for m in session_row.messages if messages is None else messages:
         for idx, item in enumerate(m.images or []):
             if not isinstance(item, dict) or not item.get("path"):
                 continue
@@ -146,12 +179,24 @@ def view(session_id: int):
     session_row = _get_own_session(session_id)
     sessions = _own_sessions()
     target_backend, target_model = get_analysis_target()
+
+    # Модель ещё отвечает (страницу перезагрузили посреди хода): сообщение пользователя уже в БД,
+    # chat.js покажет «печатает…» и дождётся ответа через GET .../state. busy_since — id, после
+    # которого искать сообщения этого хода (само сообщение пользователя и всё за ним).
+    busy = _turn_busy(session_row)
+    busy_since = 0
+    if busy:
+        last_user = next((m for m in reversed(session_row.messages) if m.role == ChatRole.USER), None)
+        busy_since = last_user.id - 1 if last_user is not None else 0
+
     return render_template(
         "chat/chat.html",
         session=session_row,
         sessions=sessions,
         messages=session_row.messages,
         attachments=_attachment_urls(session_row),
+        busy=busy,
+        busy_since=busy_since,
         pending_analyses=chat_jobs.pending_count(session_row.id),
         max_images=conf("CHAT_MAX_IMAGES_PER_MESSAGE"),
         max_image_mb=conf("CHAT_MAX_IMAGE_BYTES") // (1024 * 1024),
@@ -232,7 +277,11 @@ def delete_session(session_id: int):
 @login_required
 def send(session_id: int):
     """Принимает сообщение: JSON {"message": ...} либо multipart/form-data с полями
-    message и images (0..CHAT_MAX_IMAGES_PER_MESSAGE файлов). Хотя бы одно из двух обязательно."""
+    message и images (0..CHAT_MAX_IMAGES_PER_MESSAGE файлов). Хотя бы одно из двух обязательно.
+
+    Сообщение пользователя сохраняется в БД сразу, ДО обращения к модели, — так оно не пропадает,
+    если страницу перезагрузили, пока модель отвечает. Если ход не удался, сообщение (и вложения)
+    откатываются, а клиент получает ошибку и возвращает текст с картинками в поле ввода."""
     session_row = _get_own_session(session_id)
 
     if request.is_json:
@@ -250,17 +299,21 @@ def send(session_id: int):
         return jsonify({"error": f"Сообщение слишком длинное (максимум {max_len} символов)."}), 400
 
     # Вложения сохраняем на диск ДО обращения к модели: инструмент analyze_image читает их
-    # оттуда. Если ход не удался — файлы удаляются, в БД ничего не попадает.
+    # оттуда. Если ход не удался — файлы удаляются, в БД ничего не остаётся.
     try:
         saved = chat_images.validate_and_save(files)
     except chat_images.AttachmentError as exc:
         return jsonify({"error": str(exc)}), 400
 
-    try:
-        return _run_turn(session_row, message, saved)
-    except Exception:
-        db.session.rollback()
+    if not _claim_turn(session_row.id):
         _discard_attachments(session_row.id, saved)
+        return jsonify({"error": "Модель ещё отвечает на предыдущее сообщение — дождитесь ответа."}), 409
+
+    progress: dict = {}  # что успел сделать ход — нужно, чтобы аккуратно откатить его при сбое
+    try:
+        return _run_turn(session_row, message, saved, progress)
+    except Exception:
+        _abort_turn(session_row.id, progress, saved)
         raise
 
 
@@ -276,7 +329,35 @@ def _discard_attachments(session_id: int, saved: list[dict]) -> None:
     chat_images.remove_files(paths)
 
 
-def _run_turn(session_row: ChatSession, message: str, saved: list[dict]):
+def _abort_turn(session_id: int, progress: dict, saved: list[dict]) -> None:
+    """Откат неудавшегося хода: удаляем уже сохранённое сообщение пользователя, снимаем метку
+    «модель отвечает», возвращаем чату пустой заголовок (если его дало это сообщение) и убираем
+    вложения. Безопасно вызывать, даже если ход упал до сохранения сообщения."""
+    try:
+        db.session.rollback()
+        message_id = progress.get("user_message_id")
+        if message_id:
+            message = db.session.get(ChatMessage, message_id)
+            if message is not None:
+                db.session.delete(message)
+                db.session.flush()
+        row = db.session.get(ChatSession, session_id)
+        if row is not None:
+            row.turn_started_at = None
+            if progress.get("title_set"):
+                left = db.session.scalar(
+                    select(func.count(ChatMessage.id)).where(ChatMessage.session_id == session_id)
+                )
+                if not left:
+                    row.title = ""
+        db.session.commit()
+    except Exception:  # noqa: BLE001 — откат не должен маскировать исходную ошибку
+        db.session.rollback()
+        current_app.logger.exception("chat: не удалось откатить неудавшийся ход")
+    _discard_attachments(session_id, saved)
+
+
+def _run_turn(session_row: ChatSession, message: str, saved: list[dict], progress: dict):
     all_images, by_message = _session_images(session_row)
     new_images = [
         ChatImage(
@@ -292,6 +373,7 @@ def _run_turn(session_row: ChatSession, message: str, saved: list[dict]):
 
     # Контекст для модели — уже сохранённые сообщения ЭТОЙ сессии (без нового,
     # оно передаётся отдельным полем 'message', как ожидает inference/chat.py).
+    # Собираем ДО сохранения нового сообщения ниже.
     history = _history_for_model(session_row, by_message)
 
     model_message = message or (DEFAULT_IMAGE_MESSAGE if new_images else "")
@@ -302,6 +384,16 @@ def _run_turn(session_row: ChatSession, message: str, saved: list[dict]):
     message_images = _data_urls(new_images)
 
     target_backend, target_model = get_analysis_target()
+
+    # Сообщение пользователя сохраняем сразу: после перезагрузки страницы оно на месте, а ответ
+    # модели дорисуется, когда будет готов (GET .../state). При сбое хода оно откатывается (_abort_turn).
+    user_message = ChatMessage(session_id=session_row.id, role=ChatRole.USER, content=message, images=saved)
+    db.session.add(user_message)
+    if not session_row.title:
+        session_row.title = _make_title(message) if message else _make_title(f"Изображение: {saved[0]['name']}")
+        progress["title_set"] = True
+    db.session.commit()
+    progress["user_message_id"] = user_message.id
 
     # Модель сама решает, нужны ли ей данные из истории анализов или (только если пользователь
     # явно попросил) постановка изображения в очередь анализа: при необходимости она присылает
@@ -314,23 +406,19 @@ def _run_turn(session_row: ChatSession, message: str, saved: list[dict]):
         )
     except VisionApiError as exc:
         current_app.logger.warning("chat: ошибка сервера анализа: %s", exc)
-        _discard_attachments(session_row.id, saved)
+        _abort_turn(session_row.id, progress, saved)
         return jsonify({"error": str(exc)}), 502
 
-    user_message = ChatMessage(session_id=session_row.id, role=ChatRole.USER, content=message, images=saved)
-    db.session.add(user_message)
-    db.session.add(
-        ChatMessage(
-            session_id=session_row.id,
-            role=ChatRole.ASSISTANT,
-            content=turn.reply,
-            backend=turn.backend,
-            model=turn.model,
-            refs=turn.references,
-        )
+    assistant_message = ChatMessage(
+        session_id=session_row.id,
+        role=ChatRole.ASSISTANT,
+        content=turn.reply,
+        backend=turn.backend,
+        model=turn.model,
+        refs=turn.references,
     )
-    if not session_row.title:
-        session_row.title = _make_title(message) if message else _make_title(f"Изображение: {saved[0]['name']}")
+    db.session.add(assistant_message)
+    session_row.turn_started_at = None  # ответ и снятие метки — одним коммитом
     db.session.commit()  # onupdate=utcnow сам обновит session_row.updated_at
 
     return jsonify(
@@ -341,8 +429,51 @@ def _run_turn(session_row: ChatSession, message: str, saved: list[dict]):
             "title": session_row.title,
             "refs": turn.references,
             "pending": chat_jobs.pending_count(session_row.id),
+            "user_message_id": progress["user_message_id"],
+            "assistant_message_id": assistant_message.id,
         }
     )
+
+
+def _message_payload(message: ChatMessage, attachments: dict[int, list[dict]]) -> dict:
+    return {
+        "id": message.id,
+        "role": message.role,
+        "content": message.content or "",
+        "backend": message.backend or "",
+        "model": message.model or "",
+        "refs": message.refs or [],
+        "images": attachments.get(message.id, []),
+        "time": local_dt(message.created_at, "time"),
+    }
+
+
+@bp.route("/<int:session_id>/state")
+@login_required
+def state(session_id: int):
+    """Опрос из chat.js, пока модель отвечает на сообщение (в том числе после перезагрузки страницы
+    или обрыва соединения): идёт ли ход ещё и какие сообщения с id > since уже есть в чате.
+
+    Если ход не удался, сообщение пользователя удалено на сервере — в ответе его уже нет, и
+    страница возвращает текст в поле ввода."""
+    session_row = _get_own_session(session_id)
+    since = request.args.get("since", 0, type=int) or 0
+    messages = db.session.scalars(
+        select(ChatMessage)
+        .where(ChatMessage.session_id == session_row.id, ChatMessage.id > since)
+        .order_by(ChatMessage.id)
+    ).all()
+    attachments = _attachment_urls(session_row, messages)
+    response = jsonify(
+        {
+            "busy": _turn_busy(session_row),
+            "title": session_row.title,
+            "messages": [_message_payload(m, attachments) for m in messages],
+            "pending": chat_jobs.pending_count(session_row.id),
+        }
+    )
+    response.headers["Cache-Control"] = "no-store"
+    return response
 
 
 @bp.route("/<int:session_id>/pending")
@@ -399,4 +530,4 @@ def _deliver(session_row: ChatSession, job, row) -> dict:
     db.session.add(message)
     session_row.updated_at = utcnow()  # чат поднимается в списке: пришёл результат
     db.session.commit()
-    return {"reply": reply, "backend": backend, "model": model, "refs": references}
+    return {"id": message.id, "reply": reply, "backend": backend, "model": model, "refs": references}

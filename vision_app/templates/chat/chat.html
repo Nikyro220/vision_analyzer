@@ -43,11 +43,15 @@
          data-csrf="{{ csrf_token() }}"
          data-pending-url="{{ url_for('chat.pending', session_id=session.id) }}"
          data-pending="{{ pending_analyses }}"
+         data-session-id="{{ session.id }}"
+         data-state-url="{{ url_for('chat.state', session_id=session.id) }}"
+         data-busy="{{ 1 if busy else 0 }}"
+         data-busy-since="{{ busy_since }}"
          data-max-images="{{ max_images }}"
          data-max-image-mb="{{ max_image_mb }}">
         <div class="chat-log" id="chat-log">
             {% for m in messages %}
-            <div class="chat-turn chat-turn-{{ m.role }}">
+            <div class="chat-turn chat-turn-{{ m.role }}" data-msg-id="{{ m.id }}">
                 <div class="chat-turn-head">
                     <span class="chat-turn-role">{{ 'вы' if m.role == 'user' else 'модель' }}</span>
                     <span class="chat-turn-time">{{ m.created_at|localdt('time') }}</span>
@@ -86,7 +90,7 @@
             <button type="submit" class="btn btn-primary" id="chat-send-btn">Отправить</button>
         </form>
         <div class="chat-composer-foot">
-            <span class="chat-composer-hint">Enter — отправить · Shift+Enter — новая строка · изображение можно перетащить или вставить из буфера</span>
+            <span class="chat-composer-hint">Enter — отправить · Shift+Enter — новая строка · ↑/↓ — прошлые сообщения · изображение можно перетащить или вставить из буфера</span>
             <p class="chat-error" id="chat-error" hidden></p>
         </div>
     </div>

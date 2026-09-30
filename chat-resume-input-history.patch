@@ -1,0 +1,966 @@
+diff --git a/README.md b/README.md
+index 367d4d5..e3749f0 100644
+--- a/README.md
++++ b/README.md
+@@ -150,6 +150,17 @@ cd inference && python server.py
+     Анализ попадает в обычную историю анализов (у него своя копия файла); лимит очереди
+     на пользователя действует и здесь. Если модель в момент доставки недоступна, в чат приходит
+     короткое сообщение с итогом без неё.
++  - **Строка ввода** (`static/js/chat.js`): стрелки ↑/↓ листают историю введённого, как в терминале
++    (история общая для всех чатов, последние 100 сообщений, хранится в `localStorage`); черновик
++    сохраняется отдельно для каждого чата и переживает перезагрузку (сами вложения — нет). Если отправка
++    не удалась (ошибка сервера анализа, обрыв связи, отказ сервера), текст и вложения возвращаются в
++    строку ввода.
++  - **Перезагрузка во время ответа модели не сбрасывает чат.** Сообщение пользователя сохраняется в БД
++    сразу, до вызова модели (а при ошибке хода откатывается), а чат помечается `ChatSession.turn_started_at`.
++    Пока модель отвечает, страница (в том числе после перезагрузки) показывает сообщение и «печатает…»
++    и опрашивает `GET /chat/<id>/state?since=<id>`, пока ответ не появится; параллельная отправка в тот же
++    чат отклоняется (`409`). Метка старше `CHAT_TURN_STALE_SECONDS` (20 минут, сервер упал посреди ответа)
++    считается устаревшей.
+ 
+ ### Переменные окружения (`vision_app/`)
+ 
+diff --git a/vision_app/blueprints/chat.py b/vision_app/blueprints/chat.py
+index 7ef21b3..48f45b4 100644
+--- a/vision_app/blueprints/chat.py
++++ b/vision_app/blueprints/chat.py
+@@ -3,6 +3,7 @@
+ from __future__ import annotations
+ 
+ import json
++from datetime import datetime, timedelta, timezone
+ from pathlib import Path
+ 
+ from flask import (
+@@ -17,7 +18,7 @@ from flask import (
+     url_for,
+ )
+ from flask_login import current_user, login_required
+-from sqlalchemy import select
++from sqlalchemy import func, or_, select, update
+ 
+ from .. import chat_images, chat_jobs
+ from ..chat_tools import ChatImage, attachment_note, delivery_message, run_chat_turn
+@@ -27,6 +28,7 @@ from ..models import ChatMessage, ChatRole, ChatSession, utcnow
+ from ..services import VisionApiError
+ from ..settings_store import get_analysis_target
+ from ..thumbs import ensure_thumb
++from ..utils import local_dt
+ 
+ bp = Blueprint("chat", __name__)
+ 
+@@ -34,6 +36,37 @@ bp = Blueprint("chat", __name__)
+ DEFAULT_IMAGE_MESSAGE = "Опиши прикреплённое изображение."  # если пользователь приложил картинку без текста
+ 
+ 
++def _aware(value: datetime) -> datetime:
++    """SQLite отдаёт DateTime без часового пояса; в БД мы всегда кладём UTC."""
++    return value if value.tzinfo is not None else value.replace(tzinfo=timezone.utc)
++
++
++def _turn_busy(session_row: ChatSession) -> bool:
++    """Модель сейчас отвечает на сообщение этого чата."""
++    started = session_row.turn_started_at
++    if started is None:
++        return False
++    return (utcnow() - _aware(started)).total_seconds() < conf("CHAT_TURN_STALE_SECONDS")
++
++
++def _claim_turn(session_id: int) -> bool:
++    """Атомарно помечает чат «модель отвечает». False — предыдущий ход ещё не закончен
++    (например, сообщение отправили из двух вкладок сразу)."""
++    now = utcnow()
++    cutoff = now - timedelta(seconds=conf("CHAT_TURN_STALE_SECONDS"))
++    claimed = db.session.execute(
++        update(ChatSession)
++        .where(
++            ChatSession.id == session_id,
++            or_(ChatSession.turn_started_at.is_(None), ChatSession.turn_started_at < cutoff),
++        )
++        .values(turn_started_at=now)
++        .execution_options(synchronize_session=False)
++    )
++    db.session.commit()
++    return claimed.rowcount == 1
++
++
+ def _own_sessions():
+     return db.session.scalars(
+         select(ChatSession)
+@@ -112,10 +145,10 @@ def _history_for_model(session_row: ChatSession, by_message: dict[int, list[Chat
+     return history
+ 
+ 
+-def _attachment_urls(session_row: ChatSession) -> dict[int, list[dict]]:
++def _attachment_urls(session_row: ChatSession, messages=None) -> dict[int, list[dict]]:
+     """message.id -> [{url, thumb_url, name}] для отрисовки вложений в шаблоне."""
+     out: dict[int, list[dict]] = {}
+-    for m in session_row.messages:
++    for m in session_row.messages if messages is None else messages:
+         for idx, item in enumerate(m.images or []):
+             if not isinstance(item, dict) or not item.get("path"):
+                 continue
+@@ -146,12 +179,24 @@ def view(session_id: int):
+     session_row = _get_own_session(session_id)
+     sessions = _own_sessions()
+     target_backend, target_model = get_analysis_target()
++
++    # Модель ещё отвечает (страницу перезагрузили посреди хода): сообщение пользователя уже в БД,
++    # chat.js покажет «печатает…» и дождётся ответа через GET .../state. busy_since — id, после
++    # которого искать сообщения этого хода (само сообщение пользователя и всё за ним).
++    busy = _turn_busy(session_row)
++    busy_since = 0
++    if busy:
++        last_user = next((m for m in reversed(session_row.messages) if m.role == ChatRole.USER), None)
++        busy_since = last_user.id - 1 if last_user is not None else 0
++
+     return render_template(
+         "chat/chat.html",
+         session=session_row,
+         sessions=sessions,
+         messages=session_row.messages,
+         attachments=_attachment_urls(session_row),
++        busy=busy,
++        busy_since=busy_since,
+         pending_analyses=chat_jobs.pending_count(session_row.id),
+         max_images=conf("CHAT_MAX_IMAGES_PER_MESSAGE"),
+         max_image_mb=conf("CHAT_MAX_IMAGE_BYTES") // (1024 * 1024),
+@@ -232,7 +277,11 @@ def delete_session(session_id: int):
+ @login_required
+ def send(session_id: int):
+     """Принимает сообщение: JSON {"message": ...} либо multipart/form-data с полями
+-    message и images (0..CHAT_MAX_IMAGES_PER_MESSAGE файлов). Хотя бы одно из двух обязательно."""
++    message и images (0..CHAT_MAX_IMAGES_PER_MESSAGE файлов). Хотя бы одно из двух обязательно.
++
++    Сообщение пользователя сохраняется в БД сразу, ДО обращения к модели, — так оно не пропадает,
++    если страницу перезагрузили, пока модель отвечает. Если ход не удался, сообщение (и вложения)
++    откатываются, а клиент получает ошибку и возвращает текст с картинками в поле ввода."""
+     session_row = _get_own_session(session_id)
+ 
+     if request.is_json:
+@@ -250,17 +299,21 @@ def send(session_id: int):
+         return jsonify({"error": f"Сообщение слишком длинное (максимум {max_len} символов)."}), 400
+ 
+     # Вложения сохраняем на диск ДО обращения к модели: инструмент analyze_image читает их
+-    # оттуда. Если ход не удался — файлы удаляются, в БД ничего не попадает.
++    # оттуда. Если ход не удался — файлы удаляются, в БД ничего не остаётся.
+     try:
+         saved = chat_images.validate_and_save(files)
+     except chat_images.AttachmentError as exc:
+         return jsonify({"error": str(exc)}), 400
+ 
++    if not _claim_turn(session_row.id):
++        _discard_attachments(session_row.id, saved)
++        return jsonify({"error": "Модель ещё отвечает на предыдущее сообщение — дождитесь ответа."}), 409
++
++    progress: dict = {}  # что успел сделать ход — нужно, чтобы аккуратно откатить его при сбое
+     try:
+-        return _run_turn(session_row, message, saved)
++        return _run_turn(session_row, message, saved, progress)
+     except Exception:
+-        db.session.rollback()
+-        _discard_attachments(session_row.id, saved)
++        _abort_turn(session_row.id, progress, saved)
+         raise
+ 
+ 
+@@ -276,7 +329,35 @@ def _discard_attachments(session_id: int, saved: list[dict]) -> None:
+     chat_images.remove_files(paths)
+ 
+ 
+-def _run_turn(session_row: ChatSession, message: str, saved: list[dict]):
++def _abort_turn(session_id: int, progress: dict, saved: list[dict]) -> None:
++    """Откат неудавшегося хода: удаляем уже сохранённое сообщение пользователя, снимаем метку
++    «модель отвечает», возвращаем чату пустой заголовок (если его дало это сообщение) и убираем
++    вложения. Безопасно вызывать, даже если ход упал до сохранения сообщения."""
++    try:
++        db.session.rollback()
++        message_id = progress.get("user_message_id")
++        if message_id:
++            message = db.session.get(ChatMessage, message_id)
++            if message is not None:
++                db.session.delete(message)
++                db.session.flush()
++        row = db.session.get(ChatSession, session_id)
++        if row is not None:
++            row.turn_started_at = None
++            if progress.get("title_set"):
++                left = db.session.scalar(
++                    select(func.count(ChatMessage.id)).where(ChatMessage.session_id == session_id)
++                )
++                if not left:
++                    row.title = ""
++        db.session.commit()
++    except Exception:  # noqa: BLE001 — откат не должен маскировать исходную ошибку
++        db.session.rollback()
++        current_app.logger.exception("chat: не удалось откатить неудавшийся ход")
++    _discard_attachments(session_id, saved)
++
++
++def _run_turn(session_row: ChatSession, message: str, saved: list[dict], progress: dict):
+     all_images, by_message = _session_images(session_row)
+     new_images = [
+         ChatImage(
+@@ -292,6 +373,7 @@ def _run_turn(session_row: ChatSession, message: str, saved: list[dict]):
+ 
+     # Контекст для модели — уже сохранённые сообщения ЭТОЙ сессии (без нового,
+     # оно передаётся отдельным полем 'message', как ожидает inference/chat.py).
++    # Собираем ДО сохранения нового сообщения ниже.
+     history = _history_for_model(session_row, by_message)
+ 
+     model_message = message or (DEFAULT_IMAGE_MESSAGE if new_images else "")
+@@ -303,6 +385,16 @@ def _run_turn(session_row: ChatSession, message: str, saved: list[dict]):
+ 
+     target_backend, target_model = get_analysis_target()
+ 
++    # Сообщение пользователя сохраняем сразу: после перезагрузки страницы оно на месте, а ответ
++    # модели дорисуется, когда будет готов (GET .../state). При сбое хода оно откатывается (_abort_turn).
++    user_message = ChatMessage(session_id=session_row.id, role=ChatRole.USER, content=message, images=saved)
++    db.session.add(user_message)
++    if not session_row.title:
++        session_row.title = _make_title(message) if message else _make_title(f"Изображение: {saved[0]['name']}")
++        progress["title_set"] = True
++    db.session.commit()
++    progress["user_message_id"] = user_message.id
++
+     # Модель сама решает, нужны ли ей данные из истории анализов или (только если пользователь
+     # явно попросил) постановка изображения в очередь анализа: при необходимости она присылает
+     # JSON-вызов инструмента, мы его выполняем (с проверкой прав) и повторно вызываем модель —
+@@ -314,23 +406,19 @@ def _run_turn(session_row: ChatSession, message: str, saved: list[dict]):
+         )
+     except VisionApiError as exc:
+         current_app.logger.warning("chat: ошибка сервера анализа: %s", exc)
+-        _discard_attachments(session_row.id, saved)
++        _abort_turn(session_row.id, progress, saved)
+         return jsonify({"error": str(exc)}), 502
+ 
+-    user_message = ChatMessage(session_id=session_row.id, role=ChatRole.USER, content=message, images=saved)
+-    db.session.add(user_message)
+-    db.session.add(
+-        ChatMessage(
+-            session_id=session_row.id,
+-            role=ChatRole.ASSISTANT,
+-            content=turn.reply,
+-            backend=turn.backend,
+-            model=turn.model,
+-            refs=turn.references,
+-        )
++    assistant_message = ChatMessage(
++        session_id=session_row.id,
++        role=ChatRole.ASSISTANT,
++        content=turn.reply,
++        backend=turn.backend,
++        model=turn.model,
++        refs=turn.references,
+     )
+-    if not session_row.title:
+-        session_row.title = _make_title(message) if message else _make_title(f"Изображение: {saved[0]['name']}")
++    db.session.add(assistant_message)
++    session_row.turn_started_at = None  # ответ и снятие метки — одним коммитом
+     db.session.commit()  # onupdate=utcnow сам обновит session_row.updated_at
+ 
+     return jsonify(
+@@ -341,8 +429,51 @@ def _run_turn(session_row: ChatSession, message: str, saved: list[dict]):
+             "title": session_row.title,
+             "refs": turn.references,
+             "pending": chat_jobs.pending_count(session_row.id),
++            "user_message_id": progress["user_message_id"],
++            "assistant_message_id": assistant_message.id,
++        }
++    )
++
++
++def _message_payload(message: ChatMessage, attachments: dict[int, list[dict]]) -> dict:
++    return {
++        "id": message.id,
++        "role": message.role,
++        "content": message.content or "",
++        "backend": message.backend or "",
++        "model": message.model or "",
++        "refs": message.refs or [],
++        "images": attachments.get(message.id, []),
++        "time": local_dt(message.created_at, "time"),
++    }
++
++
++@bp.route("/<int:session_id>/state")
++@login_required
++def state(session_id: int):
++    """Опрос из chat.js, пока модель отвечает на сообщение (в том числе после перезагрузки страницы
++    или обрыва соединения): идёт ли ход ещё и какие сообщения с id > since уже есть в чате.
++
++    Если ход не удался, сообщение пользователя удалено на сервере — в ответе его уже нет, и
++    страница возвращает текст в поле ввода."""
++    session_row = _get_own_session(session_id)
++    since = request.args.get("since", 0, type=int) or 0
++    messages = db.session.scalars(
++        select(ChatMessage)
++        .where(ChatMessage.session_id == session_row.id, ChatMessage.id > since)
++        .order_by(ChatMessage.id)
++    ).all()
++    attachments = _attachment_urls(session_row, messages)
++    response = jsonify(
++        {
++            "busy": _turn_busy(session_row),
++            "title": session_row.title,
++            "messages": [_message_payload(m, attachments) for m in messages],
++            "pending": chat_jobs.pending_count(session_row.id),
+         }
+     )
++    response.headers["Cache-Control"] = "no-store"
++    return response
+ 
+ 
+ @bp.route("/<int:session_id>/pending")
+@@ -399,4 +530,4 @@ def _deliver(session_row: ChatSession, job, row) -> dict:
+     db.session.add(message)
+     session_row.updated_at = utcnow()  # чат поднимается в списке: пришёл результат
+     db.session.commit()
+-    return {"reply": reply, "backend": backend, "model": model, "refs": references}
++    return {"id": message.id, "reply": reply, "backend": backend, "model": model, "refs": references}
+diff --git a/vision_app/config.py b/vision_app/config.py
+index 78df8c2..1c6d6ad 100644
+--- a/vision_app/config.py
++++ b/vision_app/config.py
+@@ -139,6 +139,9 @@ class Config:
+     CHAT_MAX_MESSAGE_LEN = 8000  # символов в одном сообщении (см. также maxlength в chat.html)
+     CHAT_MAX_HISTORY_MESSAGES = 80  # сколько последних сообщений сессии уходит модели как контекст
+     CHAT_TITLE_LEN = 60  # длина автоназвания чата
++    # Метка ChatSession.turn_started_at старше этого срока считается «протухшей» (сервер упал или
++    # был перезапущен посреди ответа модели) — чат снова принимает сообщения.
++    CHAT_TURN_STALE_SECONDS = 20 * 60
+     CHAT_MAX_TOOL_CALLS = 4  # сколько раз за один ход модель может обратиться к инструментам
+ 
+     # Вложения-изображения чата (chat_images.py).
+diff --git a/vision_app/models.py b/vision_app/models.py
+index 34428c1..9873877 100644
+--- a/vision_app/models.py
++++ b/vision_app/models.py
+@@ -274,6 +274,12 @@ class ChatSession(db.Model):
+     # Обновляется при каждом новом сообщении — по этому полю сортируется список чатов.
+     updated_at = db.Column(db.DateTime, nullable=False, default=utcnow, onupdate=utcnow, index=True)
+ 
++    # Когда модель начала отвечать на последнее сообщение (NULL — сейчас не отвечает). Сообщение
++    # пользователя сохраняется в БД сразу, ещё до ответа модели, поэтому после перезагрузки
++    # страница по этой метке понимает, что ответ ещё готовится, и дожидается его (GET .../state).
++    # Метка «протухает» (config.py: CHAT_TURN_STALE_SECONDS), если сервер упал посреди хода.
++    turn_started_at = db.Column(db.DateTime, nullable=True)
++
+     messages = db.relationship(
+         "ChatMessage",
+         backref="session",
+diff --git a/vision_app/static/js/chat.js b/vision_app/static/js/chat.js
+index 7fc307f..c0e4417 100644
+--- a/vision_app/static/js/chat.js
++++ b/vision_app/static/js/chat.js
+@@ -1,6 +1,14 @@
+-/* Страница «Чат». История хранится на сервере (ChatSession/ChatMessage) —
+- * этот файл только отправляет сообщения в уже открытую сессию и подрисовывает
+- * ответ, ничего не кладёт в localStorage.
++/* Страница «Чат». История переписки хранится на сервере (ChatSession/ChatMessage) —
++ * этот файл отправляет сообщения в уже открытую сессию и подрисовывает ответ.
++ * В localStorage лежит только то, что относится к строке ввода:
++ *   - черновик (vision_chat:draft:<id чата>) — не пропадает при перезагрузке;
++ *   - «исходящее» (vision_chat:outbox:<id чата>) — текст, который сейчас уходит модели: если ход
++ *     не удался, а страницу успели перезагрузить, текст возвращается в поле ввода;
++ *   - история ввода (vision_chat:history) — листается стрелками ↑/↓, как в терминале.
++ *
++ * Сообщение пользователя сервер сохраняет сразу, до ответа модели. Поэтому после перезагрузки
++ * посреди ответа страница показывает сообщение и «печатает…» и дожидается ответа опросом
++ * GET .../state (resumeTurn). При ошибке текст и вложения возвращаются в поле ввода (failTurn).
+  *
+  * Вложения: изображения выбираются скрепкой, перетаскиванием или вставкой из буфера,
+  * показываются превью-чипами над полем ввода и уходят вместе с сообщением как
+@@ -39,8 +47,15 @@
+   var pendingUrl = root.dataset.pendingUrl;
+   var pendingJobs = parseInt(root.dataset.pending, 10) || 0; // сколько изображений ещё ждут анализа
+ 
++  var stateUrl = root.dataset.stateUrl;
++  var sessionId = root.dataset.sessionId || "0";
++  var serverBusy = root.dataset.busy === "1"; // страницу открыли, пока модель ещё отвечает
++  var busySince = parseInt(root.dataset.busySince, 10) || 0;
++  var emptyHint = document.getElementById("chat-empty");
++
+   var sending = false;
+   var pending = []; // вложения, ещё не отправленные: [{file, url}]
++  var seen = {}; // id сообщений, уже нарисованных в логе
+ 
+   var ROLE_LABELS = { user: "вы", assistant: "модель", error: "ошибка" };
+ 
+@@ -50,6 +65,142 @@
+     return node;
+   }
+ 
++  // ---------- localStorage: черновик, «исходящее», история ввода ----------
++
++  var LS_PREFIX = "vision_chat:";
++  var draftKey = "draft:" + sessionId;
++  var outboxKey = "outbox:" + sessionId;
++  var HISTORY_KEY = "history";
++  var HISTORY_MAX = 100;
++  var OUTBOX_MAX_AGE_MS = 60 * 60 * 1000;
++
++  // localStorage может быть недоступен (приватный режим, запрет в настройках) — тогда всё это
++  // просто не работает, но чат остаётся рабочим.
++  function lsGet(key) {
++    try {
++      return window.localStorage.getItem(LS_PREFIX + key);
++    } catch (e) {
++      return null;
++    }
++  }
++
++  function lsSet(key, value) {
++    try {
++      window.localStorage.setItem(LS_PREFIX + key, value);
++    } catch (e) {
++      /* переполнено или запрещено — не страшно */
++    }
++  }
++
++  function lsRemove(key) {
++    try {
++      window.localStorage.removeItem(LS_PREFIX + key);
++    } catch (e) {
++      /* см. выше */
++    }
++  }
++
++  function saveDraft() {
++    if (input.value) lsSet(draftKey, input.value);
++    else lsRemove(draftKey);
++  }
++
++  function readOutbox() {
++    var raw = lsGet(outboxKey);
++    if (!raw) return null;
++    try {
++      var data = JSON.parse(raw);
++      return data && typeof data.text === "string" ? data : null;
++    } catch (e) {
++      return null;
++    }
++  }
++
++  function writeOutbox(text, since) {
++    lsSet(outboxKey, JSON.stringify({ text: text, since: since, ts: Date.now() }));
++  }
++
++  // История ввода — общая для всех чатов, как история команд в терминале.
++  var sentHistory = (function () {
++    try {
++      var list = JSON.parse(lsGet(HISTORY_KEY) || "[]");
++      return Array.isArray(list)
++        ? list.filter(function (item) {
++            return typeof item === "string" && item;
++          })
++        : [];
++    } catch (e) {
++      return [];
++    }
++  })();
++  var histPos = sentHistory.length; // == length — не листаем, в поле обычный ввод
++  var histDraft = ""; // что было в поле, когда начали листать историю
++
++  // Первый запуск (истории ещё нет): берём то, что уже написано в открытом чате.
++  function seedHistoryFromLog() {
++    if (sentHistory.length) return;
++    var nodes = log.querySelectorAll(".chat-turn-user .chat-turn-text[data-raw-text]");
++    for (var i = 0; i < nodes.length; i += 1) {
++      var text = nodes[i].textContent;
++      if (text && sentHistory[sentHistory.length - 1] !== text) sentHistory.push(text);
++    }
++    sentHistory = sentHistory.slice(-HISTORY_MAX);
++    histPos = sentHistory.length;
++  }
++
++  function rememberSent(text) {
++    if (text && sentHistory[sentHistory.length - 1] !== text) sentHistory.push(text);
++    if (sentHistory.length > HISTORY_MAX) sentHistory = sentHistory.slice(-HISTORY_MAX);
++    lsSet(HISTORY_KEY, JSON.stringify(sentHistory));
++    histPos = sentHistory.length;
++    histDraft = "";
++  }
++
++  function setInputValue(value) {
++    input.value = value;
++    autoGrow();
++    input.setSelectionRange(value.length, value.length);
++  }
++
++  // Шаг по истории: dir = -1 — к более старым, +1 — к более новым. Возвращает true, если нажатие
++  // «съедено» историей; false — пусть стрелка работает как обычно (двигает каретку по тексту).
++  function historyStep(dir) {
++    if (sending || !sentHistory.length) return false;
++    var start = input.selectionStart;
++    if (start !== input.selectionEnd) return false; // есть выделение — не мешаем
++    var value = input.value;
++    var browsing = histPos < sentHistory.length;
++
++    if (dir < 0) {
++      // Вверх: поле пустое, каретка в самом начале или (при листании) на первой строке.
++      var onFirstLine = value.slice(0, start).indexOf("\n") === -1;
++      if (!(!value || start === 0 || (browsing && onFirstLine))) return false;
++      if (histPos === 0) return true; // дошли до самого старого
++      if (!browsing) histDraft = value;
++      histPos -= 1;
++      setInputValue(sentHistory[histPos]);
++      return true;
++    }
++
++    // Вниз: только во время листания и когда каретка на последней строке.
++    if (!browsing || value.indexOf("\n", start) !== -1) return false;
++    histPos += 1;
++    setInputValue(histPos >= sentHistory.length ? histDraft : sentHistory[histPos]);
++    return true;
++  }
++
++  // Вернуть текст и вложения в строку ввода (после ошибки отправки).
++  function restoreComposer(text, attachments) {
++    if (text) input.value = text + (input.value ? "\n" + input.value : "");
++    if (attachments && attachments.length) {
++      pending = attachments.slice();
++      renderAttachments();
++    }
++    autoGrow();
++    saveDraft();
++    input.setSelectionRange(input.value.length, input.value.length);
++  }
++
+   // На случай, если markdown.js по какой-то причине не подключился —
+   // не оставляем пользователя без текста, просто без форматирования.
+   function escapeForFallback(text) {
+@@ -149,17 +300,23 @@
+ 
+   // Реплика — не пузырь, а строка «журнала сессии»: роль + время сверху
+   // (моноширинным, как остальные технические метки в панели), текст снизу.
+-  function renderTurn(role, text, meta, refs, images) {
+-    var emptyHint = document.getElementById("chat-empty");
+-    if (emptyHint) emptyHint.remove();
++  // opts: {id} — id сообщения в БД (для реплик, которые уже сохранены на сервере), {time} — «ЧЧ:ММ».
++  function renderTurn(role, text, meta, refs, images, opts) {
++    opts = opts || {};
++    var hint = document.getElementById("chat-empty");
++    if (hint) hint.remove();
+ 
+     var turn = el("div", "chat-turn chat-turn-" + role);
++    if (opts.id) {
++      turn.dataset.msgId = String(opts.id);
++      seen[opts.id] = true;
++    }
+ 
+     var head = el("div", "chat-turn-head");
+     var roleEl = el("span", "chat-turn-role");
+     roleEl.textContent = ROLE_LABELS[role] || role;
+     var timeEl = el("span", "chat-turn-time");
+-    timeEl.textContent = nowHM();
++    timeEl.textContent = opts.time || nowHM();
+     head.appendChild(roleEl);
+     head.appendChild(timeEl);
+ 
+@@ -186,7 +343,7 @@
+         link.rel = "noopener noreferrer";
+         link.title = item.name || "";
+         var img = document.createElement("img");
+-        img.src = item.url;
++        img.src = item.thumb_url || item.url;
+         img.alt = item.name || "";
+         link.appendChild(img);
+         imagesEl.appendChild(link);
+@@ -205,11 +362,42 @@
+       turn.appendChild(refsEl);
+     }
+ 
+-    log.appendChild(turn);
++    // «Печатает…» всегда остаётся последней репликой: всё, что приходит, пока модель отвечает
++    // (например, результат анализа из очереди), встаёт перед ней.
++    var typing = log.querySelector(".chat-turn-pending");
++    if (typing) log.insertBefore(turn, typing);
++    else log.appendChild(turn);
+     log.scrollTop = log.scrollHeight;
+     return turn;
+   }
+ 
++  // Убрать реплику из лога (её сообщение не сохранилось / удалено на сервере).
++  function forgetTurn(node) {
++    if (node.dataset && node.dataset.msgId) delete seen[node.dataset.msgId];
++    node.remove();
++  }
++
++  // Лог опустел (например, первое сообщение не отправилось) — возвращаем подсказку «чат пуст».
++  function ensureEmptyHint() {
++    if (emptyHint && !emptyHint.parentNode && !log.querySelector(".chat-turn")) log.appendChild(emptyHint);
++  }
++
++  function noteExistingIds() {
++    var nodes = log.querySelectorAll(".chat-turn[data-msg-id]");
++    for (var i = 0; i < nodes.length; i += 1) {
++      seen[parseInt(nodes[i].dataset.msgId, 10)] = true;
++    }
++  }
++
++  function maxSeenId() {
++    var max = 0;
++    Object.keys(seen).forEach(function (key) {
++      var id = parseInt(key, 10);
++      if (id > max) max = id;
++    });
++    return max;
++  }
++
+   // Пока модель отвечает — реплика с тремя пульсирующими точками вместо текста.
+   function renderPending() {
+     var turn = renderTurn("assistant", "");
+@@ -330,8 +518,8 @@
+       .then(function (data) {
+         if (!data) return;
+         (data.messages || []).forEach(function (m) {
+-          var meta = m.backend ? m.backend + (m.model ? " · " + m.model : "") : "";
+-          renderTurn("assistant", m.reply || "", meta, m.refs);
++          if (m.id && seen[m.id]) return;
++          renderTurn("assistant", m.reply || "", messageMeta(m), m.refs, null, { id: m.id });
+         });
+         pendingJobs = data.pending || 0;
+       })
+@@ -358,8 +546,167 @@
+     }
+   });
+ 
++  // ---------- ход модели: отправка, ожидание ответа, разбор ошибок ----------
++  //
++  // turn — состояние одного хода: {since, text, attachments, userTurn, dotsTurn}
++  //   since       — id последнего сообщения чата до этого хода (по нему запрашиваем состояние);
++  //   text/attachments — что вернуть в поле ввода, если ход не удался;
++  //   userTurn    — реплика пользователя, нарисованная сразу при отправке (ещё без id);
++  //   dotsTurn    — реплика «печатает…».
++
++  var STATE_POLL_MS = 2000;
++  var STATE_MAX_FAILS = 4; // столько опросов подряд без связи — считаем, что сервер недоступен
++  var TURN_FAILED_TEXT = "Не удалось получить ответ от модели — сообщение возвращено в поле ввода.";
++
++  function messageMeta(m) {
++    return m.backend ? m.backend + (m.model ? " · " + m.model : "") : "";
++  }
++
++  function endTurn() {
++    setSending(false);
++    input.focus();
++  }
++
++  function dropDots(turn) {
++    if (turn.dotsTurn) {
++      turn.dotsTurn.remove();
++      turn.dotsTurn = null;
++    }
++  }
++
++  // Ответ получен.
++  function finishTurnOk(turn, data) {
++    dropDots(turn);
++    lsRemove(outboxKey);
++    updateSidebarTitle(data.title);
++    pendingJobs = data.pending || 0;
++    schedulePoll();
++    endTurn();
++  }
++
++  // Ход не удался: всё, что пользователь отправил, возвращается в строку ввода.
++  function failTurn(turn, text) {
++    dropDots(turn);
++    if (turn.userTurn) forgetTurn(turn.userTurn);
++    ensureEmptyHint();
++    var outbox = readOutbox();
++    lsRemove(outboxKey);
++    restoreComposer(turn.text || (outbox ? outbox.text : ""), turn.attachments);
++    showError(text);
++    endTurn();
++  }
++
++  // Сверяет лог с тем, что сейчас на сервере (сообщения с id > turn.since): дорисовывает новые
++  // и убирает реплики, которых на сервере уже нет (сообщение неудавшегося хода откатывается).
++  function applyServerMessages(messages, turn) {
++    var serverIds = {};
++    messages.forEach(function (m) {
++      serverIds[m.id] = true;
++    });
++
++    var nodes = log.querySelectorAll(".chat-turn[data-msg-id]");
++    Array.prototype.forEach.call(nodes, function (node) {
++      var id = parseInt(node.dataset.msgId, 10);
++      if (id > turn.since && !serverIds[id]) forgetTurn(node);
++    });
++
++    messages.forEach(function (m) {
++      if (seen[m.id]) return;
++      // Реплика пользователя, нарисованная при отправке, — это то же самое сообщение: привязываем id.
++      if (m.role === "user" && turn.userTurn && !turn.userTurn.dataset.msgId) {
++        turn.userTurn.dataset.msgId = String(m.id);
++        seen[m.id] = true;
++        return;
++      }
++      renderTurn(m.role, m.content, messageMeta(m), m.refs, m.images, { id: m.id, time: m.time });
++    });
++    ensureEmptyHint();
++  }
++
++  // Опрос завершён (модель больше не отвечает): успех это или неудача?
++  function settleTurn(turn, data) {
++    var messages = data.messages || [];
++    var userMsg = null;
++    for (var i = 0; i < messages.length; i += 1) {
++      if (messages[i].role === "user") {
++        userMsg = messages[i];
++        break;
++      }
++    }
++
++    if (!userMsg) {
++      // Сообщения пользователя на сервере нет — ход не удался и был откатан.
++      failTurn(turn, TURN_FAILED_TEXT);
++      return;
++    }
++    var answered = messages.some(function (m) {
++      return m.role === "assistant" && m.id > userMsg.id;
++    });
++    if (!answered) {
++      // Ход оборвался, не оставив ответа (например, сервер перезапустили): сообщение осталось в чате.
++      dropDots(turn);
++      lsRemove(outboxKey);
++      showError("Ответ модели не получен (возможно, сервер был перезапущен). Отправьте сообщение ещё раз.");
++      endTurn();
++      return;
++    }
++    finishTurnOk(turn, data);
++  }
++
++  // Ждём ответа модели, спрашивая у сервера. Так страница переживает перезагрузку и обрыв связи
++  // посреди хода: сервер доделывает ход сам, а ответ появляется в чате, когда готов.
++  function resumeTurn(turn) {
++    var fails = 0;
++    setSending(true);
++    if (!turn.dotsTurn) turn.dotsTurn = renderPending();
++
++    function tick() {
++      fetch(stateUrl + "?since=" + encodeURIComponent(turn.since), {
++        credentials: "same-origin",
++        headers: { Accept: "application/json" },
++        cache: "no-store",
++      })
++        .then(function (r) {
++          if (!r.ok) throw new Error("state " + r.status);
++          return r.json();
++        })
++        .then(
++          function (data) {
++            fails = 0;
++            updateSidebarTitle(data.title);
++            applyServerMessages(data.messages || [], turn);
++            if (data.busy) {
++              window.setTimeout(tick, STATE_POLL_MS);
++              return;
++            }
++            settleTurn(turn, data);
++          },
++          function () {
++            fails += 1;
++            if (fails >= STATE_MAX_FAILS) {
++              failTurn(turn, "Не удалось связаться с сервером. Проверьте соединение и повторите.");
++              return;
++            }
++            window.setTimeout(tick, STATE_POLL_MS * fails);
++          }
++        );
++    }
++    tick();
++  }
++
+   function sendMessage(message, attachments) {
+-    renderTurn(
++    var turn = {
++      since: maxSeenId(),
++      text: message,
++      attachments: attachments,
++      userTurn: null,
++      dotsTurn: null,
++    };
++    // Текст уже ушёл из поля ввода, но пока ответа нет — держим его в «исходящем»:
++    // если ход не удастся, а страницу к тому моменту перезагрузят, текст вернётся в поле.
++    writeOutbox(message, turn.since);
++
++    turn.userTurn = renderTurn(
+       "user",
+       message,
+       "",
+@@ -370,8 +717,7 @@
+     );
+     showError("");
+     setSending(true);
+-
+-    var pendingTurn = renderPending();
++    turn.dotsTurn = renderPending();
+ 
+     // multipart: без ручного Content-Type — браузер сам поставит boundary.
+     var formData = new FormData();
+@@ -400,27 +746,56 @@
+           }
+         );
+       })
+-      .then(function (result) {
+-        pendingTurn.remove();
+-        if (!result.ok) {
+-          showError((result.data && result.data.error) || "Не удалось получить ответ.");
+-          return;
++      .then(
++        function (result) {
++          if (!result.ok) {
++            failTurn(turn, (result.data && result.data.error) || "Не удалось получить ответ.");
++            return;
++          }
++          var data = result.data || {};
++          dropDots(turn);
++          if (data.user_message_id) {
++            turn.userTurn.dataset.msgId = String(data.user_message_id);
++            seen[data.user_message_id] = true;
++          }
++          renderTurn("assistant", data.reply || "", messageMeta(data), data.refs, null, {
++            id: data.assistant_message_id,
++          });
++          finishTurnOk(turn, data);
++        },
++        function () {
++          // Связь оборвалась, но сервер мог принять сообщение и продолжает отвечать — спрашиваем у него.
++          resumeTurn(turn);
+         }
+-        var data = result.data || {};
+-        var meta = data.backend ? data.backend + (data.model ? " · " + data.model : "") : "";
+-        renderTurn("assistant", data.reply || "", meta, data.refs);
+-        updateSidebarTitle(data.title);
+-        pendingJobs = data.pending || 0;
+-        schedulePoll();
+-      })
+-      .catch(function () {
+-        pendingTurn.remove();
+-        showError("Не удалось связаться с сервером. Проверьте соединение и повторите.");
+-      })
+-      .finally(function () {
+-        setSending(false);
+-        input.focus();
++      );
++  }
++
++  // Страницу открыли/перезагрузили: если модель ещё отвечала или ход закончился в её отсутствие —
++  // разбираемся, чем он кончился.
++  function resumeAfterLoad() {
++    var outbox = readOutbox();
++    if (serverBusy) {
++      resumeTurn({
++        since: busySince,
++        text: outbox ? outbox.text : "",
++        attachments: [],
++        userTurn: null,
++        dotsTurn: null,
+       });
++      return;
++    }
++    if (!outbox) return;
++
++    lsRemove(outboxKey);
++    if (Date.now() - (outbox.ts || 0) > OUTBOX_MAX_AGE_MS) return;
++    var userNodes = log.querySelectorAll(".chat-turn-user[data-msg-id]");
++    for (var i = 0; i < userNodes.length; i += 1) {
++      if (parseInt(userNodes[i].dataset.msgId, 10) > (outbox.since || 0)) return; // сообщение дошло
++    }
++    if (outbox.text) {
++      restoreComposer(outbox.text, []);
++      showError("Не удалось отправить прошлое сообщение — текст возвращён в поле ввода.");
++    }
+   }
+ 
+   form.addEventListener("submit", function (e) {
+@@ -429,8 +804,10 @@
+     var message = input.value.trim();
+     if (!message && !pending.length) return;
+     var attachments = pending.slice();
++    rememberSent(message);
+     input.value = "";
+     autoGrow();
++    lsRemove(draftKey);
+     clearPending();
+     sendMessage(message, attachments);
+   });
+@@ -486,15 +863,43 @@
+     if (!sending && e.dataTransfer.files.length) addFiles(e.dataTransfer.files);
+   });
+ 
+-  input.addEventListener("input", autoGrow);
++  input.addEventListener("input", function () {
++    autoGrow();
++    saveDraft();
++    if (!input.value) {
++      // Поле очистили вручную — выходим из режима листания истории.
++      histPos = sentHistory.length;
++      histDraft = "";
++    }
++  });
+   input.addEventListener("keydown", function (e) {
+     if (e.key === "Enter" && !e.shiftKey) {
+       e.preventDefault();
+       form.requestSubmit ? form.requestSubmit() : form.dispatchEvent(new Event("submit", { cancelable: true }));
++      return;
++    }
++    // ↑/↓ — листать историю введённого, как в терминале (см. historyStep).
++    if (
++      (e.key === "ArrowUp" || e.key === "ArrowDown") &&
++      !e.shiftKey && !e.ctrlKey && !e.altKey && !e.metaKey && !e.isComposing
++    ) {
++      if (historyStep(e.key === "ArrowUp" ? -1 : 1)) e.preventDefault();
+     }
+   });
+ 
++  noteExistingIds();
++  seedHistoryFromLog(); // до renderExistingTurns: он заменяет исходный текст реплик разметкой
+   renderExistingTurns();
+   log.scrollTop = log.scrollHeight;
++
++  // Черновик: то, что печатали и не отправили, не пропадает при перезагрузке.
++  var savedDraft = lsGet(draftKey);
++  if (savedDraft && !input.value) {
++    input.value = savedDraft;
++    autoGrow();
++    input.setSelectionRange(input.value.length, input.value.length);
++  }
++
++  resumeAfterLoad();
+   if (pendingJobs > 0) pollPending(); // страницу открыли/перезагрузили, пока анализ шёл — сразу проверяем
+ })();
+\ No newline at end of file
+diff --git a/vision_app/templates/chat/chat.html b/vision_app/templates/chat/chat.html
+index 5f56bc0..10ae13d 100644
+--- a/vision_app/templates/chat/chat.html
++++ b/vision_app/templates/chat/chat.html
+@@ -43,11 +43,15 @@
+          data-csrf="{{ csrf_token() }}"
+          data-pending-url="{{ url_for('chat.pending', session_id=session.id) }}"
+          data-pending="{{ pending_analyses }}"
++         data-session-id="{{ session.id }}"
++         data-state-url="{{ url_for('chat.state', session_id=session.id) }}"
++         data-busy="{{ 1 if busy else 0 }}"
++         data-busy-since="{{ busy_since }}"
+          data-max-images="{{ max_images }}"
+          data-max-image-mb="{{ max_image_mb }}">
+         <div class="chat-log" id="chat-log">
+             {% for m in messages %}
+-            <div class="chat-turn chat-turn-{{ m.role }}">
++            <div class="chat-turn chat-turn-{{ m.role }}" data-msg-id="{{ m.id }}">
+                 <div class="chat-turn-head">
+                     <span class="chat-turn-role">{{ 'вы' if m.role == 'user' else 'модель' }}</span>
+                     <span class="chat-turn-time">{{ m.created_at|localdt('time') }}</span>
+@@ -86,7 +90,7 @@
+             <button type="submit" class="btn btn-primary" id="chat-send-btn">Отправить</button>
+         </form>
+         <div class="chat-composer-foot">
+-            <span class="chat-composer-hint">Enter — отправить · Shift+Enter — новая строка · изображение можно перетащить или вставить из буфера</span>
++            <span class="chat-composer-hint">Enter — отправить · Shift+Enter — новая строка · ↑/↓ — прошлые сообщения · изображение можно перетащить или вставить из буфера</span>
+             <p class="chat-error" id="chat-error" hidden></p>
+         </div>
+     </div>

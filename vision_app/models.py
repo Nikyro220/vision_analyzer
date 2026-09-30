@@ -274,6 +274,12 @@ class ChatSession(db.Model):
     # Обновляется при каждом новом сообщении — по этому полю сортируется список чатов.
     updated_at = db.Column(db.DateTime, nullable=False, default=utcnow, onupdate=utcnow, index=True)
 
+    # Когда модель начала отвечать на последнее сообщение (NULL — сейчас не отвечает). Сообщение
+    # пользователя сохраняется в БД сразу, ещё до ответа модели, поэтому после перезагрузки
+    # страница по этой метке понимает, что ответ ещё готовится, и дожидается его (GET .../state).
+    # Метка «протухает» (config.py: CHAT_TURN_STALE_SECONDS), если сервер упал посреди хода.
+    turn_started_at = db.Column(db.DateTime, nullable=True)
+
     messages = db.relationship(
         "ChatMessage",
         backref="session",
