@@ -23,7 +23,7 @@
                 <div class="chat-session-row {% if s.id == session.id %}is-active{% endif %}">
                     <a href="{{ url_for('chat.view', session_id=s.id) }}" class="chat-session-link">
                         <span class="chat-session-name" title="{{ s.display_title }}">{{ s.display_title|trunc(30) }}</span>
-                        <span class="chat-session-date">{{ s.updated_at|localdt('%d.%m · %H:%M') }}</span>
+                        <span class="chat-session-date">{{ s.updated_at|localdt('chat') }}</span>
                     </a>
                     <form method="post" action="{{ url_for('chat.delete_session', session_id=s.id) }}"
                           class="chat-session-delete" data-confirm="Удалить этот чат безвозвратно?">
@@ -50,7 +50,7 @@
             <div class="chat-turn chat-turn-{{ m.role }}">
                 <div class="chat-turn-head">
                     <span class="chat-turn-role">{{ 'вы' if m.role == 'user' else 'модель' }}</span>
-                    <span class="chat-turn-time">{{ m.created_at|localdt('%H:%M') }}</span>
+                    <span class="chat-turn-time">{{ m.created_at|localdt('time') }}</span>
                 </div>
                 {% if attachments.get(m.id) %}
                 <div class="chat-turn-images">
@@ -81,7 +81,7 @@
             <button type="button" class="btn btn-secondary chat-attach-btn" id="chat-attach-btn"
                     title="Прикрепить изображение (до {{ max_images }} шт., до {{ max_image_mb }} МБ каждое)"
                     aria-label="Прикрепить изображение">📎</button>
-            <textarea id="chat-input" class="chat-input" rows="1" maxlength="8000"
+            <textarea id="chat-input" class="chat-input" rows="1" maxlength="{{ config.CHAT_MAX_MESSAGE_LEN }}"
                       placeholder="Сообщение…" autofocus></textarea>
             <button type="submit" class="btn btn-primary" id="chat-send-btn">Отправить</button>
         </form>

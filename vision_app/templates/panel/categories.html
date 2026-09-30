@@ -57,7 +57,15 @@
                 </td>
             </tr>
             {% else %}
-            <tr><td colspan="6" class="empty-hint">Категорий пока нет.</td></tr>
+            <tr>
+                <td colspan="6" class="empty-hint">
+                    Категорий пока нет.
+                    <form method="post" action="{{ url_for('panel.categories_import') }}" class="form-inline-tight">
+                        {{ delete_form.hidden_tag() }}
+                        <button type="submit" class="btn btn-secondary btn-sm">Загрузить с сервера анализа</button>
+                    </form>
+                </td>
+            </tr>
             {% endfor %}
         </tbody>
     </table>

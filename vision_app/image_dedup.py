@@ -27,12 +27,13 @@ from pathlib import Path
 from flask import current_app
 from sqlalchemy import select, update
 
+from .config import Config
 from .extensions import db
 from .models import AnalysisResult
 
 log = logging.getLogger("vision_app.image_dedup")
 
-_CHUNK = 1024 * 1024
+_CHUNK = Config.FILE_HASH_CHUNK_BYTES
 
 
 def sha256_bytes(data: bytes) -> str:
@@ -47,7 +48,7 @@ def _hash_file(path: Path) -> str:
     return digest.hexdigest()
 
 
-def backfill_hashes(limit: int | None = 200) -> tuple[int, int]:
+def backfill_hashes(limit: int | None = Config.DEDUP_DEFAULT_BATCH) -> tuple[int, int]:
     """Считает image_hash для записей, где его ещё нет. Возвращает (посчитано, файл потерян).
     Потерянные файлы получают пустую строку — чтобы не пытаться снова и не склеивать их между
     собой. Нужен app context."""
@@ -94,11 +95,11 @@ def idle_backfill(app) -> None:
         return
     try:
         with app.app_context():
-            hashed, missing = backfill_hashes(limit=100)
-        _next_idle_run = 0.0 if (hashed or missing) else now + 600
+            hashed, missing = backfill_hashes(limit=Config.DEDUP_IDLE_BATCH)
+        _next_idle_run = 0.0 if (hashed or missing) else now + Config.DEDUP_IDLE_PAUSE
     except Exception:  # noqa: BLE001
         log.exception("image_dedup: сбой фонового подсчёта хешей")
-        _next_idle_run = now + 600
+        _next_idle_run = now + Config.DEDUP_IDLE_PAUSE
     finally:
         _idle_lock.release()
 

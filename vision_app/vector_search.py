@@ -32,15 +32,17 @@ from sqlalchemy import delete, func, or_, select
 from sqlalchemy.exc import IntegrityError
 
 from . import services
+from .config import Config
 from .extensions import db
 from .models import AnalysisEmbedding, AnalysisResult, Status, utcnow
 from .services import EmbeddingNotReady, VisionApiError
 
 log = logging.getLogger("vision_app.vector_search")
 
-_BATCH = 32  # сервер принимает максимум 64 текста за запрос; берём с запасом
-_MAX_TEXT_CHARS = 4000  # серверный лимит — 8000; модель всё равно видит только начало
-_MAX_MATCHED_IDS = 500  # сколько id выше порога держим для статистики by_risk
+# Размеры батча/текста/выдачи и паузы фоновой индексации — в config.py (EMBEDDING_*).
+_BATCH = Config.EMBEDDING_BATCH_SIZE
+_MAX_TEXT_CHARS = Config.EMBEDDING_MAX_TEXT_CHARS
+_MAX_MATCHED_IDS = Config.EMBEDDING_MAX_MATCHED_IDS
 
 
 # ----------------------------------------------------------------------------
@@ -220,17 +222,21 @@ def idle_backfill(app) -> None:
         return
     try:
         with app.app_context():
-            result = backfill(max_batches=10)
+            result = backfill(max_batches=Config.EMBEDDING_IDLE_BATCHES)
         if result.reason:
             # модель качается/сервер лежит/эмбеддинги выключены — не долбим сервер каждые 5 с
-            _next_idle_run = now + (600 if result.reason.startswith(("state=disabled", "state=unavailable")) else 60)
+            _next_idle_run = now + (
+                Config.EMBEDDING_IDLE_PAUSE_UNAVAILABLE
+                if result.reason.startswith(("state=disabled", "state=unavailable"))
+                else Config.EMBEDDING_IDLE_PAUSE_RETRY
+            )
         elif result.indexed:
             _next_idle_run = 0.0  # могло остаться ещё — продолжим на следующем холостом цикле
         else:
-            _next_idle_run = now + 300
+            _next_idle_run = now + Config.EMBEDDING_IDLE_PAUSE_NOTHING
     except Exception:  # noqa: BLE001
         log.exception("vector_search: сбой фоновой индексации")
-        _next_idle_run = now + 60
+        _next_idle_run = now + Config.EMBEDDING_IDLE_PAUSE_RETRY
     finally:
         _idle_lock.release()
 

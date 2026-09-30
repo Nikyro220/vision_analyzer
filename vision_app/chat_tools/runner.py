@@ -10,7 +10,7 @@
      с проверкой прав на сервере) и повторно вызываем модель: история
      дополняется её вызовом и результатом от роли user с пометкой
      [TOOL RESULT] (сервер инференса принимает в history только user/assistant).
-  4. Цикл ограничен MAX_TOOL_CALLS вызовами инструмента за один ход.
+  4. Цикл ограничен CHAT_MAX_TOOL_CALLS (config.py) вызовами инструмента за один ход.
 
 Прикреплённые изображения модель получает напрямую (поле images у /chat) и отвечает на
 вопросы о них сама. Инструмент analyze_image (images.py) доступен, только если в чате есть
@@ -30,14 +30,16 @@ from dataclasses import dataclass, field
 
 from flask import current_app
 
-from .analyses import TOOL_NAME, ToolResult, active_categories, search_analyses
+from .analyses import DEFAULT_LIMIT, MAX_LIMIT, MAX_SINCE_DAYS, TOOL_NAME, ToolResult, active_categories, search_analyses
 from .images import TOOL_NAME as IMAGE_TOOL_NAME
 from .images import ChatImage, analyze_chat_image, images_prompt_block
+from .users import DEFAULT_LIMIT as USERS_DEFAULT_LIMIT
+from .users import MAX_LIMIT as USERS_MAX_LIMIT
+from .users import MAX_SINCE_DAYS as USERS_MAX_SINCE_DAYS
 from .users import TOOL_NAME as USERS_TOOL_NAME
 from .users import search_users
+from ..config import Config, conf
 from ..services import chat_with_model
-
-MAX_TOOL_CALLS = 4  # сколько раз за один ход модель может обратиться к инструментам
 
 _FALLBACK_REPLY = "Не удалось получить данные из истории анализов. Попробуйте переформулировать вопрос."
 
@@ -82,8 +84,8 @@ def build_tool_system_prompt(user=None, images: list[ChatImage] | None = None) -
             "  - username (строка) — частичный поиск по имени пользователя (регистр не важен).\n"
             f"  - role — фильтр по роли: {users_roles_note}.\n"
             "  - active (true/false) — только активные или только заблокированные аккаунты.\n"
-            "  - since_days (число 1..730) — только зарегистрировавшиеся за последние N дней.\n"
-            "  - limit (число 1..25, по умолчанию 10) — сколько записей вернуть.\n"
+            f"  - since_days (число 1..{USERS_MAX_SINCE_DAYS}) — только зарегистрировавшиеся за последние N дней.\n"
+            f"  - limit (число 1..{USERS_MAX_LIMIT}, по умолчанию {USERS_DEFAULT_LIMIT}) — сколько записей вернуть.\n"
             "  - count_only (true/false) — вернуть только общее число без списка.\n"
             "Когда использовать: вопросы про «пользователей», «юзеров», «кто зарегистрирован», "
             "«найди пользователя X», «сколько заблокированных», «кто из admins».\n"
@@ -119,7 +121,7 @@ def build_tool_system_prompt(user=None, images: list[ChatImage] | None = None) -
             f"{images_prompt_block(images)}\n"
             "Аргументы (все необязательные):\n"
             "  - image (число) — номер изображения из списка выше; по умолчанию — самое последнее.\n"
-            "  - caption (строка, до 500 символов) — контекст к снимку от пользователя, который поможет "
+            f"  - caption (строка, до {conf('CAPTION_MAX_CHARS')} символов) — контекст к снимку от пользователя, который поможет "
             "анализу («фото с камеры на входе», «снимок из рабочего чата»). Только то, что пользователь "
             "действительно сказал; ничего не выдумывай.\n"
             "Одно изображение — один вызов; если просят поставить в анализ несколько, вызывай по одному "
@@ -159,14 +161,14 @@ def build_tool_system_prompt(user=None, images: list[ChatImage] | None = None) -
         f"{TOOL_NAME} — поиск и статистика по завершённым анализам. Права доступа применяет "
         "система: чужие данные ты получить не можешь.\n"
         "Аргументы (все необязательные):\n"
-        "  - limit (число 1..15, по умолчанию 5) — сколько записей вернуть (по умолчанию последних; при "
+        f"  - limit (число 1..{MAX_LIMIT}, по умолчанию {DEFAULT_LIMIT}) — сколько записей вернуть (по умолчанию последних; при "
         "query/similar_to — самых подходящих); «последний анализ» → 1.\n"
         "  - order — порядок записей: \"newest\" (по умолчанию, от новых к старым) или \"oldest\" (от старых к "
         "новым). «Самый первый / самый ранний / самый старый анализ», «с самого начала», «первый в базе» → "
         "order=\"oldest\" (обычно вместе с limit=1); «последний», «свежий», «новый» → newest. Никогда не "
         "подменяй «первый» на «последний»: у каждой записи есть дата — сверь её с вопросом. При query/"
         "similar_to порядок задаёт сходство, и order не действует.\n"
-        "  - since_days (число 1..365) — только за последние N дней "
+        f"  - since_days (число 1..{MAX_SINCE_DAYS}) — только за последние N дней "
         "(«сегодня» → 1, «за неделю» → 7, «за месяц» → 30).\n"
         '  - risk_level — "low" | "medium" | "high" | "unknown".\n'
         "  - categories — список названий категорий из перечня ниже.\n"
@@ -319,7 +321,7 @@ def run_chat_turn(
     history: list[dict],
     backend: str,
     model: str,
-    lang: str = "ru",
+    lang: str = Config.DEFAULT_LANG,
     images: list[ChatImage] | None = None,
     session_id: int | None = None,
     message_images: list[str] | None = None,
@@ -338,8 +340,9 @@ def run_chat_turn(
     current = message
     references: list = []
 
-    for step in range(MAX_TOOL_CALLS + 1):
-        is_last = step == MAX_TOOL_CALLS
+    max_calls = conf("CHAT_MAX_TOOL_CALLS")
+    for step in range(max_calls + 1):
+        is_last = step == max_calls
         # Картинки сообщения нужны только на первом шаге; дальше они остаются в convo.
         outcome = chat_with_model(
             current, history=convo, images=(message_images or None) if step == 0 else None,
@@ -371,7 +374,7 @@ def run_chat_turn(
                 f"[TOOL ERROR] {payload}. Повтори вызов корректным JSON-объектом "
                 f'вида {{"tool": "{TOOL_NAME}", "args": {{...}}}} либо ответь пользователю текстом.'
             )
-        if step == MAX_TOOL_CALLS - 1:
+        if step == max_calls - 1:
             current += "\nБольше инструмент вызывать нельзя — ответь пользователю текстом."
 
     return ChatTurn(_FALLBACK_REPLY, backend, model, [])  # недостижимо, для полноты

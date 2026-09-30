@@ -8,13 +8,14 @@ from pathlib import Path
 from flask import current_app
 from sqlalchemy import delete, func, select
 
+from .config import Config
 from .extensions import db
 from .models import AnalysisEmbedding, AnalysisResult, Status, User
 from .thumbs import THUMBS_DIR, thumb_rel
 
 log = logging.getLogger("vision_app.history")
 
-_CHUNK = 500  # не упираемся в лимит числа параметров SQL
+_CHUNK = Config.SQL_IN_CHUNK  # не упираемся в лимит числа параметров SQL
 
 
 def _prune_empty_dirs(parent: Path, stop_root: Path) -> None:
@@ -30,7 +31,7 @@ def _prune_empty_dirs(parent: Path, stop_root: Path) -> None:
 def remove_image_files(paths: list[str]) -> None:
     """Удаляет файлы загрузок, их миниатюры и пустые папки с датой. Никогда не выходит за UPLOAD_FOLDER."""
     root = Path(current_app.config["UPLOAD_FOLDER"]).resolve()
-    uploads_root = root / "uploads"
+    uploads_root = root / Config.UPLOADS_DIR
     thumbs_root = root / THUMBS_DIR
 
     for rel in paths:

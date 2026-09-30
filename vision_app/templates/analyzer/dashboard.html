@@ -34,7 +34,7 @@
                 {% if target_backend %}Анализ на: <strong>{{ target_backend }}</strong> · модель: <strong>{{ target_model or 'авто' }}</strong>
                 {% else %}Анализ на бэкенде и модели по умолчанию.{% endif %}
             </p>
-            <form method="post" enctype="multipart/form-data" class="form" id="upload-form" novalidate>
+            <form method="post" enctype="multipart/form-data" class="form" id="upload-form" data-caption-max="{{ config.CAPTION_MAX_CHARS }}" novalidate>
                 {{ form.hidden_tag() }}
                 <div class="dropzone" id="dropzone">
                     <input type="file" name="image" id="id_image" accept="image/*" multiple required>

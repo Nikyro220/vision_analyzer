@@ -1,11 +1,11 @@
 """Логирование Flask-части: консоль + файлы в logs/ в корне проекта.
 
   logs/app.log        — всё (INFO и выше), ротация в полночь,
-                        старые файлы: app.log.YYYY-MM-DD, хранится 14 дней
-  logs/app.error.log  — только WARNING/ERROR/CRITICAL, хранится 60 дней
+                        старые файлы: app.log.YYYY-MM-DD, хранится LOG_BACKUP_DAYS дней (14)
+  logs/app.error.log  — только WARNING/ERROR/CRITICAL, хранится LOG_ERROR_BACKUP_DAYS дней (60)
 
 Анализатор (inference/) пишет в свои файлы analyzer*.log в той же папке.
-Папку можно поменять переменной окружения VISION_LOG_DIR.
+Папку можно поменять переменной окружения VISION_LOG_DIR (читается в config.py).
 
 Под gunicorn с несколькими воркерами ротация по времени из нескольких
 процессов может гоняться за один файл — держите один воркер (--threads
@@ -15,16 +15,15 @@
 from __future__ import annotations
 
 import logging
-import os
 from logging.handlers import TimedRotatingFileHandler
 from pathlib import Path
 
 from flask import Flask
 from flask.logging import default_handler
 
-LOG_DIR = Path(
-    os.environ.get("VISION_LOG_DIR", Path(__file__).resolve().parent.parent / "logs")
-)
+from .config import Config
+
+LOG_DIR = Path(Config.LOG_DIR)
 
 
 def setup_logging(app: Flask | None = None) -> None:
@@ -34,11 +33,11 @@ def setup_logging(app: Flask | None = None) -> None:
     console = logging.StreamHandler()
 
     everything = TimedRotatingFileHandler(
-        LOG_DIR / "app.log", when="midnight", backupCount=14,
+        LOG_DIR / "app.log", when="midnight", backupCount=Config.LOG_BACKUP_DAYS,
         encoding="utf-8", delay=True,
     )
     errors = TimedRotatingFileHandler(
-        LOG_DIR / "app.error.log", when="midnight", backupCount=60,
+        LOG_DIR / "app.error.log", when="midnight", backupCount=Config.LOG_ERROR_BACKUP_DAYS,
         encoding="utf-8", delay=True,
     )
     errors.setLevel(logging.WARNING)

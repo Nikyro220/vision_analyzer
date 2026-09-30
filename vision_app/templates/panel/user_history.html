@@ -25,7 +25,7 @@
                 <td><span class="risk-pill risk-pill-{{ item.risk_level }}">{{ item.risk_level_display }}</span>{% if item.is_error %} <span class="tag tag-warn">ошибка</span>{% endif %}</td>
                 <td>{% if item.needs_human_review %}<span class="tag tag-warn">да</span>{% else %}<span class="tag">нет</span>{% endif %}</td>
                 <td>{{ item.backend or '—' }}</td>
-                <td>{{ item.created_at|localdt('%d.%m.%Y %H:%M') }}</td>
+                <td>{{ item.created_at|localdt }}</td>
             </tr>
             {% endfor %}
         </tbody>

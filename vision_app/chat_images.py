@@ -29,25 +29,18 @@ from flask import current_app
 from PIL import Image, ImageOps
 from sqlalchemy import select
 
+from .config import Config, conf
 from .extensions import db
 from .forms import IMAGE_FORMATS
 from .history import _prune_empty_dirs
 from .models import ChatMessage, ChatSession
-from .thumbs import thumb_rel
+from .thumbs import THUMBS_DIR, thumb_rel
 
 log = logging.getLogger("vision_app.chat_images")
 
-CHAT_UPLOADS_DIR = "chat_uploads"
-MAX_IMAGES_PER_MESSAGE = 4
-MAX_IMAGE_BYTES = 15 * 1024 * 1024  # на один файл; общий лимит запроса — MAX_CONTENT_LENGTH
-
-# Что уходит модели: слишком большие картинки уменьшаются (иначе — лишние токены и мегабайты
-# base64 в каждом запросе чата, а детали сверх этого размера модель всё равно не различит).
-MODEL_MAX_SIDE = 1568  # px по длинной стороне
-MODEL_PASSTHROUGH_BYTES = 1_500_000  # файл, уже не больше этого и в допустимом формате, уходит как есть
+# Числовые лимиты (число вложений, размер, сторона для модели, качество JPEG) — в config.py: CHAT_*.
+CHAT_UPLOADS_DIR = Config.CHAT_UPLOADS_DIR
 _PASSTHROUGH_FORMATS = {"image/jpeg", "image/png", "image/webp"}
-
-_NAME_MAX = 120
 _CONTROL_RE = re.compile(r"[\x00-\x1f\x7f]+")
 
 
@@ -59,7 +52,7 @@ def _root() -> Path:
     return Path(current_app.config["UPLOAD_FOLDER"]).resolve()
 
 
-def clean_name(name: str, limit: int = _NAME_MAX) -> str:
+def clean_name(name: str, limit: int = Config.CHAT_ATTACHMENT_NAME_MAX) -> str:
     """Имя файла для отображения и для подстановки в промпт: без управляющих символов
     и кавычек-ёлочек (в промпте имя заключено в «»), укороченное."""
     text = _CONTROL_RE.sub(" ", str(name or "")).replace("«", "").replace("»", "").strip()
@@ -77,8 +70,10 @@ def validate_and_save(files) -> list[dict]:
     принимаются либо все, либо ни одного.
     """
     files = [f for f in files if getattr(f, "filename", "")]
-    if len(files) > MAX_IMAGES_PER_MESSAGE:
-        raise AttachmentError(f"К одному сообщению можно прикрепить не больше {MAX_IMAGES_PER_MESSAGE} изображений.")
+    max_images = conf("CHAT_MAX_IMAGES_PER_MESSAGE")
+    max_bytes = conf("CHAT_MAX_IMAGE_BYTES")
+    if len(files) > max_images:
+        raise AttachmentError(f"К одному сообщению можно прикрепить не больше {max_images} изображений.")
 
     root = _root()
     now = datetime.now(timezone.utc)
@@ -86,11 +81,11 @@ def validate_and_save(files) -> list[dict]:
     try:
         for upload in files:
             name = clean_name(upload.filename)
-            data = upload.read(MAX_IMAGE_BYTES + 1)
+            data = upload.read(max_bytes + 1)
             if not data:
                 raise AttachmentError(f"Файл «{name}» пуст.")
-            if len(data) > MAX_IMAGE_BYTES:
-                raise AttachmentError(f"Файл «{name}» слишком большой (максимум {MAX_IMAGE_BYTES // (1024 * 1024)} МБ).")
+            if len(data) > max_bytes:
+                raise AttachmentError(f"Файл «{name}» слишком большой (максимум {max_bytes // (1024 * 1024)} МБ).")
             try:
                 with Image.open(io.BytesIO(data)) as img:
                     fmt = img.format
@@ -138,7 +133,7 @@ def remove_files(paths: list[str]) -> None:
     """Удаляет вложения, их миниатюры и опустевшие папки с датой. Не выходит за chat_uploads/."""
     root = _root()
     chat_root = root / CHAT_UPLOADS_DIR
-    thumbs_chat_root = root / "thumbs" / CHAT_UPLOADS_DIR
+    thumbs_chat_root = root / THUMBS_DIR / CHAT_UPLOADS_DIR
 
     for rel in paths:
         if not rel or not isinstance(rel, str):
@@ -168,18 +163,19 @@ def to_data_url(rel: str, mime: str = "") -> str | None:
     """Вложение -> data-URL для поля `images` POST /chat. None — файла нет или он не читается.
 
     Небольшие JPEG/PNG/WEBP уходят как есть; остальное (большие файлы, GIF/BMP/TIFF)
-    перекодируется в JPEG с длинной стороной не более MODEL_MAX_SIDE.
+    перекодируется в JPEG с длинной стороной не более CHAT_MODEL_MAX_SIDE.
     """
     data = read_bytes(rel)
     if data is None:
         return None
+    max_side = conf("CHAT_MODEL_MAX_SIDE")
     try:
         with Image.open(io.BytesIO(data)) as im:
             width, height = im.size
             needs_convert = (
                 mime not in _PASSTHROUGH_FORMATS
-                or len(data) > MODEL_PASSTHROUGH_BYTES
-                or max(width, height) > MODEL_MAX_SIDE
+                or len(data) > conf("CHAT_MODEL_PASSTHROUGH_BYTES")
+                or max(width, height) > max_side
             )
             if needs_convert:
                 im = ImageOps.exif_transpose(im)
@@ -190,9 +186,9 @@ def to_data_url(rel: str, mime: str = "") -> str | None:
                     bg.paste(im, mask=im.getchannel("A"))
                     im = bg
                 im = im.convert("RGB")
-                im.thumbnail((MODEL_MAX_SIDE, MODEL_MAX_SIDE), Image.Resampling.LANCZOS)
+                im.thumbnail((max_side, max_side), Image.Resampling.LANCZOS)
                 out = io.BytesIO()
-                im.save(out, "JPEG", quality=88)
+                im.save(out, "JPEG", quality=conf("CHAT_MODEL_JPEG_QUALITY"))
                 data, mime = out.getvalue(), "image/jpeg"
     except (OSError, ValueError, Image.DecompressionBombError) as exc:
         log.warning("Не удалось подготовить вложение %s для модели: %s", rel, exc)

@@ -33,7 +33,7 @@
                 <td>{{ u.username }}</td>
                 <td>{{ u.email or "—" }}</td>
                 <td><span class="role-badge role-{{ u.role }}">{{ u.role_display_ru }}</span></td>
-                <td>{{ u.created_at|localdt('%d.%m.%Y') }}</td>
+                <td>{{ u.created_at|localdt('date') }}</td>
             </tr>
             {% else %}
             <tr><td colspan="4" class="empty-hint">Ничего не найдено.</td></tr>

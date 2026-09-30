@@ -12,6 +12,7 @@ from dataclasses import dataclass
 
 from flask import current_app
 
+from .config import Config, conf
 from .extensions import db
 from .models import Setting
 from .services import BACKENDS
@@ -83,19 +84,21 @@ RUNTIME_SETTINGS: list[RuntimeSetting] = [
     ),
     RuntimeSetting(
         "QUEUE_WORKERS", "Потоков-обработчиков", "int",
-        "Сколько анализов выполнять параллельно.", min=1, max=8,
+        "Сколько анализов выполнять параллельно.",
+        min=Config.QUEUE_WORKERS_MIN, max=Config.QUEUE_WORKERS_MAX,
     ),
     RuntimeSetting(
         "QUEUE_POLL_SECONDS", "Интервал опроса очереди, сек", "float",
-        "Как часто обработчик проверяет пустую очередь.", min=1, max=300,
+        "Как часто обработчик проверяет пустую очередь.",
+        min=Config.QUEUE_POLL_SECONDS_MIN, max=Config.QUEUE_POLL_SECONDS_MAX,
     ),
     RuntimeSetting(
         "QUEUE_MAX_FILES_PER_UPLOAD", "Файлов за одну загрузку", "int",
-        min=1, max=500,
+        min=Config.QUEUE_MAX_FILES_PER_UPLOAD_MIN, max=Config.QUEUE_MAX_FILES_PER_UPLOAD_MAX,
     ),
     RuntimeSetting(
         "QUEUE_MAX_PENDING_PER_USER", "Задач в очереди на пользователя", "int",
-        min=1, max=1000,
+        min=Config.QUEUE_MAX_PENDING_PER_USER_MIN, max=Config.QUEUE_MAX_PENDING_PER_USER_MAX,
     ),
     RuntimeSetting(
         "VISION_API_BASE_URL", "Адрес сервера анализа", "str",
@@ -103,7 +106,7 @@ RUNTIME_SETTINGS: list[RuntimeSetting] = [
     ),
     RuntimeSetting(
         "VISION_API_TIMEOUT", "Таймаут запроса к /analyze, сек", "int",
-        min=5, max=3600,
+        min=Config.VISION_API_TIMEOUT_MIN, max=Config.VISION_API_TIMEOUT_MAX,
     ),
 ]
 RUNTIME_SETTINGS_BY_KEY = {s.key: s for s in RUNTIME_SETTINGS}
@@ -180,7 +183,7 @@ def set_runtime_setting(key: str, raw_value: str) -> None:
         elif spec.kind == "str":
             if not value:
                 raise ValueError(f"«{spec.label}»: значение не может быть пустым.")
-            if len(value) > 300:
+            if len(value) > conf("SETTING_STR_MAX_LEN"):
                 raise ValueError(f"«{spec.label}»: слишком длинное значение.")
         value_str = str(value)
 

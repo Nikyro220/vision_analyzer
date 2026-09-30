@@ -4,7 +4,7 @@
 {% block content %}
 <div class="page-header">
     <h1>{{ result.original_name or "Результат анализа" }}</h1>
-    <p class="page-sub">Загружено {{ result.created_at|localdt('%d.%m.%Y %H:%M') }}{% if result.user_id != current_user.id %} · пользователь {{ result.user.username }}{% endif %}</p>
+    <p class="page-sub">Загружено {{ result.created_at|localdt }}{% if result.user_id != current_user.id %} · пользователь {{ result.user.username }}{% endif %}</p>
 </div>
 
 <div class="result-layout">

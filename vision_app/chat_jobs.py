@@ -26,6 +26,7 @@ from flask import current_app, url_for
 from sqlalchemy import delete, func, select, update
 
 from . import chat_images, image_dedup
+from .config import Config, conf
 from .extensions import db
 from .history import remove_image_files
 from .models import RISK_LABELS, AnalysisResult, ChatAnalysisJob, Status
@@ -33,17 +34,14 @@ from .utils import local_dt
 
 log = logging.getLogger("vision_app.chat_jobs")
 
-MAX_CAPTION_CHARS = 500
-_FIELD_LEN = 700
-_ANSWER_LEN = 3000
-_MAX_SIGNALS = 12
+# Длины подписи и полей отчёта, которые уходят модели, — в config.py (CAPTION_MAX_CHARS, CHAT_JOB_*).
 
 
 class JobError(Exception):
     """Не удалось поставить изображение в очередь; текст можно отдать модели/пользователю."""
 
 
-def _clip(value, limit: int = _FIELD_LEN) -> str:
+def _clip(value, limit: int | None = None) -> str:
     if isinstance(value, (list, tuple)):
         value = "; ".join(str(v) for v in value if v not in (None, ""))
     elif isinstance(value, dict):
@@ -51,6 +49,8 @@ def _clip(value, limit: int = _FIELD_LEN) -> str:
 
         value = json.dumps(value, ensure_ascii=False)
     text = " ".join(str(value or "").split())
+    if limit is None:
+        limit = conf("CHAT_JOB_FIELD_CHARS")
     return text if len(text) <= limit else text[: limit - 1] + "…"
 
 
@@ -82,7 +82,7 @@ def enqueue(user, session_id: int, image, caption: str = "") -> dict:
     from .queue_worker import wake_worker
     from .settings_store import get_runtime_setting
 
-    limit = get_runtime_setting("QUEUE_MAX_PENDING_PER_USER") or 30
+    limit = get_runtime_setting("QUEUE_MAX_PENDING_PER_USER")
     pending_now = db.session.scalar(
         select(func.count(AnalysisResult.id)).where(
             AnalysisResult.user_id == user.id, AnalysisResult.status != Status.DONE
@@ -99,7 +99,7 @@ def enqueue(user, session_id: int, image, caption: str = "") -> dict:
     # как обычно, а удаление чата не ломает уже сохранённый анализ (и наоборот).
     now = datetime.now(timezone.utc)
     root = Path(current_app.config["UPLOAD_FOLDER"])
-    rel = f"uploads/{now:%Y/%m/%d}/{uuid.uuid4().hex}{Path(image.path).suffix.lower()}"
+    rel = f"{Config.UPLOADS_DIR}/{now:%Y/%m/%d}/{uuid.uuid4().hex}{Path(image.path).suffix.lower()}"
     target = root / rel
     try:
         target.parent.mkdir(parents=True, exist_ok=True)
@@ -110,7 +110,7 @@ def enqueue(user, session_id: int, image, caption: str = "") -> dict:
             original_name=image.name[:255],
             image_mime=image.mime,
             image_hash=image_dedup.sha256_bytes(data),
-            caption=(caption or "")[:MAX_CAPTION_CHARS],
+            caption=(caption or "")[: conf("CAPTION_MAX_CHARS")],
             status=Status.QUEUED,
         )
         db.session.add(row)
@@ -178,15 +178,18 @@ def report_payload(row: AnalysisResult) -> dict:
     if "_raw" in report:
         return {
             "warning": "модель вернула не структурированный отчёт, а свободный текст — результат приблизительный",
-            "raw_text": _clip(report.get("_raw"), _ANSWER_LEN),
+            "raw_text": _clip(report.get("_raw"), conf("CHAT_JOB_ANSWER_CHARS")),
         }
     signals = []
     raw_signals = report.get("signals")
-    for item in (raw_signals if isinstance(raw_signals, list) else [])[:_MAX_SIGNALS]:
+    for item in (raw_signals if isinstance(raw_signals, list) else [])[: conf("CHAT_JOB_MAX_SIGNALS")]:
         if isinstance(item, dict):
-            signals.append({"category": _clip(item.get("category"), 80), "detail": _clip(item.get("detail"), 300)})
+            signals.append({
+                "category": _clip(item.get("category"), conf("CHAT_JOB_CATEGORY_CHARS")),
+                "detail": _clip(item.get("detail"), conf("CHAT_JOB_DETAIL_CHARS")),
+            })
         elif item not in (None, ""):
-            signals.append({"category": "", "detail": _clip(item, 300)})
+            signals.append({"category": "", "detail": _clip(item, conf("CHAT_JOB_DETAIL_CHARS"))})
     return {
         "risk_level": row.risk_level,
         "risk_label": RISK_LABELS.get(row.risk_level, row.risk_level),
@@ -235,7 +238,7 @@ def card(row: AnalysisResult) -> dict:
         "label": row.original_name or f"Анализ #{row.id}",
         "risk_level": row.risk_level,
         "risk_label": row.risk_level_display,
-        "date": local_dt(row.created_at, "%d.%m.%Y %H:%M"),
+        "date": local_dt(row.created_at),
     }
 
 
@@ -245,7 +248,7 @@ def fallback_text(job: ChatAnalysisJob, row: AnalysisResult | None) -> str:
     if row is None:
         return f"Анализ изображения «{name}» отменён — записи в очереди больше нет."
     if row.is_error:
-        return f"Анализ изображения «{name}» завершился ошибкой: {_clip(row.error, 300)}"
+        return f"Анализ изображения «{name}» завершился ошибкой: {_clip(row.error, conf("CHAT_JOB_DETAIL_CHARS"))}"
     text = f"Анализ изображения «{name}» завершён. Уровень риска: {row.risk_level_display.lower()}."
     if row.needs_human_review:
         text += " Требуется проверка человеком."

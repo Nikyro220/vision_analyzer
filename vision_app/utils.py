@@ -3,8 +3,9 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from zoneinfo import ZoneInfo
 
-from flask import current_app, request, url_for
+from flask import request, url_for
 
+from .config import conf
 from .extensions import db
 
 
@@ -34,13 +35,28 @@ def is_safe_next(target: str | None) -> bool:
     )
 
 
-def local_dt(value: datetime | None, fmt: str = "%d.%m.%Y %H:%M") -> str:
-    """Фильтр Jinja: UTC из БД -> локальное время (APP_TIMEZONE) -> строка."""
+# Именованные форматы дат: в коде и шаблонах пишем localdt("short"), а сами строки
+# формата живут в Config (DATETIME_FORMAT, DATETIME_SHORT_FORMAT, DATE_FORMAT, ...).
+_DT_FORMAT_KEYS = {
+    "full": "DATETIME_FORMAT",
+    "short": "DATETIME_SHORT_FORMAT",
+    "date": "DATE_FORMAT",
+    "chat": "DATETIME_CHAT_FORMAT",
+    "time": "TIME_FORMAT",
+}
+
+
+def local_dt(value: datetime | None, fmt: str | None = None) -> str:
+    """Фильтр Jinja: UTC из БД -> локальное время (APP_TIMEZONE) -> строка.
+
+    fmt — имя формата ("full" по умолчанию, "short", "date", "chat") либо готовая
+    строка strftime."""
     if value is None:
         return "—"
+    fmt = conf(_DT_FORMAT_KEYS[fmt or "full"]) if (fmt or "full") in _DT_FORMAT_KEYS else fmt
     if value.tzinfo is None:
         value = value.replace(tzinfo=timezone.utc)
-    tz = ZoneInfo(current_app.config.get("TIMEZONE", "UTC"))
+    tz = ZoneInfo(conf("TIMEZONE"))
     return value.astimezone(tz).strftime(fmt)
 
 

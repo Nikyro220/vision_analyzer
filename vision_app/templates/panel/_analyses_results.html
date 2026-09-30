@@ -21,7 +21,7 @@
                 <td>{{ item.user.username }}</td>
                 <td><span class="risk-pill risk-pill-{{ item.risk_level }}">{{ item.risk_level_display }}</span></td>
                 <td>{% if item.needs_human_review %}<span class="tag tag-warn">да</span>{% else %}<span class="tag">нет</span>{% endif %}</td>
-                <td>{{ item.created_at|localdt('%d.%m.%Y %H:%M') }}</td>
+                <td>{{ item.created_at|localdt }}</td>
             </tr>
             {% else %}
             <tr><td colspan="6" class="empty-hint">Ничего не найдено.</td></tr>

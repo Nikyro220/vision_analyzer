@@ -8,39 +8,69 @@ import logging
 
 from sqlalchemy import func, select
 
-from .category_seed import DEFAULT_CATEGORIES
 from .extensions import db
 from .models import Category, _split_wrapper
+from .services import VisionApiError, fetch_server_categories
 
 log = logging.getLogger("vision_app.categories")
 
 
-def seed_default_categories() -> None:
-    """Заполняет таблицу categories стартовым набором — один раз, только
-    если она ещё пуста (например, самый первый запуск на чистой БД).
-    Дальше единственный источник правды — то, что админы изменят в
-    /panel/categories/, этот сидер больше не трогается."""
-    if db.session.scalar(select(func.count(Category.id))):
-        return
+def _title_from_name(name: str) -> str:
+    """weapons_and_dangerous_objects -> "Weapons and dangerous objects" (сервер название не отдаёт)."""
+    return name.replace("_", " ").strip().capitalize() or name
 
-    for position, item in enumerate(DEFAULT_CATEGORIES):
-        db.session.add(
-            Category(
-                name=item["name"],
-                title=item.get("title") or item["name"],
-                summary=item.get("summary", ""),
-                full=item.get("full", ""),
-                compact=item.get("compact", ""),
-                full_extra=item.get("full_extra", ""),
-                compact_extra=item.get("compact_extra", ""),
-                example_en=item.get("example_en", ""),
-                example_ru=item.get("example_ru", ""),
-                position=position,
-                is_active=True,
-            )
-        )
+
+def category_from_server(item: dict, position: int) -> Category:
+    """Ответ GET /categories/<имя> -> строка таблицы categories.
+
+    Сервер отдаёт full/compact уже завёрнутыми в <signal_category name="...">; в БД хранится
+    только тело + «хвост» после закрывающего тега (см. models._split_wrapper)."""
+    full, full_extra = _split_wrapper(item.get("full") or "")
+    compact, compact_extra = _split_wrapper(item.get("compact") or "")
+    examples = item.get("examples") if isinstance(item.get("examples"), dict) else {}
+    return Category(
+        name=item["name"],
+        title=_title_from_name(item["name"]),
+        summary=item.get("summary") or "",
+        full=full,
+        compact=compact,
+        full_extra=full_extra,
+        compact_extra=compact_extra,
+        example_en=examples.get("en") or "",
+        example_ru=examples.get("ru") or "",
+        position=position,
+        is_active=True,
+    )
+
+
+def seed_default_categories() -> bool:
+    """Заполняет таблицу categories набором, который сервер анализа отдаёт по
+    GET /categories и GET /categories/<имя> — один раз, только если таблица
+    ещё пуста (например, самый первый запуск на чистой БД). Дальше единственный
+    источник правды — то, что админы изменят в /panel/categories/, этот сидер
+    больше не трогается.
+
+    Сервер может быть недоступен при старте — это не ошибка: анализ без
+    категорий из БД работает на категориях самого сервера, а загрузить набор
+    можно позже (повторная попытка при открытии /panel/categories/, команда
+    `flask seed-categories`). Возвращает True, если категории были добавлены."""
+    if db.session.scalar(select(func.count(Category.id))):
+        return False
+
+    try:
+        items = fetch_server_categories()
+    except VisionApiError as exc:
+        log.warning("categories: не удалось получить стартовый набор с сервера анализа: %s", exc)
+        return False
+    if not items:
+        log.warning("categories: сервер анализа не вернул ни одной категории")
+        return False
+
+    for position, item in enumerate(items):
+        db.session.add(category_from_server(item, position))
     db.session.commit()
-    log.info("categories: загружен стартовый набор из %d категорий", len(DEFAULT_CATEGORIES))
+    log.info("categories: загружен стартовый набор с сервера анализа: %d категорий", len(items))
+    return True
 
 
 def normalize_legacy_wrappers() -> None:

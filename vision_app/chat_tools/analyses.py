@@ -38,6 +38,7 @@ from flask import current_app, url_for
 from sqlalchemy import select
 
 from .. import image_dedup, vector_search
+from ..config import Config, conf
 from ..extensions import db
 from ..models import RISK_LABELS, AnalysisResult, Category, RiskLevel, Status, User
 from ..services import EmbeddingNotReady, VisionApiError
@@ -45,14 +46,16 @@ from ..utils import local_dt
 
 TOOL_NAME = "search_analyses"
 
-_SCAN_LIMIT = 500  # сколько последних строк максимум разбираем (защита от полного скана)
-_DEFAULT_LIMIT = 5
-_MAX_LIMIT = 15
-_MAX_CARDS = 8  # больше карточек под одним ответом — визуальный шум
-_DESC_LEN = 160
-_MAX_SINCE_DAYS = 365
-_MAX_QUERY_CHARS = 300
-_MAX_KEYWORDS = 8
+# Лимиты инструмента живут в config.py (SEARCH_*). Публичные имена без «_» используются ещё и
+# в runner.py — оттуда числа попадают в промпт модели, поэтому правится только Config.
+DEFAULT_LIMIT = Config.SEARCH_DEFAULT_LIMIT
+MAX_LIMIT = Config.SEARCH_MAX_LIMIT
+MAX_SINCE_DAYS = Config.SEARCH_MAX_SINCE_DAYS
+_SCAN_LIMIT = Config.SEARCH_SCAN_LIMIT  # сколько последних строк максимум разбираем (защита от полного скана)
+_MAX_CARDS = Config.SEARCH_MAX_CARDS  # больше карточек под одним ответом — визуальный шум
+_DESC_LEN = Config.SEARCH_DESC_CHARS
+_MAX_QUERY_CHARS = Config.SEARCH_MAX_QUERY_CHARS
+_MAX_KEYWORDS = Config.SEARCH_MAX_KEYWORDS
 _VALID_RISKS = {RiskLevel.LOW, RiskLevel.MEDIUM, RiskLevel.HIGH, RiskLevel.UNKNOWN}
 
 # Порядок выдачи: по умолчанию от новых к старым; «самый первый / самый старый анализ» —
@@ -196,8 +199,8 @@ def normalize_args(raw) -> tuple[dict, list[str]]:
         warnings.append("неизвестные аргументы проигнорированы: " + ", ".join(unknown))
 
     args: dict = {
-        "limit": _int_arg(raw.get("limit"), 1, _MAX_LIMIT) or _DEFAULT_LIMIT,
-        "since_days": _int_arg(raw.get("since_days"), 1, _MAX_SINCE_DAYS),
+        "limit": _int_arg(raw.get("limit"), 1, MAX_LIMIT) or DEFAULT_LIMIT,
+        "since_days": _int_arg(raw.get("since_days"), 1, MAX_SINCE_DAYS),
         "risk_level": None,
         "categories": [],
         "needs_review": _bool_arg(raw.get("needs_review")),
@@ -321,7 +324,7 @@ def _record(
         desc = desc[: _DESC_LEN - 1] + "…"
     rec = {
         "id": row.id,
-        "date": local_dt(row.created_at, "%d.%m.%Y %H:%M"),
+        "date": local_dt(row.created_at),
         "risk": row.risk_level_display,
         "needs_review": bool(row.needs_human_review),
         "categories": sorted(_row_categories(row)),
@@ -347,7 +350,7 @@ def _build_reference_cards(rows: list[AnalysisResult], show_user: bool) -> list[
             "label": row.original_name or f"Анализ #{row.id}",
             "risk_level": row.risk_level,
             "risk_label": row.risk_level_display,
-            "date": local_dt(row.created_at, "%d.%m.%Y %H:%M"),
+            "date": local_dt(row.created_at),
         }
         if show_user and row.user:
             card["username"] = row.user.username
@@ -365,8 +368,7 @@ def _search_semantic(user: User, args: dict, warnings: list[str]) -> ToolResult:
     ЧЕСТНУЮ ошибку, а не «просто последние записи»: на «были ли снимки с ножом?» ответ «вот
     последние» был бы ложью."""
     conditions = _conditions(user, args)
-    cfg = current_app.config
-    min_similarity = float(cfg.get("EMBEDDING_MIN_SIMILARITY", 0.35))
+    min_similarity = float(conf("EMBEDDING_MIN_SIMILARITY"))
     unavailable = (
         "поиск по смыслу сейчас недоступен ({reason}) — скажи об этом пользователю и предложи "
         "поиск по фильтрам (риск, категории, даты)"
@@ -413,9 +415,9 @@ def _search_semantic(user: User, args: dict, warnings: list[str]) -> ToolResult:
                 conditions, query_vector, model,
                 limit=args["limit"],
                 min_similarity=-1.0 if gated else min_similarity,
-                relative_margin=0.0 if gated else float(cfg.get("EMBEDDING_RELATIVE_MARGIN", 0.15)),
+                relative_margin=0.0 if gated else float(conf("EMBEDDING_RELATIVE_MARGIN")),
                 text_filter=_keyword_matcher(args["keywords"]) if gated else None,
-                scan_limit=int(cfg.get("EMBEDDING_SCAN_LIMIT", 5000)),
+                scan_limit=int(conf("EMBEDDING_SCAN_LIMIT")),
                 exclude_ids=exclude_ids,
                 raw_report_filter=(
                     (lambda report: bool({s.get("category") for s in (report.get("signals") or []) if isinstance(s, dict)} & wanted))

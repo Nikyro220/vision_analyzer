@@ -9,9 +9,11 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import joinedload
 
 from .. import examples_codec
+from ..config import conf
 from ..decorators import head_admin_required, staff_required
 from ..extensions import db
 from ..forms import AccountForm, CategoryForm, DeleteAccountForm, DeleteCategoryForm
+from ..categories_store import seed_default_categories
 from ..history import delete_finished, delete_user_account
 from ..settings_store import (
     RUNTIME_SETTINGS,
@@ -85,7 +87,7 @@ def users_list():
     if role_filter:
         stmt = stmt.where(User.role == role_filter)
 
-    page = paginate(stmt, per_page=20)
+    page = paginate(stmt, per_page=conf("PANEL_PER_PAGE"))
     return render_template(
         "panel/users.html",
         page=page,
@@ -106,7 +108,7 @@ def user_detail(pk: int):
         select(AnalysisResult)
         .where(*finished)
         .order_by(AnalysisResult.created_at.desc(), AnalysisResult.id.desc())
-        .limit(10)
+        .limit(conf("USER_RECENT_ANALYSES_LIMIT"))
     ).all()
     history_count = db.session.scalar(select(func.count(AnalysisResult.id)).where(*finished))
 
@@ -138,7 +140,7 @@ def user_history(pk: int):
         .where(AnalysisResult.user_id == target.id, AnalysisResult.status == Status.DONE)
         .order_by(AnalysisResult.created_at.desc(), AnalysisResult.id.desc())
     )
-    page = paginate(stmt, per_page=20)
+    page = paginate(stmt, per_page=conf("PANEL_PER_PAGE"))
     return render_template("panel/user_history.html", target=target, page=page)
 
 
@@ -272,7 +274,7 @@ def analyses_list():
         .where(*conditions)
         .order_by(AnalysisResult.created_at.desc(), AnalysisResult.id.desc())
     )
-    page = paginate(stmt, per_page=20)
+    page = paginate(stmt, per_page=conf("PANEL_PER_PAGE"))
 
     # Запрос из JS-фильтра: отдаём только фрагмент с таблицей/пагинацией.
     if request.headers.get("X-Requested-With") == "fetch":
@@ -380,6 +382,23 @@ def categories_list():
     rows = db.session.scalars(select(Category).order_by(Category.position, Category.id)).all()
     delete_form = DeleteCategoryForm()
     return render_template("panel/categories.html", rows=rows, delete_form=delete_form)
+
+
+@bp.route("/categories/import/", methods=["POST"])
+@staff_required
+def categories_import():
+    """Загрузить стартовый набор категорий с сервера анализа (GET /categories) — работает,
+    только пока таблица пуста; существующие категории не трогает."""
+    form = DeleteCategoryForm()  # пустая форма с CSRF-токеном
+    if not form.validate_on_submit():
+        flash("Сессия устарела, попробуйте ещё раз.", "error")
+    elif db.session.scalar(select(func.count(Category.id))):
+        flash("Категории уже есть — загрузка с сервера нужна только для пустого списка.", "warning")
+    elif seed_default_categories():
+        flash("Категории загружены с сервера анализа.", "success")
+    else:
+        flash("Не удалось получить категории с сервера анализа — проверьте, что он запущен.", "error")
+    return redirect(url_for("panel.categories_list"))
 
 
 def _examples_context(form, category) -> dict:

@@ -21,9 +21,11 @@ from __future__ import annotations
 
 import base64
 from dataclasses import dataclass, field
+from urllib.parse import quote
 
 import requests
-from flask import current_app
+
+from .config import Config, conf
 
 
 # Бэкенды, которые понимает сервер (параметр ?backend=).
@@ -58,19 +60,19 @@ class AnalysisOutcome:
 def _base_url() -> str:
     from .settings_store import get_runtime_setting  # локальный импорт — settings_store импортирует BACKENDS отсюда
 
-    return (get_runtime_setting("VISION_API_BASE_URL") or "http://127.0.0.1:6769").rstrip("/")
+    return get_runtime_setting("VISION_API_BASE_URL").rstrip("/")
 
 
 def _timeout() -> int:
     from .settings_store import get_runtime_setting
 
-    return get_runtime_setting("VISION_API_TIMEOUT") or 120
+    return get_runtime_setting("VISION_API_TIMEOUT")
 
 
 def check_health() -> dict:
     """Опрашивает /health. Возвращает словарь статуса или бросает VisionApiError."""
     try:
-        resp = requests.get(f"{_base_url()}/health", timeout=10)
+        resp = requests.get(f"{_base_url()}/health", timeout=conf("VISION_API_HEALTH_TIMEOUT"))
         data = resp.json()
         if not isinstance(data, dict):
             raise ValueError("ожидался JSON-объект")
@@ -87,7 +89,7 @@ def check_health() -> dict:
 def analyze_image(
     image_bytes: bytes,
     mime_type: str,
-    lang: str = "ru",
+    lang: str = Config.DEFAULT_LANG,
     backend: str = "",
     model: str = "",
     caption: str = "",
@@ -169,14 +171,14 @@ def analyze_image(
     report = first.get("report") or {}
     if not isinstance(report, dict):
         report = {}
-    backend = str(first.get("backend", ""))[:32]
+    backend = str(first.get("backend", ""))[: conf("VISION_API_BACKEND_NAME_CHARS")]
 
     if "_raw" in report:
         return AnalysisOutcome(
             backend=backend,
             risk_level="unknown",
             needs_human_review=True,
-            description=str(report.get("_raw", ""))[:2000],
+            description=str(report.get("_raw", ""))[: conf("VISION_API_RAW_TEXT_CHARS")],
             raw_report=report,
             is_raw_fallback=True,
         )
@@ -205,7 +207,7 @@ def get_embedding_status() -> dict:
     разбирается независимо от HTTP-статуса. Бросает VisionApiError, если сервер
     недоступен или не знает такой ручки (старая версия)."""
     try:
-        resp = requests.get(f"{_base_url()}/embeddings", timeout=10)
+        resp = requests.get(f"{_base_url()}/embeddings", timeout=conf("VISION_API_HEALTH_TIMEOUT"))
     except requests.exceptions.RequestException as exc:
         raise VisionApiError(f"Не удалось получить статус эмбеддингов: {exc}") from exc
     try:
@@ -217,7 +219,7 @@ def get_embedding_status() -> dict:
     return data
 
 
-def embed_texts(texts: list[str], timeout: int = 30) -> tuple[list[list[float]], str]:
+def embed_texts(texts: list[str], timeout: int | None = None) -> tuple[list[list[float]], str]:
     """Тексты -> (векторы в порядке texts, имя модели, которой они посчитаны).
 
     texts не должны содержать пустых строк и быть длиннее 64 штук: сервер молча
@@ -226,6 +228,8 @@ def embed_texts(texts: list[str], timeout: int = 30) -> tuple[list[list[float]],
     заголовка Retry-After), и VisionApiError при любой другой ошибке."""
     if not texts:
         return [], ""
+    if timeout is None:
+        timeout = conf("VISION_API_EMBED_TIMEOUT")
     try:
         resp = requests.post(f"{_base_url()}/embeddings", json={"texts": texts}, timeout=timeout)
     except requests.exceptions.ConnectionError as exc:
@@ -250,7 +254,7 @@ def embed_texts(texts: list[str], timeout: int = 30) -> tuple[list[list[float]],
         )
     if resp.status_code >= 400:
         message = data.get("error") if isinstance(data, dict) and data.get("error") else resp.text
-        raise VisionApiError(f"Сервер вернул ошибку ({resp.status_code}): {str(message)[:300]}")
+        raise VisionApiError(f"Сервер вернул ошибку ({resp.status_code}): {str(message)[: conf('VISION_API_ERROR_CHARS')]}")
 
     vectors = data.get("embeddings") if isinstance(data, dict) else None
     model = data.get("model") if isinstance(data, dict) else None
@@ -266,7 +270,7 @@ def _call(method: str, path: str, **kwargs):
     """GET/POST к серверу анализа с единообразной обработкой ошибок. Возвращает JSON."""
     url = f"{_base_url()}{path}"
     try:
-        resp = getattr(requests, method)(url, timeout=kwargs.pop("timeout", 15), **kwargs)
+        resp = getattr(requests, method)(url, timeout=kwargs.pop("timeout", conf("VISION_API_CALL_TIMEOUT")), **kwargs)
     except requests.exceptions.ConnectionError as exc:
         raise VisionApiError("Не удалось подключиться к серверу анализа изображений.") from exc
     except requests.exceptions.Timeout as exc:
@@ -281,7 +285,7 @@ def _call(method: str, path: str, **kwargs):
 
     if resp.status_code >= 400:
         message = data.get("error") if isinstance(data, dict) and data.get("error") else resp.text
-        raise VisionApiError(f"Сервер вернул ошибку ({resp.status_code}): {str(message)[:300]}")
+        raise VisionApiError(f"Сервер вернул ошибку ({resp.status_code}): {str(message)[: conf('VISION_API_ERROR_CHARS')]}")
     if data is None:
         raise VisionApiError("Сервер вернул некорректный JSON-ответ.")
     return data
@@ -353,7 +357,7 @@ def chat_with_model(
     images: list[str] | None = None,
     backend: str = "",
     model: str = "",
-    lang: str = "ru",
+    lang: str = Config.DEFAULT_LANG,
     system: str = "",
 ) -> ChatOutcome:
     """Отправляет одно сообщение на POST /chat (см. inference/chat.py) и
@@ -406,8 +410,8 @@ def chat_with_model(
 
     return ChatOutcome(
         reply=str(data.get("reply", "")),
-        backend=str(data.get("backend", ""))[:32],
-        model=str(data.get("model", ""))[:120],
+        backend=str(data.get("backend", ""))[: conf("VISION_API_BACKEND_NAME_CHARS")],
+        model=str(data.get("model", ""))[: conf("VISION_API_MODEL_NAME_CHARS")],
     )
 
 
@@ -443,3 +447,27 @@ def set_sampling(values: dict) -> dict:
     if not payload:
         raise VisionApiError("Нет параметров для сохранения.")
     return _pick_sampling(_call("post", "/sampling", json=payload))
+
+# ----------------------------------------------------------------------------
+# Категории оценивания (GET /categories, /categories/<имя> на сервере анализа)
+# ----------------------------------------------------------------------------
+def fetch_server_categories() -> list[dict]:
+    """Категории, которые сервер анализа держит по умолчанию, — в каноническом порядке.
+
+    GET /categories отдаёт порядок ({"order": [...]}), затем по одному запросу на категорию
+    GET /categories/<имя> — {name, summary, full, compact, examples?}. Возвращаются сырые
+    ответы сервера как есть (full/compact — с обёрткой <signal_category>); разбор под модель
+    БД — в categories_store. Бросает VisionApiError, если сервер недоступен или ответил
+    неожиданным форматом; пустой список — сервер не знает ни одной категории."""
+    listing = _call("get", "/categories")
+    order = listing.get("order") if isinstance(listing, dict) else listing
+    if not isinstance(order, list) or not all(isinstance(n, str) for n in order):
+        raise VisionApiError("Сервер вернул некорректный список категорий.")
+
+    items: list[dict] = []
+    for name in order:
+        record = _call("get", f"/categories/{quote(name, safe='')}")
+        if not isinstance(record, dict) or not isinstance(record.get("full"), str):
+            raise VisionApiError(f"Сервер вернул некорректное описание категории «{name}».")
+        items.append({**record, "name": name})
+    return items

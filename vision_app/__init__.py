@@ -31,9 +31,9 @@ def create_app(config: dict | None = None) -> Flask:
 
     Path(app.config["UPLOAD_FOLDER"]).mkdir(parents=True, exist_ok=True)
 
-    # SQLite: обработчик очереди пишет в БД из отдельного потока — даём ждать блокировку дольше 5 с.
+    # SQLite: обработчик очереди пишет в БД из отдельного потока — даём ждать блокировку дольше 5 с (SQLITE_TIMEOUT).
     if app.config["SQLALCHEMY_DATABASE_URI"].startswith("sqlite") and "SQLALCHEMY_ENGINE_OPTIONS" not in app.config:
-        app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {"connect_args": {"timeout": 30}}
+        app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {"connect_args": {"timeout": app.config["SQLITE_TIMEOUT"]}}
 
     # --- расширения ---
     db.init_app(app)
@@ -150,6 +150,14 @@ def _register_cli(app: Flask) -> None:
         db.session.commit()
         click.echo(f"«{username}» → {ROLE_LABELS[role]}")
 
+    @app.cli.command("seed-categories")
+    def seed_categories():
+        """Загрузить категории с сервера анализа (GET /categories), если таблица categories пуста."""
+        if seed_default_categories():
+            click.echo("Категории загружены с сервера анализа.")
+        else:
+            click.echo("Ничего не загружено: таблица не пуста либо сервер анализа недоступен (см. лог).")
+
     @app.cli.command("reindex-embeddings")
     @click.option("--all", "everything", is_flag=True,
                   help="Пересчитать векторы ВСЕХ анализов, а не только недостающие.")
@@ -187,7 +195,7 @@ def _register_cli(app: Flask) -> None:
                 raise click.ClickException(f"Не удалось получить эмбеддинг запроса: {exc}")
             result = vector_search.semantic_search(
                 conditions, qvec, model, limit=limit, min_similarity=-1.0,
-                scan_limit=int(app.config.get("EMBEDDING_SCAN_LIMIT", 5000)),
+                scan_limit=int(app.config["EMBEDDING_SCAN_LIMIT"]),
             )
             rows = {
                 r.id: r for r in db.session.scalars(
@@ -206,7 +214,7 @@ def _register_cli(app: Flask) -> None:
         """Посчитать хеши файлов у анализов, где их ещё нет (для склейки повторных загрузок одного файла)."""
         total = missing = 0
         while True:
-            hashed, lost = image_dedup.backfill_hashes(limit=500)
+            hashed, lost = image_dedup.backfill_hashes(limit=app.config["DEDUP_CLI_BATCH"])
             if not hashed and not lost:
                 break
             total += hashed

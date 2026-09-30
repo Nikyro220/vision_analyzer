@@ -113,7 +113,10 @@
       var field = document.createElement("input");
       field.type = "text";
       field.name = "captions";
-      field.maxLength = 500;
+      // Лимит подписи задаёт сервер (Config.CAPTION_MAX_CHARS) через data-caption-max формы.
+      var uploadForm = document.getElementById("upload-form");
+      var captionMax = uploadForm ? Number(uploadForm.dataset.captionMax) : 0;
+      if (captionMax > 0) field.maxLength = captionMax;
       field.placeholder = "Комментарий к этому изображению (необязательно)";
       field.value = captionMap.get(file) || "";
 

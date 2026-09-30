@@ -20,6 +20,7 @@ from flask import (
 from flask_login import current_user, login_required
 from sqlalchemy import delete, func, select, update
 
+from ..config import Config, conf
 from ..decorators import staff_required
 from .. import image_dedup
 from ..extensions import db
@@ -113,11 +114,11 @@ def queue_snapshot() -> dict:
             "risk_label": RISK_LABELS.get(row.risk_level, row.risk_level),
             "error": row.is_error,
             "is_new": row.is_new,
-            "date": local_dt(row.created_at, "%d.%m %H:%M"),
+            "date": local_dt(row.created_at, "short"),
             "url": url_for("analyzer.result_detail", pk=row.id),
             "thumb_url": url_for("analyzer.thumb", filename=row.image_path) if row.image_path else "",
         }
-        for row in db.session.scalars(_own_results().limit(6)).all()
+        for row in db.session.scalars(_own_results().limit(conf("DASHBOARD_RECENT_LIMIT"))).all()
     ]
     return {"pending": pending, "recent": recent, "queue_total": len(pending_ids)}
 
@@ -126,7 +127,7 @@ def _enqueue_uploads(form: ImageUploadForm):
     """Кладёт проверенные файлы в очередь и сразу возвращает пользователя на страницу."""
     from ..settings_store import get_runtime_setting
 
-    limit = get_runtime_setting("QUEUE_MAX_PENDING_PER_USER") or 30
+    limit = get_runtime_setting("QUEUE_MAX_PENDING_PER_USER")
     pending_now = db.session.scalar(
         select(func.count(AnalysisResult.id)).where(
             AnalysisResult.user_id == current_user.id, AnalysisResult.status != Status.DONE 
@@ -145,7 +146,7 @@ def _enqueue_uploads(form: ImageUploadForm):
     try:
         for item in form.accepted:
             # Файл на диске хранится под случайным именем, оригинальное имя — только в БД.
-            rel_path = f"uploads/{now:%Y/%m/%d}/{uuid.uuid4().hex}{item.ext}"
+            rel_path = f"{Config.UPLOADS_DIR}/{now:%Y/%m/%d}/{uuid.uuid4().hex}{item.ext}"
             abs_path = root / rel_path
             abs_path.parent.mkdir(parents=True, exist_ok=True)
             abs_path.write_bytes(item.data)
@@ -170,10 +171,11 @@ def _enqueue_uploads(form: ImageUploadForm):
 
     wake_worker(current_app)
     flash(f"Добавлено в очередь: {plural(len(form.accepted), _FILES)}.", "success")
-    for name, reason in form.rejected[:5]:
+    shown = conf("REJECTED_FILES_SHOWN")
+    for name, reason in form.rejected[:shown]:
         flash(f"Пропущен файл «{name}»: {reason}.", "warning")
-    if len(form.rejected) > 5:
-        flash(f"…и ещё пропущено: {len(form.rejected) - 5}.", "warning")
+    if len(form.rejected) > shown:
+        flash(f"…и ещё пропущено: {len(form.rejected) - shown}.", "warning")
     return redirect(url_for("analyzer.dashboard"))
 
 
@@ -237,7 +239,7 @@ def cancel_queued(pk: int):
 @login_required
 def history():
     q = request.args.get("q", "").strip()
-    page = paginate(_own_results(q), per_page=12)
+    page = paginate(_own_results(q), per_page=conf("HISTORY_PER_PAGE"))
 
     # Запрос из JS-фильтра (см. static/js/list-filter.js): отдаём только фрагмент
     # с таблицей/пагинацией, без перерисовки всей страницы.
@@ -279,7 +281,7 @@ def mark_seen():
 @staff_required
 def delete_selected():
     """Удалить выбранные записи истории (только админы)."""
-    ids = [int(x) for x in request.form.getlist("ids") if x.isdigit()][:1000]
+    ids = [int(x) for x in request.form.getlist("ids") if x.isdigit()][: conf("BULK_DELETE_MAX_IDS")]
     if not ids:
         flash("Ничего не выбрано.", "info")
     else:
@@ -380,13 +382,11 @@ def thumb(filename: str):
     path = ensure_thumb(Path(current_app.config["UPLOAD_FOLDER"]), filename)
     if path is None:
         abort(404)
-    resp = send_file(path, mimetype="image/jpeg", max_age=7 * 24 * 3600, conditional=True)
+    resp = send_file(path, mimetype="image/jpeg", max_age=conf("THUMB_CACHE_SECONDS"), conditional=True)
     resp.cache_control.public = False  # картинки приватные: только в браузере пользователя
     resp.cache_control.private = True
     return resp
 
-
-MAX_MODEL_LEN = 200
 
 
 def _effective_backend(status: dict, target_backend: str) -> tuple[str, bool]:
@@ -524,7 +524,7 @@ def save_model(name: str):
     _require_backend(name)
     model = request.form.get("model", "").strip()
 
-    if len(model) > MAX_MODEL_LEN:
+    if len(model) > conf("MODEL_NAME_MAX_LEN"):
         flash("Слишком длинное название модели.", "error")
         return redirect(url_for("analyzer.health"))
     if not _backend_is_available(name):

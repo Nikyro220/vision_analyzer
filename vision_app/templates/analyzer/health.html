@@ -86,7 +86,7 @@
                     {% endfor %}
                 </select>
                 {% else %}
-                <input type="text" name="model" class="input input-grow" maxlength="200"
+                <input type="text" name="model" class="input input-grow" maxlength="{{ config.MODEL_NAME_MAX_LEN }}"
                        value="{{ card.active_model }}" placeholder="ID модели (пусто — авто)" aria-label="Модель {{ card.name }}">
                 {% endif %}
                 <button type="submit" class="btn btn-primary">Использовать для анализа</button>

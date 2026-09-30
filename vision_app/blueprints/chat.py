@@ -21,6 +21,7 @@ from sqlalchemy import select
 
 from .. import chat_images, chat_jobs
 from ..chat_tools import ChatImage, attachment_note, delivery_message, run_chat_turn
+from ..config import Config, conf
 from ..extensions import db
 from ..models import ChatMessage, ChatRole, ChatSession, utcnow
 from ..services import VisionApiError
@@ -29,9 +30,7 @@ from ..thumbs import ensure_thumb
 
 bp = Blueprint("chat", __name__)
 
-MAX_MESSAGE_LEN = 8000
-MAX_HISTORY_MESSAGES = 80  # сколько последних сообщений сессии отправлять модели как контекст
-TITLE_LEN = 60
+# Лимиты чата (длина сообщения, глубина истории, длина названия, ...) — в config.py: CHAT_*.
 DEFAULT_IMAGE_MESSAGE = "Опиши прикреплённое изображение."  # если пользователь приложил картинку без текста
 
 
@@ -52,15 +51,16 @@ def _get_own_session(session_id: int) -> ChatSession:
 
 def _make_title(message: str) -> str:
     text = " ".join(message.split())  # схлопнуть переносы строк/лишние пробелы для заголовка
-    if len(text) <= TITLE_LEN:
+    title_len = conf("CHAT_TITLE_LEN")
+    if len(text) <= title_len:
         return text
-    return text[: TITLE_LEN - 1] + "…"
+    return text[: title_len - 1] + "…"
 
 
 def _session_images(session_row: ChatSession) -> tuple[list[ChatImage], dict[int, list[ChatImage]]]:
     """Все вложения чата со сквозной нумерацией (#1, #2, …) и то же самое по сообщениям.
 
-    Нумерация идёт по всем сообщениям сессии, а не только по последним MAX_HISTORY_MESSAGES:
+    Нумерация идёт по всем сообщениям сессии, а не только по последним CHAT_MAX_HISTORY_MESSAGES:
     номер, названный моделью в прошлых репликах, не должен «поехать» из-за обрезки истории.
     """
     everything: list[ChatImage] = []
@@ -85,7 +85,7 @@ def _apply_context_limit(all_images: list[ChatImage]) -> None:
     картинка занимает порядка 1–1.5 тыс. токенов контекста. У более старых in_context=False:
     в чате они остаются и их по-прежнему можно поставить в очередь анализа, но модель их не видит
     (и знает об этом из промпта). Вложения текущего сообщения всегда в контексте."""
-    limit = max(int(current_app.config.get("CHAT_CONTEXT_IMAGES", 6)), chat_images.MAX_IMAGES_PER_MESSAGE)
+    limit = max(int(conf("CHAT_CONTEXT_IMAGES")), int(conf("CHAT_MAX_IMAGES_PER_MESSAGE")))
     for img in all_images[:-limit]:
         img.in_context = False
 
@@ -100,7 +100,7 @@ def _history_for_model(session_row: ChatSession, by_message: dict[int, list[Chat
     """Последние сообщения сессии как контекст для модели. К сообщениям с вложениями дописана
     пометка «[Прикреплено изображение: #N «имя»]» (в БД её нет), а сами картинки, попавшие в
     лимит контекста (см. _apply_context_limit), приложены в поле images."""
-    prior = session_row.messages[-MAX_HISTORY_MESSAGES:]
+    prior = session_row.messages[-conf("CHAT_MAX_HISTORY_MESSAGES"):]
     history = []
     for m in prior:
         attached = by_message.get(m.id, [])
@@ -153,8 +153,8 @@ def view(session_id: int):
         messages=session_row.messages,
         attachments=_attachment_urls(session_row),
         pending_analyses=chat_jobs.pending_count(session_row.id),
-        max_images=chat_images.MAX_IMAGES_PER_MESSAGE,
-        max_image_mb=chat_images.MAX_IMAGE_BYTES // (1024 * 1024),
+        max_images=conf("CHAT_MAX_IMAGES_PER_MESSAGE"),
+        max_image_mb=conf("CHAT_MAX_IMAGE_BYTES") // (1024 * 1024),
         target_backend=target_backend,
         target_model=target_model,
     )
@@ -180,12 +180,12 @@ def attachment(session_id: int, message_id: int, index: int):
     if request.args.get("thumb"):
         thumb = ensure_thumb(Path(current_app.config["UPLOAD_FOLDER"]), rel)
         if thumb is not None:
-            resp = send_file(thumb, mimetype="image/jpeg", max_age=7 * 24 * 3600, conditional=True)
+            resp = send_file(thumb, mimetype="image/jpeg", max_age=conf("THUMB_CACHE_SECONDS"), conditional=True)
             resp.cache_control.public = False
             resp.cache_control.private = True
             return resp
 
-    resp = send_file(path, mimetype=items[index].get("mime") or None, max_age=24 * 3600, conditional=True)
+    resp = send_file(path, mimetype=items[index].get("mime") or None, max_age=conf("CHAT_ATTACHMENT_CACHE_SECONDS"), conditional=True)
     resp.cache_control.public = False
     resp.cache_control.private = True
     return resp
@@ -232,7 +232,7 @@ def delete_session(session_id: int):
 @login_required
 def send(session_id: int):
     """Принимает сообщение: JSON {"message": ...} либо multipart/form-data с полями
-    message и images (0..MAX_IMAGES_PER_MESSAGE файлов). Хотя бы одно из двух обязательно."""
+    message и images (0..CHAT_MAX_IMAGES_PER_MESSAGE файлов). Хотя бы одно из двух обязательно."""
     session_row = _get_own_session(session_id)
 
     if request.is_json:
@@ -245,8 +245,9 @@ def send(session_id: int):
 
     if not message and not files:
         return jsonify({"error": "Пустое сообщение."}), 400
-    if len(message) > MAX_MESSAGE_LEN:
-        return jsonify({"error": f"Сообщение слишком длинное (максимум {MAX_MESSAGE_LEN} символов)."}), 400
+    max_len = conf("CHAT_MAX_MESSAGE_LEN")
+    if len(message) > max_len:
+        return jsonify({"error": f"Сообщение слишком длинное (максимум {max_len} символов)."}), 400
 
     # Вложения сохраняем на диск ДО обращения к модели: инструмент analyze_image читает их
     # оттуда. Если ход не удался — файлы удаляются, в БД ничего не попадает.
@@ -308,7 +309,7 @@ def _run_turn(session_row: ChatSession, message: str, saved: list[dict]):
     # см. chat_tools/runner.py. Результат анализа из очереди придёт позже, отдельным ходом (pending() ниже).
     try:
         turn = run_chat_turn(
-            current_user, model_message, history, target_backend, target_model, lang="ru",
+            current_user, model_message, history, target_backend, target_model, lang=Config.DEFAULT_LANG,
             images=all_images, session_id=session_row.id, message_images=message_images,
         )
     except VisionApiError as exc:
@@ -375,7 +376,7 @@ def _deliver(session_row: ChatSession, job, row) -> dict:
         target_backend, target_model = get_analysis_target()
         try:
             turn = run_chat_turn(
-                current_user, delivery_message(payload), history, target_backend, target_model, lang="ru",
+                current_user, delivery_message(payload), history, target_backend, target_model, lang=Config.DEFAULT_LANG,
                 images=all_images, session_id=session_row.id,
             )
             reply, backend, model = turn.reply, turn.backend, turn.model

@@ -29,6 +29,7 @@ from dataclasses import dataclass
 from flask import current_app
 
 from .. import chat_jobs
+from ..config import conf
 from .analyses import ToolResult
 
 TOOL_NAME = "analyze_image"
@@ -97,9 +98,10 @@ def normalize_args(raw) -> tuple[int | None, str, list[str]]:
     caption = ""
     if raw.get("caption") is not None:
         caption = " ".join(str(raw["caption"]).split())
-        if len(caption) > chat_jobs.MAX_CAPTION_CHARS:
-            caption = caption[: chat_jobs.MAX_CAPTION_CHARS]
-            warnings.append(f"caption обрезан до {chat_jobs.MAX_CAPTION_CHARS} символов")
+        max_chars = conf("CAPTION_MAX_CHARS")
+        if len(caption) > max_chars:
+            caption = caption[:max_chars]
+            warnings.append(f"caption обрезан до {max_chars} символов")
     return number, caption, warnings
 
 

@@ -27,6 +27,7 @@ from wtforms.validators import (
 )
 
 from . import examples_codec
+from .config import conf
 from .extensions import db
 from .models import CATEGORY_NAME_RE, Category, User
 
@@ -43,15 +44,17 @@ COMMON_PASSWORDS = {
 
 def validate_password_strength(password: str, username: str = "") -> None:
     """Аналог AUTH_PASSWORD_VALIDATORS из Django-версии. Бросает ValidationError."""
-    if len(password) < 8:
-        raise ValidationError("Пароль слишком короткий. Минимум 8 символов.")
+    min_length = conf("PASSWORD_MIN_LENGTH")
+    if len(password) < min_length:
+        raise ValidationError(f"Пароль слишком короткий. Минимум {min_length} символов.")
     if password.isdigit():
         raise ValidationError("Пароль не может состоять только из цифр.")
     if password.lower() in COMMON_PASSWORDS:
         raise ValidationError("Этот пароль слишком широко распространён.")
     if username:
         u, p = username.lower(), password.lower()
-        if len(u) >= 3 and (u in p or SequenceMatcher(a=p, b=u).quick_ratio() >= 0.7):
+        similar = SequenceMatcher(a=p, b=u).quick_ratio() >= conf("PASSWORD_USERNAME_SIMILARITY")
+        if len(u) >= conf("PASSWORD_USERNAME_MIN_LEN") and (u in p or similar):
             raise ValidationError("Пароль слишком похож на логин.")
 
 
@@ -334,7 +337,8 @@ class ImageUploadForm(FlaskForm):
         from .settings_store import get_runtime_setting
 
         raw_captions = request.form.getlist("captions")
-        max_files = get_runtime_setting("QUEUE_MAX_FILES_PER_UPLOAD") or 20
+        caption_max = conf("CAPTION_MAX_CHARS")
+        max_files = get_runtime_setting("QUEUE_MAX_FILES_PER_UPLOAD")
         if len(files) > max_files:
             raise ValidationError(f"За один раз можно загрузить не больше {max_files} файлов.")
 
@@ -342,7 +346,7 @@ class ImageUploadForm(FlaskForm):
             name = upload.filename
             data = upload.read()
             upload.stream.seek(0)
-            caption = raw_captions[idx].strip()[:500] if idx < len(raw_captions) else ""
+            caption = raw_captions[idx].strip()[:caption_max] if idx < len(raw_captions) else ""
 
             if not data:
                 self.rejected.append((name, "файл пуст"))
@@ -362,7 +366,7 @@ class ImageUploadForm(FlaskForm):
             self.accepted.append(AcceptedImage(name, data, ext, mime, caption))
 
         if not self.accepted:
-            reasons = "; ".join(f"«{n}»: {why}" for n, why in self.rejected[:5])
+            reasons = "; ".join(f"«{n}»: {why}" for n, why in self.rejected[: conf("REJECTED_FILES_SHOWN")])
             raise ValidationError(
                 "Загрузите правильное изображение. " + reasons if reasons else "Файлы не загружены."
             )

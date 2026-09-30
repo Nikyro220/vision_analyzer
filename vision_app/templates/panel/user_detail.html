@@ -3,7 +3,7 @@
 {% block content %}
 <div class="page-header">
     <h1>{{ target.username }}</h1>
-    <p class="page-sub">{{ target.email or "Email не указан" }} · зарегистрирован {{ target.created_at|localdt('%d.%m.%Y %H:%M') }}</p>
+    <p class="page-sub">{{ target.email or "Email не указан" }} · зарегистрирован {{ target.created_at|localdt }}</p>
 </div>
 
 <div class="panel-grid panel-grid-3">
@@ -15,7 +15,7 @@
             <dt>Email</dt><dd>{{ target.email or "—" }}</dd>
             <dt>Имя</dt><dd>{{ target.first_name or "—" }}</dd>
             <dt>Фамилия</dt><dd>{{ target.last_name or "—" }}</dd>
-            <dt>Дата регистрации</dt><dd>{{ target.created_at|localdt('%d.%m.%Y %H:%M') }}</dd>
+            <dt>Дата регистрации</dt><dd>{{ target.created_at|localdt }}</dd>
         </dl>
     </div>
 
@@ -87,7 +87,7 @@
                     <img class="row-thumb" src="{{ url_for('analyzer.thumb', filename=item.image_path) }}" alt="" loading="lazy" width="36" height="36" onerror="this.style.visibility='hidden'">
                     <span class="risk-dot risk-{{ item.risk_level }}"></span>
                     <span class="mini-list-name">{{ (item.original_name or 'без имени')|trunc(28) }}</span>
-                    <span class="mini-list-date">{{ item.created_at|localdt('%d.%m %H:%M') }}</span>
+                    <span class="mini-list-date">{{ item.created_at|localdt('short') }}</span>
                 </a>
             </li>
             {% endfor %}

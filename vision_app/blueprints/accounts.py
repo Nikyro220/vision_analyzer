@@ -4,6 +4,7 @@ from flask import Blueprint, flash, redirect, render_template, request, session,
 from flask_login import current_user, login_required, login_user, logout_user
 from sqlalchemy import func, select
 
+from ..config import conf
 from ..extensions import db
 from ..forms import AccountForm, DeleteAccountForm, LoginForm, RegisterForm
 from ..history import delete_user_account
@@ -123,7 +124,7 @@ def profile():
         select(AnalysisResult)
         .where(*finished)
         .order_by(AnalysisResult.created_at.desc(), AnalysisResult.id.desc())
-        .limit(10)
+        .limit(conf("USER_RECENT_ANALYSES_LIMIT"))
     ).all()
     history_count = db.session.scalar(select(func.count(AnalysisResult.id)).where(*finished))
 

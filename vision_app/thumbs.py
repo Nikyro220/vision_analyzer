@@ -13,11 +13,13 @@ from pathlib import Path
 
 from PIL import Image, ImageOps
 
+from .config import Config
+
 log = logging.getLogger("vision_app.thumbs")
 
-THUMB_SIZE = 96  # px; в интерфейсе показываем 36-44 px, запас под retina-экраны
-THUMB_QUALITY = 80
-THUMBS_DIR = "thumbs"
+THUMB_SIZE = Config.THUMB_SIZE
+THUMB_QUALITY = Config.THUMB_QUALITY
+THUMBS_DIR = Config.THUMBS_DIR
 
 
 def thumb_rel(image_rel: str) -> str:
