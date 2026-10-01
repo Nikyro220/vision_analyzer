@@ -38,6 +38,7 @@ from ..services import (
     invalidate_models_cache,
     invalidate_providers,
     models_cached_at,
+    set_default_backend,
     set_sampling,
 )
 from ..settings_store import clear_analysis_target, get_analysis_target, set_analysis_target
@@ -449,6 +450,20 @@ def _render_health(bound_forms: dict | None = None, status_code: int = 200):
         except VisionApiError as exc:
             status, error = None, str(exc)
 
+    # Варианты для «Бэкенд по умолчанию на сервере»: все провайдеры, не настроенные — недоступны для выбора.
+    default_backend = (status or {}).get("default_backend", "")
+    health_backends = (status or {}).get("backends") or {}
+    default_options = [
+        {
+            "name": p.name,
+            "title": p.title,
+            "configured": p.configured,
+            "available": bool((health_backends.get(p.name) or {}).get("ok")),
+            "selected": p.name == default_backend,
+        }
+        for p in providers
+    ]
+
     cards = []
     sampling_error = None
     target_backend, target_model = get_analysis_target()
@@ -524,6 +539,7 @@ def _render_health(bound_forms: dict | None = None, status_code: int = 200):
         status=status,
         error=error,
         cards=cards,
+        default_options=default_options,
         can_configure=can_configure,
         sampling_error=sampling_error,
         target_backend=target_backend,
@@ -606,6 +622,46 @@ def reset_target():
     return redirect(url_for("analyzer.health"))
 
 
+@bp.route("/health/default-backend", methods=["POST"])
+@staff_required
+def save_default_backend():
+    """Сменить бэкенд по умолчанию на сервере анализа (POST /config на сервере).
+
+    Это не то же самое, что выбор бэкенда и модели на карточке («Использовать для анализа»):
+    тот выбор действует только для панели и важнее умолчания, а умолчание общее для сервера —
+    его используют все запросы без явного ?backend= и от него считается автоматический фолбэк."""
+    provider = _require_backend(request.form.get("backend", "").strip().lower())
+
+    if not provider.configured:
+        flash(f"«{provider.title}» не настроен — сначала введите данные подключения (API-ключ) на его карточке.", "error")
+        return redirect(url_for("analyzer.health"))
+
+    try:
+        current = check_health()
+    except VisionApiError as exc:
+        flash(str(exc), "error")
+        return redirect(url_for("analyzer.health"))
+
+    if current.get("default_backend") == provider.name:
+        flash(f"«{provider.title}» уже является бэкендом по умолчанию.", "info")
+        return redirect(url_for("analyzer.health"))
+
+    try:
+        set_default_backend(provider.name)
+    except VisionApiError as exc:
+        flash(str(exc), "error")
+        return redirect(url_for("analyzer.health"))
+
+    flash(f"Бэкенд по умолчанию на сервере: «{provider.title}».", "success")
+    if not ((current.get("backends") or {}).get(provider.name) or {}).get("ok"):
+        flash(f"«{provider.title}» сейчас недоступен — пока он не заработает, запросы без явного выбора будут падать "
+              "(или уйдут на его фолбэк, если он задан).", "info")
+    if get_analysis_target()[0]:
+        flash("Учтите: панель использует бэкенд, выбранный вручную на карточке, — умолчание на неё не влияет, "
+              "пока вы не нажмёте «Сбросить к настройкам сервера».", "info")
+    return redirect(url_for("analyzer.health"))
+
+
 @bp.route("/health/backend/<name>/sampling", methods=["POST"])
 @staff_required
 def save_sampling(name: str):
@@ -652,6 +708,14 @@ def save_provider_settings(name: str):
         invalidate_models_cache(name)
         invalidate_providers()
         flash(f"Ключ «{provider.title}» удалён." if removed else "Ключ и так не был задан.", "success" if removed else "info")
+        if removed:
+            try:
+                is_default = check_health().get("default_backend") == name
+            except VisionApiError:
+                is_default = False
+            if is_default:
+                flash(f"«{provider.title}» — бэкенд по умолчанию на сервере, а ключа больше нет: запросы без явного выбора "
+                      "будут падать. Выберите другой бэкенд по умолчанию в блоке «Общий статус».", "error")
         return redirect(url_for("analyzer.health"))
 
     raw = request.form.get("credential", "")
