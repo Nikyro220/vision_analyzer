@@ -28,7 +28,7 @@ from urllib.parse import quote
 import aiohttp
 
 import config
-from .base import Provider, split_data_url
+from .base import Provider, SettingField, split_data_url
 
 
 # Размышления: SAMPLING_DEFAULTS["think"] — True / False / "low" / "medium" / "high".
@@ -65,11 +65,27 @@ def _image_part(img: str, default_mime: str = "image/png") -> dict:
 
 class GeminiProvider(Provider):
     name = "gemini"
+    label = "Google Gemini"
     # Облачный бэкенд: картинки покидают контур, поэтому на Gemini никогда не
     # уходим автоматически (он не является fallback у других провайдеров),
     # а при его недоступности автофолбэка на локальные бэкенды нет — выбор
     # бэкенда остаётся за вызывающей стороной.
     fallback = None
+    # num_ctx не используется; think -> thinkingBudget / thinkingLevel (см. _thinking_config)
+    # (sampling_keys — по умолчанию из базового класса: без num_ctx)
+
+    # Ключ можно ввести в веб-панели (страница статуса): уходит в POST /providers/gemini/settings,
+    # хранится только в памяти сервера и наружу не отдаётся — клиенту видно лишь «задан / не задан».
+    settings_fields = (
+        SettingField(
+            name="api_key",
+            label="API-ключ Google AI",
+            config_attr="GEMINI_API_KEY",
+            secret=True,
+            hint="Ключ хранится в памяти сервера анализа и пропадает при его перезапуске; "
+                 "для постоянного — VISION_ANALYZER_GEMINI_API_KEY.",
+        ),
+    )
 
     @property
     def endpoint(self) -> str:

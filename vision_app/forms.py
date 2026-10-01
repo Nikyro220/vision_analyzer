@@ -7,6 +7,7 @@ import math
 import re
 from dataclasses import dataclass
 from difflib import SequenceMatcher
+from functools import lru_cache
 
 from flask import current_app, request
 from flask_wtf import FlaskForm
@@ -396,47 +397,30 @@ def _parse_number(raw: str, kind: str, lo, hi, lo_exclusive: bool = False):
     return value
 
 
-class _SamplingForm(FlaskForm):
-    """Базовая форма. Пустое поле = «не менять»: на сервер уходят только заполненные.
-    Для num_ctx/num_predict есть чекбокс «сбросить» — явный способ вернуть null
-    (дефолт модели), в отличие от просто пустого поля."""
+# Описание каждого параметра генерации: поле формы и ограничения. Какие из них показывать
+# для конкретного провайдера, решает сам провайдер (sampling_keys в GET /providers), поэтому
+# для нового бэкенда править этот файл не нужно — только если появится новый ПАРАМЕТР.
+#   имя -> (тип, минимум, максимум, минимум не включается)
+_SAMPLING_SPEC = {
+    "temperature": ("float", 0, 2, False),
+    "top_p": ("float", 0, 1, True),
+    "top_k": ("int", -1, 100000, False),
+    "seed": ("int", -(2**63), 2**63 - 1, False),
+    "num_predict": ("int", 1, 1048576, False),
+    "num_ctx": ("int", 128, 1048576, False),
+}
 
-    class Meta:
-        # Формы с prefix называют поле токена «<prefix>-csrf_token», а глобальный
-        # CSRFProtect ищет «csrf_token». Защита всё равно включена глобально:
-        # шаблон кладёт обычное скрытое поле csrf_token.
-        csrf = False
 
-    # имя поля -> (тип, минимум, максимум, минимум не включается)
-    SPEC: dict = {}
-    values: dict
+def _text_field(name: str, placeholder: str, inputmode: str) -> StringField:
+    return StringField(
+        name,
+        validators=[Optional(), Length(max=32)],
+        render_kw={"placeholder": placeholder, "inputmode": inputmode, "autocomplete": "off"},
+    )
 
-    temperature = StringField(
-        "temperature",
-        validators=[Optional(), Length(max=32)],
-        render_kw={"placeholder": "0–2", "inputmode": "decimal", "autocomplete": "off"},
-    )
-    top_p = StringField(
-        "top_p",
-        validators=[Optional(), Length(max=32)],
-        render_kw={"placeholder": "0–1", "inputmode": "decimal", "autocomplete": "off"},
-    )
-    top_k = StringField(
-        "top_k",
-        validators=[Optional(), Length(max=32)],
-        render_kw={"placeholder": "целое", "inputmode": "numeric", "autocomplete": "off"},
-    )
-    seed = StringField(
-        "seed",
-        validators=[Optional(), Length(max=32)],
-        render_kw={"placeholder": "целое", "inputmode": "numeric", "autocomplete": "off"},
-    )
-    num_predict = StringField(
-        "num_predict",
-        validators=[Optional(), Length(max=32)],
-        render_kw={"placeholder": "1–1048576", "inputmode": "numeric", "autocomplete": "off"},
-    )
-    think = SelectField(
+
+def _think_field() -> SelectField:
+    return SelectField(
         "think",
         choices=[
             ("false", "выкл"),
@@ -447,6 +431,32 @@ class _SamplingForm(FlaskForm):
         ],
         validators=[Optional()],
     )
+
+
+# Фабрики полей; порядок здесь = порядок полей на странице.
+_SAMPLING_FIELDS = {
+    "temperature": lambda: _text_field("temperature", "0–2", "decimal"),
+    "top_p": lambda: _text_field("top_p", "0–1", "decimal"),
+    "top_k": lambda: _text_field("top_k", "целое", "numeric"),
+    "seed": lambda: _text_field("seed", "целое", "numeric"),
+    "num_predict": lambda: _text_field("num_predict", "1–1048576", "numeric"),
+    "think": _think_field,
+    "num_ctx": lambda: _text_field("num_ctx", "128–1048576", "numeric"),
+}
+
+
+class _SamplingForm(FlaskForm):
+    """Базовая форма (без полей — их добавляет sampling_form_class по sampling_keys провайдера).
+    Пустое поле = «не менять»: на сервер уходят только заполненные."""
+
+    class Meta:
+        # Формы с prefix называют поле токена «<prefix>-csrf_token», а глобальный
+        # CSRFProtect ищет «csrf_token». Защита всё равно включена глобально:
+        # шаблон кладёт обычное скрытое поле csrf_token.
+        csrf = False
+
+    SPEC: dict = {}
+    values: dict
 
     def validate(self, extra_validators=None):
         ok = super().validate(extra_validators)
@@ -462,34 +472,18 @@ class _SamplingForm(FlaskForm):
                 field.errors = [*field.errors, str(exc)]
                 ok = False
 
-        self.values["think"] = {"true": True, "false": False}.get(self.think.data, self.think.data)
+        if "think" in self._fields:
+            self.values["think"] = {"true": True, "false": False}.get(self.think.data, self.think.data)
 
         return ok
 
-_COMMON_SPEC = {
-    "temperature": ("float", 0, 2, False),
-    "top_p": ("float", 0, 1, True),
-    "top_k": ("int", -1, 100000, False),
-    "seed": ("int", -(2**63), 2**63 - 1, False),
-    "num_predict": ("int", 1, 1048576, False),
-}
 
-
-class VllmSamplingForm(_SamplingForm):
-    """vLLM: num_ctx здесь нет — размер контекста в vLLM задаётся при запуске сервера."""
-
-    SPEC = dict(_COMMON_SPEC)
-
-
-class OllamaSamplingForm(_SamplingForm):
-    SPEC = {**_COMMON_SPEC, "num_ctx": ("int", 128, 1048576, False)}
-
-    num_ctx = StringField(
-        "num_ctx",
-        validators=[Optional(), Length(max=32)],
-        render_kw={"placeholder": "128–1048576", "inputmode": "numeric", "autocomplete": "off"},
-    )
-    
-
-
-SAMPLING_FORMS = {"vllm": VllmSamplingForm, "ollama": OllamaSamplingForm}
+@lru_cache(maxsize=None)
+def sampling_form_class(keys: tuple[str, ...]) -> type[_SamplingForm]:
+    """Форма параметров генерации ровно с теми полями, которые провайдер использует
+    (sampling_keys из GET /providers). Неизвестные ключи игнорируются; классы кэшируются —
+    для одного набора ключей он создаётся один раз."""
+    ordered = tuple(k for k in _SAMPLING_FIELDS if k in keys)
+    attrs: dict = {k: _SAMPLING_FIELDS[k]() for k in ordered}
+    attrs["SPEC"] = {k: _SAMPLING_SPEC[k] for k in ordered if k in _SAMPLING_SPEC}
+    return type("SamplingForm", (_SamplingForm,), attrs)

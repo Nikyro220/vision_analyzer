@@ -5,6 +5,8 @@ server.py — HTTP-слой vision_analyzer_server: простые хендле�
 подготовка изображений и разбор трёх форматов тела запроса там.
 Собственно общением с моделью (Ollama/vLLM/Gemini) занимаются провайдеры
 в providers/ (по модулю на бэкенд), конвейер /analyze — backends.py.
+/providers и /providers/<name>/settings — самоописание провайдеров и их
+настройка «на лету» (ключ API и т.п.), чтобы клиенты не зашивали список бэкендов.
 Хендлеры /categories (только чтение дефолтов) — в categories_api.py,
 бизнес-логика — в categories.py. Разовые категории на один вызов
 передаются прямо в POST /analyze (см. analyze.py, поле "categories").
@@ -202,6 +204,58 @@ async def handle_config(request: web.Request) -> web.Response:
     return _json({"ok": True, **_config_snapshot()})
 
 
+async def handle_providers(request: web.Request) -> web.Response:
+    """GET /providers — описание ВСЕХ зарегистрированных провайдеров (в отличие от
+    /health, где не настроенные скрыты): название, фолбэк, настроен ли, какие
+    параметры /sampling он использует и какие поля можно менять через
+    POST /providers/<name>/settings. По этому ответу клиент (веб-панель) сам строит
+    свой UI — новый провайдер появляется там без правок на стороне клиента.
+    Значения секретных полей не отдаются, только флаг "set"."""
+    return _json({
+        "default": config.BACKEND,
+        "providers": [p.describe() for p in providers.all_providers()],
+    })
+
+
+async def handle_provider_settings(request: web.Request) -> web.Response:
+    """POST /providers/<name>/settings — поменять поля провайдера «на лету».
+
+    Тело — JSON {"<поле>": "<значение>", ..., "clear": ["<поле>", ...]}; допустимые
+    поля — из settings_fields провайдера (см. GET /providers). Пустое значение
+    означает «не менять», сброс — только явно через "clear". Только тело запроса, не
+    query: URL попадает в логи, а среди полей бывают секреты (API-ключ).
+    В ответе — результат проверки подключения (ping) уже с новыми настройками."""
+    name = request.match_info["name"].strip().lower()
+    if not providers.is_known(name):
+        return _json({"error": config._t("error.unknown_backend", backend=name)}, status=400)
+    provider = providers.get(name)
+
+    if request.query:
+        return _json({"error": config._t("error.settings_in_query")}, status=400)
+
+    try:
+        body = await request.json()
+    except Exception:
+        body = None
+    if not isinstance(body, dict):
+        return _json({"error": config._t("error.invalid_json_body")}, status=400)
+
+    clear = body.pop("clear", None) or []
+    if not isinstance(clear, list):
+        return _json({"error": config._t("error.invalid_json_body")}, status=400)
+
+    try:
+        changed = provider.update_settings(body, clear)
+    except ValueError as e:
+        return _json({"error": str(e)}, status=400)
+    if not changed:
+        return _json({"error": config._t("error.settings_nothing_to_change")}, status=400)
+
+    providers.reset_all_caches()
+    logging.info("Настройки провайдера %s обновлены извне: %s", name, ", ".join(changed))  # значения не логируем
+    return _json({"ok": True, "changed": changed, "status": await provider.ping(), "provider": provider.describe()})
+
+
 _SAMPLING_KEYS = ("temperature", "top_p", "top_k", "seed", "num_ctx", "num_predict", "think")
 
 
@@ -265,7 +319,7 @@ async def handle_sampling(request: web.Request) -> web.Response:
     недоступен или конкретная сборка это поле не отдаёт.
     """
     if request.method == "GET":
-        vllm_context_window = await providers.get("vllm").context_window()
+        vllm_context_window = await providers.get("vllm").context_window() if providers.is_known("vllm") else None
         return _json({**config.SAMPLING_DEFAULTS, "vllm_context_window": vllm_context_window})
 
     raw_values = {}
@@ -352,6 +406,8 @@ def build_app() -> web.Application:
     app.router.add_get("/sampling", handle_sampling)
     app.router.add_post("/sampling", handle_sampling)
     app.router.add_get("/models", handle_models)
+    app.router.add_get("/providers", handle_providers)
+    app.router.add_post("/providers/{name}/settings", handle_provider_settings)
     app.router.add_get("/embeddings", embeddings.handle_embeddings_info)
     app.router.add_post("/embeddings", embeddings.handle_embeddings)
     app.router.add_post("/embeddings/download", embeddings.handle_embeddings_download)

@@ -79,7 +79,9 @@ def _history_to_messages(history: list) -> list[dict]:
 
 class VllmProvider(Provider):
     name = "vllm"
+    label = "vLLM"
     fallback = "ollama"
+    # num_ctx у vLLM не меняется на лету: контекст задаётся при запуске (--max-model-len)
 
     def __init__(self) -> None:
         super().__init__()

@@ -22,7 +22,7 @@ from . import config as _config
 from .config import NO_OVERRIDE, conf
 from .extensions import db
 from .models import Setting
-from .services import BACKENDS
+from .services import is_known_backend
 
 log = logging.getLogger("vision_app.settings_store")
 
@@ -46,7 +46,10 @@ def _set(key: str, value: str) -> None:
 def get_analysis_target() -> tuple[str, str]:
     """(backend, model). Пустые строки — «как решит сервер» (бэкенд по умолчанию, модель авто)."""
     backend = _get(KEY_BACKEND)
-    if backend not in BACKENDS:
+    # Список бэкендов не зашит в панели: его отдаёт сервер анализа (services.get_providers).
+    # False — сервер такого провайдера уже не знает (убрали из inference/providers/): выбор
+    # недействителен. None — сервер не ответил: сохранённый выбор не трогаем.
+    if not backend or is_known_backend(backend) is False:
         return "", ""
     return backend, _get(KEY_MODEL)
 

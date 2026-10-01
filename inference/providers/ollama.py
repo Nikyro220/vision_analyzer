@@ -9,12 +9,14 @@ import uuid
 import aiohttp
 
 import config
-from .base import Provider, sampling_options, strip_data_url
+from .base import ALL_SAMPLING_KEYS, Provider, sampling_options, strip_data_url
 
 
 class OllamaProvider(Provider):
     name = "ollama"
+    label = "Ollama"
     fallback = "vllm"
+    sampling_keys = ALL_SAMPLING_KEYS  # единственный бэкенд, где num_ctx — per-request параметр
 
     @property
     def endpoint(self) -> str:

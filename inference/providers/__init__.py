@@ -6,13 +6,21 @@ providers — бэкенды модели (vLLM, Ollama, Gemini), по одно�
   2. добавить его в _PROVIDERS ниже;
   3. добавить настройки (URL/ключ/модель) в config.py.
 Больше нигде имена бэкендов перечислять не нужно: валидация ?backend=,
-/health, /models и фолбэк берут список отсюда.
+/health, /models, фолбэк и GET /providers берут список отсюда.
+
+Веб-панель (vision_app) тоже ничего не зашивает: карточку провайдера на странице
+статуса, форму параметров генерации и поля настроек (ключ API и т.п.) она строит по
+GET /providers. Для этого у класса провайдера задаются:
+  label           — название для UI;
+  sampling_keys   — какие параметры /sampling он использует;
+  settings_fields — поля, меняемые через POST /providers/<name>/settings
+                    (SettingField(..., secret=True) — секрет, наружу не отдаётся).
 """
 
 from __future__ import annotations
 
 import config
-from .base import Provider, ensure_data_url, strip_data_url
+from .base import ALL_SAMPLING_KEYS, Provider, SettingField, ensure_data_url, strip_data_url
 from .gemini import GeminiProvider
 from .ollama import OllamaProvider
 from .vllm import VllmProvider
@@ -51,7 +59,8 @@ def reset_all_caches() -> None:
 
 
 __all__ = [
-    "Provider", "GeminiProvider", "OllamaProvider", "VllmProvider",
+    "Provider", "SettingField", "ALL_SAMPLING_KEYS",
+    "GeminiProvider", "OllamaProvider", "VllmProvider",
     "names", "is_known", "get", "all_providers", "reset_all_caches",
     "strip_data_url", "ensure_data_url",
 ]

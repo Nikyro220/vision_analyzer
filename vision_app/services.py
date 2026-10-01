@@ -20,6 +20,8 @@ signals, rationale, recommendation, text_on_image, context, либо {"_raw": ".
 from __future__ import annotations
 
 import base64
+import threading
+import time
 from dataclasses import dataclass, field
 from urllib.parse import quote
 
@@ -28,11 +30,11 @@ import requests
 from .config import conf
 
 
-# Бэкенды, которые понимает сервер (параметр ?backend=).
-BACKENDS = ("vllm", "ollama")
-
 # Параметры генерации, которыми управляет POST /sampling.
 SAMPLING_KEYS = ("temperature", "top_p", "top_k", "seed", "num_ctx", "num_predict", "think")
+
+# Список бэкендов здесь НЕ зашит: его отдаёт сервер анализа (GET /providers, см. get_providers()),
+# поэтому новый провайдер, добавленный в inference/providers/, сразу виден и настраивается в панели.
 
 class VisionApiError(Exception):
     """Любая ошибка при обращении к API анализа изображений."""
@@ -58,7 +60,7 @@ class AnalysisOutcome:
 
 
 def _base_url() -> str:
-    from .settings_store import get_runtime_setting  # локальный импорт — settings_store импортирует BACKENDS отсюда
+    from .settings_store import get_runtime_setting  # локальный импорт — settings_store импортирует services
 
     return get_runtime_setting("VISION_API_BASE_URL").rstrip("/")
 
@@ -262,6 +264,134 @@ def embed_texts(texts: list[str], timeout: int | None = None) -> tuple[list[list
     if not isinstance(vectors, list) or len(vectors) != len(texts) or not model:
         raise VisionApiError("Сервер вернул некорректный ответ /embeddings.")
     return vectors, str(model)
+
+
+# ----------------------------------------------------------------------------
+# Провайдеры (GET /providers, POST /providers/<имя>/settings на сервере анализа)
+# ----------------------------------------------------------------------------
+@dataclass(frozen=True)
+class SettingField:
+    """Настраиваемое поле провайдера (например, API-ключ). У секретных значения нет —
+    сервер отдаёт только флаг ``set``."""
+
+    name: str
+    label: str
+    secret: bool = False
+    hint: str = ""
+    set: bool = False  # значение задано
+    value: str = ""    # только у несекретных полей
+
+
+@dataclass(frozen=True)
+class ProviderInfo:
+    name: str
+    label: str = ""
+    fallback: str | None = None
+    configured: bool = True
+    endpoint: str = ""
+    sampling_keys: tuple[str, ...] = ()
+    settings: tuple[SettingField, ...] = ()
+
+    @property
+    def title(self) -> str:
+        return self.label or self.name
+
+
+_PROVIDERS_TTL = 15.0       # секунд: как долго список считается свежим
+_PROVIDERS_RETRY = 5.0      # секунд: пауза между попытками, пока сервер не отвечает
+_providers_lock = threading.Lock()
+_providers_state: dict = {"data": None, "fetched_at": 0.0, "failed_at": 0.0, "error": ""}
+
+
+def _parse_provider(item: dict) -> ProviderInfo:
+    fields = tuple(
+        SettingField(
+            name=str(f["name"]),
+            label=str(f.get("label") or f["name"]),
+            secret=bool(f.get("secret")),
+            hint=str(f.get("hint") or ""),
+            set=bool(f.get("set")),
+            value="" if f.get("secret") else str(f.get("value") or ""),
+        )
+        for f in item.get("settings") or []
+        if isinstance(f, dict) and f.get("name")
+    )
+    return ProviderInfo(
+        name=str(item["name"]),
+        label=str(item.get("label") or ""),
+        fallback=item.get("fallback") or None,
+        configured=bool(item.get("configured", True)),
+        endpoint=str(item.get("endpoint") or ""),
+        sampling_keys=tuple(k for k in (item.get("sampling_keys") or []) if k in SAMPLING_KEYS),
+        settings=fields,
+    )
+
+
+def get_providers(force: bool = False) -> list[ProviderInfo]:
+    """Все провайдеры, которые знает сервер анализа (в порядке регистрации), — включая
+    не настроенные (например, Gemini без ключа). Результат кэшируется на несколько секунд,
+    чтобы не ходить на сервер на каждый запрос; пока сервер не отвечает, отдаётся прежний
+    список (если был), иначе бросается VisionApiError."""
+    now = time.monotonic()
+    with _providers_lock:
+        st = _providers_state
+        if not force and st["data"] is not None and now - st["fetched_at"] < _PROVIDERS_TTL:
+            return list(st["data"])
+        if not force and st["failed_at"] and now - st["failed_at"] < _PROVIDERS_RETRY:
+            if st["data"] is not None:
+                return list(st["data"])
+            raise VisionApiError(st["error"])
+
+        try:
+            payload = _call("get", "/providers")
+            items = payload.get("providers") if isinstance(payload, dict) else None
+            if not isinstance(items, list):
+                raise VisionApiError("Сервер анализа не отдаёт список провайдеров (устаревшая версия?).")
+            data = [_parse_provider(i) for i in items if isinstance(i, dict) and i.get("name")]
+        except VisionApiError as exc:
+            st["failed_at"], st["error"] = now, str(exc)
+            if st["data"] is not None:
+                return list(st["data"])
+            raise
+
+        st.update(data=data, fetched_at=now, failed_at=0.0, error="")
+        return list(data)
+
+
+def invalidate_providers() -> None:
+    """Сбрасывает кэш списка провайдеров (после смены их настроек)."""
+    with _providers_lock:
+        _providers_state.update(fetched_at=0.0, failed_at=0.0)
+
+
+def get_provider(name: str) -> ProviderInfo | None:
+    """Провайдер по имени или None, если сервер такого не знает. Бросает VisionApiError,
+    если список получить не удалось."""
+    return next((p for p in get_providers() if p.name == name), None)
+
+
+def is_known_backend(name: str) -> bool | None:
+    """Знает ли сервер такой бэкенд. None — определить не удалось (сервер не отвечает):
+    в таком случае сохранённый выбор лучше не выбрасывать, а оставить как есть."""
+    try:
+        return get_provider(name) is not None
+    except VisionApiError:
+        return None
+
+
+def set_provider_settings(name: str, values: dict[str, str], clear: list[str] | None = None) -> dict:
+    """Меняет настройки провайдера на сервере (POST /providers/<имя>/settings).
+
+    values — {поле: значение} (пустые значения сервер пропускает), clear — поля для сброса.
+    Секреты уходят только в теле запроса и нигде не логируются. Возвращает ответ сервера:
+    {"ok", "changed", "status": {"ok": bool, "error"?: str, ...}, "provider": {...}}."""
+    payload: dict = dict(values)
+    if clear:
+        payload["clear"] = list(clear)
+    try:
+        return _call("post", f"/providers/{quote(name, safe='')}/settings", json=payload)
+    finally:
+        invalidate_providers()  # даже при ошибке: статус «настроен» мог измениться
 
 
 # ----------------------------------------------------------------------------

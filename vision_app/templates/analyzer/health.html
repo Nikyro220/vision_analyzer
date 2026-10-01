@@ -32,7 +32,7 @@
                 — автоматический фолбэк: бэкенд по умолчанию «{{ status.get('default_backend') }}» недоступен
                 {% endif %}
             {% else %}
-                <strong>ни на чём</strong>: оба бэкенда сейчас недоступны, анализы завершатся ошибкой
+                <strong>ни на чём</strong>: ни один бэкенд сейчас не доступен, анализы завершатся ошибкой
             {% endif %}
         </p>
         {% if target_down %}
@@ -58,8 +58,8 @@
     {% for card in cards %}
     <div class="card backend-card">
         <div class="backend-head">
-            <h2 class="card-title">{{ card.name }}</h2>
-            {% if card.available %}<span class="tag tag-ok">Работает</span>{% else %}<span class="tag tag-warn">Недоступен</span>{% endif %}
+            <h2 class="card-title">{{ card.title }}</h2>
+            {% if card.available %}<span class="tag tag-ok">Работает</span>{% elif not card.configured %}<span class="tag tag-warn">Не настроен</span>{% else %}<span class="tag tag-warn">Недоступен</span>{% endif %}
             {% if card.is_active %}
                 {% if card.available %}<span class="tag tag-accent">Используется для анализа{% if card.via_fallback %} (фолбэк){% endif %}</span>
                 {% else %}<span class="tag tag-warn">Выбран, но недоступен</span>{% endif %}
@@ -73,13 +73,43 @@
             {% if card.info.get('error') %}<dt>Ошибка</dt><dd>{{ card.info.get('error') }}</dd>{% endif %}
         </dl>
 
+        {% if card.settings %}
+        <div class="backend-section">
+            <h3 class="section-title">Подключение</h3>
+            <form method="post" action="{{ url_for('analyzer.save_provider_settings', name=card.name) }}" class="form" autocomplete="off">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                {% for f in card.settings %}
+                <div class="field">
+                    <label for="setting-{{ card.name }}-{{ f.name }}">{{ f.label }}
+                        {% if f.secret %}{% if f.set %}<span class="tag tag-ok">задан</span>{% else %}<span class="tag tag-warn">не задан</span>{% endif %}{% endif %}
+                    </label>
+                    {% if f.secret %}
+                    {# Секрет: значение никогда не подставляется в страницу — только флаг «задан». #}
+                    <input type="password" id="setting-{{ card.name }}-{{ f.name }}" name="setting_{{ f.name }}" class="input"
+                           maxlength="512" autocomplete="new-password" spellcheck="false" autocapitalize="off"
+                           placeholder="{% if f.set %}Оставьте пустым, чтобы не менять{% else %}Вставьте значение{% endif %}">
+                    {% if f.set %}
+                    <label class="checkbox-label"><input type="checkbox" name="clear_{{ f.name }}" value="1"> Удалить сохранённое значение</label>
+                    {% endif %}
+                    {% else %}
+                    <input type="text" id="setting-{{ card.name }}-{{ f.name }}" name="setting_{{ f.name }}" class="input"
+                           maxlength="512" value="{{ f.value }}" autocomplete="off">
+                    {% endif %}
+                    {% if f.hint %}<div class="field-hint">{{ f.hint }}</div>{% endif %}
+                </div>
+                {% endfor %}
+                <div><button type="submit" class="btn btn-secondary">Сохранить подключение</button></div>
+            </form>
+        </div>
+        {% endif %}
+
         {% if card.configurable %}
         <div class="backend-section">
             <h3 class="section-title">Модель</h3>
             <form method="post" action="{{ url_for('analyzer.save_model', name=card.name) }}" class="form form-inline form-wrap">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 {% if card.models %}
-                <select name="model" class="input input-grow" aria-label="Модель {{ card.name }}">
+                <select name="model" class="input input-grow" aria-label="Модель {{ card.title }}">
                     <option value="">Авто (определяет сервер)</option>
                     {% for m in card.models %}
                     <option value="{{ m }}" {% if m == card.active_model %}selected{% endif %}>{{ m }}</option>
@@ -99,6 +129,7 @@
             {% endif %}
         </div>
 
+        {% if card.form %}
         <div class="backend-section">
             <h3 class="section-title">Параметры генерации</h3>
             <form method="post" action="{{ url_for('analyzer.save_sampling', name=card.name) }}" class="form" novalidate>
@@ -115,13 +146,17 @@
                 <div class="field-hint">
                     Пустое поле — не менять. Параметры <strong>общие для всего сервера</strong>:
                     изменения применяются сразу ко всем последующим анализам, включая другие бэкенды и других клиентов.
-                    {% if card.name == 'vllm' %}Размер контекста (num_ctx) для vLLM задаётся при запуске сервера.{% endif %}
+                    {% if 'num_ctx' not in card.sampling_keys %}Размер контекста (num_ctx) у этого бэкенда на лету не меняется: он задаётся при запуске.{% endif %}
                 </div>
                 <div><button type="submit" class="btn btn-secondary">Сохранить параметры</button></div>
             </form>
         </div>
+        {% endif %}
         {% elif can_configure and not card.available %}
-        <p class="field-hint">Настройки станут доступны, когда бэкенд заработает.</p>
+        <p class="field-hint">
+            {% if card.settings and not card.configured %}Введите данные подключения выше — после этого здесь появятся выбор модели и параметры генерации.
+            {% else %}Выбор модели и параметры станут доступны, когда бэкенд заработает.{% endif %}
+        </p>
         {% endif %}
     </div>
     {% endfor %}

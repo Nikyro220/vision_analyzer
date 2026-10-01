@@ -19,6 +19,25 @@ set or it is the default backend): availability + model.
 
 
 ========================================================
+GET /providers, POST /providers/<name>/settings
+========================================================
+GET /providers describes ALL registered backends (also not configured ones):
+label, fallback, whether it is configured, which /sampling parameters it uses,
+and which settings can be changed on the fly. Secret values are never returned,
+only a "set" flag. A client (e.g. the web panel) builds its UI from this reply,
+so a new backend needs no client changes.
+
+POST /providers/<name>/settings changes those settings without a restart. JSON
+body only (never the URL query — secrets would end up in logs); an empty value
+means "leave unchanged", "clear" lists fields to reset. The reply includes a
+connection check with the new settings.
+
+  curl http://xxx.xxx.xxx.xxx:6769/providers
+  curl -X POST -H "Content-Type: application/json" \
+       -d '{"api_key": "AIza..."}' http://xxx.xxx.xxx.xxx:6769/providers/gemini/settings
+
+
+========================================================
 POST /analyze — analyze image(s) for risk signals
 ========================================================
 Request body is one of two forms:

@@ -20,6 +20,7 @@ from __future__ import annotations
 import asyncio
 import logging
 from abc import ABC, abstractmethod
+from dataclasses import dataclass
 
 import aiohttp
 
@@ -67,12 +68,48 @@ def sampling_options(*, with_top_k: bool = True, with_ctx: bool = True) -> dict:
 
 
 # ---------------------------------------------------------------------------
+# Описание настраиваемых «на лету» полей провайдера
+# ---------------------------------------------------------------------------
+
+#: все параметры генерации, которыми управляет POST /sampling
+ALL_SAMPLING_KEYS = ("temperature", "top_p", "top_k", "seed", "num_ctx", "num_predict", "think")
+
+
+@dataclass(frozen=True)
+class SettingField:
+    """Поле, которое можно менять у провайдера через POST /providers/<name>/settings
+    (и которое клиент — например, веб-панель — рисует сам по этому описанию).
+
+    name        — ключ в API (например, "api_key")
+    label       — подпись для человека
+    config_attr — атрибут модуля config, в который пишется значение (читается
+                  провайдером в момент вызова — см. примечание про конфигурацию выше)
+    secret      — секрет: значение НИКОГДА не отдаётся наружу, клиенту видно лишь
+                  факт, что оно задано (describe() -> "set")
+    hint        — короткая подсказка под полем
+    """
+
+    name: str
+    label: str
+    config_attr: str
+    secret: bool = False
+    hint: str = ""
+
+
+# ---------------------------------------------------------------------------
 # Интерфейс провайдера
 # ---------------------------------------------------------------------------
 
 class Provider(ABC):
     #: короткое имя бэкенда — то, что клиент передаёт в ?backend=... и /config
     name: str = ""
+    #: человекочитаемое название для UI (пусто — клиент покажет name)
+    label: str = ""
+    #: какие параметры /sampling этот бэкенд реально использует; клиент строит
+    #: форму параметров генерации только из них (num_ctx, например, есть лишь у Ollama)
+    sampling_keys: tuple[str, ...] = tuple(k for k in ALL_SAMPLING_KEYS if k != "num_ctx")
+    #: поля, которые клиент может менять через /providers/<name>/settings
+    settings_fields: tuple[SettingField, ...] = ()
     #: на какого провайдера уходить, если этот недоступен по подключению и
     #: клиент не просил его явно (None — без автофолбэка)
     fallback: str | None = None
@@ -94,6 +131,48 @@ class Provider(ABC):
     def reset_caches(self) -> None:
         """Сбрасывает кэши (автоопределённая модель и т.п.) — вызывается из /config."""
         self._model_cache = None
+
+    def describe(self) -> dict:
+        """Описание провайдера для GET /providers: по нему клиент строит свой UI,
+        не зная ничего о конкретных бэкендах. Значения секретных полей не отдаются."""
+        fields = []
+        for f in self.settings_fields:
+            current = getattr(config, f.config_attr, None)
+            item = {"name": f.name, "label": f.label, "secret": f.secret, "hint": f.hint, "set": bool(current)}
+            if not f.secret:
+                item["value"] = "" if current is None else str(current)
+            fields.append(item)
+        return {
+            "name": self.name,
+            "label": self.label or self.name,
+            "fallback": self.fallback,
+            "configured": self.is_configured(),
+            "endpoint": self.endpoint,
+            "sampling_keys": list(self.sampling_keys),
+            "settings": fields,
+        }
+
+    def update_settings(self, values: dict, clear: list | tuple = ()) -> list[str]:
+        """Применяет значения полей из settings_fields (пустые строки пропускаются —
+        «не менять»; имена из clear сбрасываются в пустое значение). Возвращает имена
+        изменённых полей. Неизвестное поле — ValueError (обработчик отдаёт 400)."""
+        by_name = {f.name: f for f in self.settings_fields}
+        unknown = [n for n in (*values, *clear) if n not in by_name]
+        if unknown:
+            raise ValueError(config._t("error.unknown_setting", backend=self.name, field=", ".join(map(str, unknown))))
+
+        changed: list[str] = []
+        for name, raw in values.items():
+            if not isinstance(raw, str) or not raw.strip():
+                continue
+            setattr(config, by_name[name].config_attr, raw.strip())
+            changed.append(name)
+        for name in clear:
+            setattr(config, by_name[name].config_attr, "")
+            changed.append(name)
+        if changed:
+            self.reset_caches()
+        return changed
 
     # --- модели -----------------------------------------------------------
 

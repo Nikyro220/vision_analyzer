@@ -24,16 +24,18 @@ from ..config import Config, conf
 from ..decorators import staff_required
 from .. import image_dedup
 from ..extensions import db
-from ..forms import SAMPLING_FORMS, ImageUploadForm
+from ..forms import ImageUploadForm, sampling_form_class
 from ..history import delete_finished, remove_image_files
 from ..models import RISK_LABELS, STATUS_LABELS, AnalysisResult, Status
 from ..queue_worker import wake_worker
 from ..services import (
-    BACKENDS,
+    ProviderInfo,
     VisionApiError,
     check_health,
     get_models,
+    get_providers,
     get_sampling,
+    set_provider_settings,
     set_sampling,
 )
 from ..settings_store import clear_analysis_target, get_analysis_target, set_analysis_target
@@ -395,12 +397,13 @@ def thumb(filename: str):
 
 
 
-def _effective_backend(status: dict, target_backend: str) -> tuple[str, bool]:
-    """Куда реально пойдёт анализ. Повторяет логику vision_analyzer_server.py.
+def _effective_backend(status: dict, target_backend: str, fallbacks: dict[str, str | None]) -> tuple[str, bool]:
+    """Куда реально пойдёт анализ. Повторяет логику сервера анализа.
 
     * Явный выбор (?backend=...) — сервер идёт именно туда и НЕ переключается на другой.
-    * Без явного выбора — бэкенд по умолчанию; если к нему нельзя подключиться,
-      сервер автоматически пробует второй бэкенд (фолбэк).
+    * Без явного выбора — бэкенд по умолчанию; если к нему нельзя подключиться, сервер
+      автоматически пробует его фолбэк (Provider.fallback; у облачных провайдеров его нет).
+      ``fallbacks`` — {провайдер: его фолбэк}, из GET /providers.
 
     Возвращает (бэкенд, это_фолбэк). Пустая строка — ни один бэкенд не доступен.
     """
@@ -415,14 +418,18 @@ def _effective_backend(status: dict, target_backend: str) -> tuple[str, bool]:
     if default_ok:
         return default, False
 
-    other = "ollama" if default == "vllm" else "vllm"
-    if (backends.get(other) or {}).get("ok"):
+    other = fallbacks.get(default)
+    if other and (backends.get(other) or {}).get("ok"):
         return other, True
     return "", False
 
 
 def _render_health(bound_forms: dict | None = None, status_code: int = 200):
-    """Страница статуса. Настройки (модель, параметры) видны и доступны только админам."""
+    """Страница статуса. Настройки (модель, параметры, ключ API) видны и доступны только админам.
+
+    Список карточек строится по GET /providers, а не по зашитому перечню: провайдер,
+    добавленный на сервере анализа, появляется здесь сам. Не настроенные провайдеры
+    (например, Gemini без ключа) показываются тоже — иначе ключ было бы негде ввести."""
     bound_forms = bound_forms or {}
     can_configure = current_user.is_panel_staff
 
@@ -433,10 +440,18 @@ def _render_health(bound_forms: dict | None = None, status_code: int = 200):
         status = None
         error = str(exc)
 
+    providers: list[ProviderInfo] = []
+    if status is not None:
+        try:
+            providers = get_providers()
+        except VisionApiError as exc:
+            status, error = None, str(exc)
+
     cards = []
     sampling_error = None
     target_backend, target_model = get_analysis_target()
-    effective_backend, via_fallback = _effective_backend(status, target_backend) if status else ("", False)
+    fallbacks = {p.name: p.fallback for p in providers}
+    effective_backend, via_fallback = _effective_backend(status, target_backend, fallbacks) if status else ("", False)
     target_down = bool(
         status
         and target_backend
@@ -451,17 +466,26 @@ def _render_health(bound_forms: dict | None = None, status_code: int = 200):
             except VisionApiError as exc:
                 sampling_error = str(exc)
 
-        for name, info in (status.get("backends") or {}).items():
-            info = info if isinstance(info, dict) else {}
+        health_backends = status.get("backends") or {}
+        for provider in providers:
+            name = provider.name
+            info = health_backends.get(name)
+            if not isinstance(info, dict):
+                # /health скрывает не настроенных провайдеров — показываем их как «не настроен»
+                info = {"ok": False, "endpoint": provider.endpoint}
             available = bool(info.get("ok"))
             card = {
                 "name": name,
+                "title": provider.title,
                 "info": info,
                 "available": available,
-                "configurable": can_configure and available and name in BACKENDS,
+                "configured": provider.configured,
+                "settings": provider.settings if can_configure else (),
+                "configurable": can_configure and available,
                 "is_active": name == effective_backend,
                 "via_fallback": via_fallback and name == effective_backend,
                 "active_model": target_model if target_backend == name else "",
+                "sampling_keys": provider.sampling_keys,
                 "models": [],
                 "models_error": None,
                 "form": None,
@@ -475,13 +499,15 @@ def _render_health(bound_forms: dict | None = None, status_code: int = 200):
                 if card["active_model"] and card["models"] and card["active_model"] not in card["models"]:
                     card["models"] = [card["active_model"], *card["models"]]
 
-                form = bound_forms.get(name)
-                if form is None:
-                    initial = {k: v for k, v in sampling.items() if v is not None and k in SAMPLING_FORMS[name].SPEC}
-                    if sampling.get("think") is not None:
-                        initial["think"] = str(sampling["think"]).lower()   # True→"true", "high"→"high"
-                    form = SAMPLING_FORMS[name](formdata=None, prefix=name, data=initial)
-                card["form"] = form
+                if provider.sampling_keys:
+                    form_cls = sampling_form_class(provider.sampling_keys)
+                    form = bound_forms.get(name)
+                    if form is None:
+                        initial = {k: v for k, v in sampling.items() if v is not None and k in form_cls.SPEC}
+                        if sampling.get("think") is not None:
+                            initial["think"] = str(sampling["think"]).lower()   # True→"true", "high"→"high"
+                        form = form_cls(formdata=None, prefix=name, data=initial)
+                    card["form"] = form
             cards.append(card)
 
     html = render_template(
@@ -506,9 +532,16 @@ def health():
     return _render_health()
 
 
-def _require_backend(name: str) -> None:
-    if name not in BACKENDS:
+def _require_backend(name: str) -> ProviderInfo:
+    """Провайдер по имени из URL; 404, если сервер анализа такого не знает (список — GET /providers)."""
+    try:
+        provider = next((p for p in get_providers() if p.name == name), None)
+    except VisionApiError as exc:
+        flash(str(exc), "error")
+        abort(503)
+    if provider is None:
         abort(404)
+    return provider
 
 
 def _backend_is_available(name: str) -> bool:
@@ -566,8 +599,10 @@ def reset_target():
 @staff_required
 def save_sampling(name: str):
     """Изменить параметры генерации. На сервере они общие (POST /sampling)."""
-    _require_backend(name)
-    form = SAMPLING_FORMS[name](prefix=name)
+    provider = _require_backend(name)
+    if not provider.sampling_keys:
+        abort(404)  # у провайдера нет настраиваемых параметров генерации
+    form = sampling_form_class(provider.sampling_keys)(prefix=name)
 
     if not form.validate_on_submit():
         flash("Параметры не сохранены — исправьте ошибки в форме.", "error")
@@ -586,3 +621,55 @@ def save_sampling(name: str):
     changed = ", ".join(f"{k}={v}" for k, v in form.values.items())
     flash(f"Параметры генерации обновлены на сервере: {changed}.", "success")
     return redirect(url_for("analyzer.health"))
+
+
+# Ограничение на длину значения поля настроек провайдера (ключи API — десятки символов).
+_PROVIDER_SETTING_MAX_LEN = 512
+
+
+@bp.route("/health/backend/<name>/settings", methods=["POST"])
+@staff_required
+def save_provider_settings(name: str):
+    """Изменить настройки подключения провайдера (например, ввести API-ключ Gemini).
+
+    Какие поля есть, определяет сам провайдер (GET /providers → settings). Значение секрета
+    нигде не показывается и не пишется во флеш/лог: пустое поле = «не менять», удалить можно
+    только явным чекбоксом. Сервер анализа хранит значение в памяти (до перезапуска)."""
+    provider = _require_backend(name)
+
+    values: dict[str, str] = {}
+    clear: list[str] = []
+    for f in provider.settings:
+        if f.secret and request.form.get(f"clear_{f.name}"):
+            clear.append(f.name)
+            continue
+        raw = request.form.get(f"setting_{f.name}", "").strip()
+        if len(raw) > _PROVIDER_SETTING_MAX_LEN:
+            flash(f"Слишком длинное значение поля «{f.label}».", "error")
+            return redirect(url_for("analyzer.health"))
+        if raw:
+            values[f.name] = raw
+
+    if not values and not clear:
+        flash("Нечего сохранять: поля пустые (пустое поле означает «не менять»).", "info")
+        return redirect(url_for("analyzer.health"))
+
+    try:
+        result = set_provider_settings(name, values, clear)
+    except VisionApiError as exc:
+        flash(str(exc), "error")
+        return redirect(url_for("analyzer.health"))
+
+    labels = {f.name: f.label for f in provider.settings}
+    changed = ", ".join(labels.get(n, n) for n in (result.get("changed") or [*values, *clear]))
+    probe = result.get("status") if isinstance(result.get("status"), dict) else {}
+
+    if clear and not values:
+        flash(f"Настройки «{provider.title}» сброшены: {changed}.", "success")
+    elif probe.get("ok"):
+        flash(f"Настройки «{provider.title}» сохранены ({changed}) — бэкенд отвечает.", "success")
+    else:
+        reason = probe.get("error") or "нет ответа"
+        flash(f"Настройки «{provider.title}» сохранены ({changed}), но бэкенд не отвечает: {reason}", "error")
+    return redirect(url_for("analyzer.health"))
+
