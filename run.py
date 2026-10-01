@@ -8,6 +8,7 @@ import sys
 from pathlib import Path
 
 from vision_app import create_app
+from vision_app.credentials import ENV_MASTER_KEY
 
 
 logging.basicConfig(level=logging.INFO)
@@ -95,9 +96,14 @@ def _start_vision_analyzer() -> None:
         python_exe,
     )
 
+    # Мастер-ключ шифрования API-ключей нужен только панели: сервер анализа получает сами
+    # ключи в заголовках запросов и ничего не расшифровывает — не передаём ему ключ в окружении.
+    child_env = {k: v for k, v in os.environ.items() if k != ENV_MASTER_KEY}
+
     _vision_analyzer_proc = subprocess.Popen(
         [str(python_exe), str(entrypoint)],
         cwd=str(VISION_ANALYZER_DIR),
+        env=child_env,
     )
 
     atexit.register(_stop_vision_analyzer)

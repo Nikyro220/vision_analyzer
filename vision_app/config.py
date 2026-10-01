@@ -1,5 +1,6 @@
 """Настройки приложения. Всё, что важно для продакшена, берётся из переменных окружения."""
 
+import logging
 import os
 from datetime import timedelta
 from pathlib import Path
@@ -7,6 +8,32 @@ from pathlib import Path
 from flask import current_app, has_app_context
 
 BASE_DIR = Path(__file__).resolve().parent.parent
+
+
+def _load_dotenv() -> None:
+    """Подтягивает переменные из файла .env в корне проекта (рядом с run.py).
+
+    Вызывается при импорте этого модуля — раньше, чем класс Config ниже прочитает окружение, а
+    credentials.py — VISION_CREDENTIALS_KEY. Поэтому .env работает для любой точки входа:
+    python run.py, gunicorn wsgi:app, flask db ...
+
+    Уже заданные переменные окружения НЕ перезаписываются (override=False): `export` и настройки
+    systemd/Docker приоритетнее файла. Файла нет — ничего не происходит (всё как раньше)."""
+    env_file = BASE_DIR / ".env"
+    if not env_file.is_file():
+        return
+    try:
+        from dotenv import load_dotenv
+    except ImportError:
+        logging.getLogger("vision_app.config").warning(
+            "Найден %s, но пакет python-dotenv не установлен — файл проигнорирован "
+            "(pip install python-dotenv).", env_file,
+        )
+        return
+    load_dotenv(env_file, override=False)
+
+
+_load_dotenv()
 
 
 def _env_int(name: str, default: int) -> int:
