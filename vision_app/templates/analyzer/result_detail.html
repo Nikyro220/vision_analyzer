@@ -3,8 +3,8 @@
 {% block head_extra %}{% if result.is_pending %}<meta http-equiv="refresh" content="4">{% endif %}{% endblock %}
 {% block content %}
 <div class="page-header">
-    <h1>{{ result.original_name or "Результат анализа" }}</h1>
-    <p class="page-sub">Загружено {{ result.created_at|localdt }}{% if result.user_id != current_user.id %} · пользователь {{ result.user.username }}{% endif %}</p>
+    <h1>{{ result.original_name or "Результат анализа" }} <span class="id-tag id-tag-lg" title="Номер анализа — по нему можно найти запись в истории и в чате">№{{ result.id }}</span></h1>
+    <p class="page-sub">Загружено {{ result.created_at|localdt }}{% if result.user_id != current_user.id %} · пользователь {{ result.owner_label }}{% endif %}</p>
 </div>
 
 <div class="result-layout">

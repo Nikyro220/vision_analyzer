@@ -25,6 +25,15 @@ def page_url(page_number: int) -> str:
     return url_for(request.endpoint, **{**(request.view_args or {}), **args})
 
 
+def query_to_id(query: str | None) -> int | None:
+    """«42», «#42» или «№42» -> 42; всё остальное -> None. Нужен, чтобы в поиске по истории
+    можно было набрать номер анализа — тот самый, который пользователь видит в интерфейсе."""
+    text = (query or "").strip().lstrip("#№").strip()
+    if text.isdigit() and len(text) <= 9:
+        return int(text)
+    return None
+
+
 def is_safe_next(target: str | None) -> bool:
     """Разрешаем редирект только на относительные пути внутри сайта."""
     return bool(

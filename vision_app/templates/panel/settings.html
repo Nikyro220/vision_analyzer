@@ -3,66 +3,88 @@
 {% block content %}
 <div class="page-header">
     <h1>Настройки</h1>
-    <p class="page-sub">Очередь анализов и клиент сервера анализа — действуют сразу, без перезапуска. Тема, шрифты и размеры интерфейса настраиваются в разделе <a href="{{ url_for('accounts.appearance') }}">«Оформление»</a> — он доступен всем пользователям.</p>
+    <p class="page-sub">Все параметры из <code>config.py</code>, которые безопасно менять на ходу, — действуют сразу после сохранения, без перезапуска. Значение «по умолчанию» берётся из <code>config.py</code> и переменных окружения. Тема, шрифты и размеры интерфейса настраиваются в разделе <a href="{{ url_for('accounts.appearance') }}">«Оформление»</a> — он доступен всем пользователям.</p>
 </div>
 
-<form method="post" class="card settings-form" novalidate>
+<form method="post" class="settings-form" novalidate id="settings-form">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 
-    {% for row in rows %}
-    {% set spec = row.spec %}
-    <div class="settings-row">
-        <div class="settings-row-label">
-            <label for="field-{{ spec.key }}">{{ spec.label }}</label>
-            <span class="default-value-indicator" id="indicator-{{ spec.key }}">
-                {% if row.overridden %}
-                    <button
-                        type="button"
-                        class="tag tag-accent tag-reset-btn"
-                        data-reset-for="{{ spec.key }}"
-                        data-kind="{{ spec.kind }}"
-                        data-default="{{ (row.default | int) if spec.kind == 'bool' else row.default }}"
-                    >сбросить</button>
+    <div class="card settings-toolbar">
+        <input type="search" id="settings-filter" class="input" placeholder="Найти настройку по названию или имени…" autocomplete="off">
+        <button type="submit" class="btn btn-primary">Сохранить</button>
+    </div>
+
+    {% for group in groups %}
+    <div class="card settings-group" data-settings-group>
+        <h2 class="card-title">{{ group.title }}</h2>
+        {% if group.description %}<p class="field-hint">{{ group.description }}</p>{% endif %}
+
+        {% for row in group.rows %}
+        {% set spec = row.spec %}
+        <div class="settings-row" data-settings-row data-search="{{ (spec.label ~ ' ' ~ spec.key ~ ' ' ~ spec.hint)|lower }}">
+            <div class="settings-row-label">
+                <label for="field-{{ spec.key }}">{{ spec.label }}</label>
+                <code class="settings-key">{{ spec.key }}</code>
+                <span class="default-value-indicator" id="indicator-{{ spec.key }}">
+                    {% if row.overridden %}
+                        <button
+                            type="button"
+                            class="tag tag-accent tag-reset-btn"
+                            data-reset-for="{{ spec.key }}"
+                            data-kind="{{ 'bool' if spec.kind == 'bool' else 'text' }}"
+                            data-default="{{ (row.default | int) if spec.kind == 'bool' else row.default }}"
+                        >сбросить</button>
+                    {% else %}
+                        <span class="tag">значение по умолчанию</span>
+                    {% endif %}
+                </span>
+                {% if spec.hint %}<p class="field-hint">{{ spec.hint }}</p>{% endif %}
+            </div>
+
+            <div class="settings-row-control">
+                {% if spec.kind == "bool" %}
+                <label class="checkbox-label">
+                    <input type="checkbox" id="field-{{ spec.key }}" name="{{ spec.key }}" value="1" {% if row.value %}checked{% endif %} data-default="{{ (row.default | int) }}">
+                    включено
+                </label>
+                {% elif spec.kind == "choice" %}
+                <select id="field-{{ spec.key }}" name="{{ spec.key }}" class="input" data-default="{{ row.default }}">
+                    {% for choice in spec.choices %}
+                    <option value="{{ choice }}" {% if choice == row.value %}selected{% endif %}>{{ choice }}</option>
+                    {% endfor %}
+                </select>
                 {% else %}
-                    <span class="tag">значение по умолчанию</span>
+                <input
+                    type="text"
+                    inputmode="{{ 'text' if spec.kind == 'str' else 'decimal' }}"
+                    id="field-{{ spec.key }}"
+                    name="{{ spec.key }}"
+                    value="{{ row.value }}"
+                    class="input"
+                    data-default="{{ row.default }}"
+                >
+                {% if row.lo is not none or row.hi is not none %}
+                <span class="field-hint">
+                    Допустимо: {% if row.lo is not none %}от {{ row.lo }}{% endif %}{% if row.hi is not none %} до {{ row.hi }}{% endif %}
+                </span>
                 {% endif %}
-            </span>
-            {% if spec.hint %}<p class="field-hint">{{ spec.hint }}</p>{% endif %}
-        </div>
+                {% endif %}
 
-        <div class="settings-row-control">
-            {% if spec.kind == "bool" %}
-            <label class="checkbox-label">
-                <input type="checkbox" id="field-{{ spec.key }}" name="{{ spec.key }}" value="1" {% if row.value %}checked{% endif %} data-default="{{ (row.default | int) }}">
-                включено
-            </label>
-            {% else %}
-            <input
-                type="text"
-                inputmode="{{ 'decimal' if spec.kind in ('int', 'float') else 'text' }}"
-                id="field-{{ spec.key }}"
-                name="{{ spec.key }}"
-                value="{{ row.value }}"
-                class="input"
-                data-default="{{ row.default }}"
-                {% if spec.min is not none %}data-min="{{ spec.min }}"{% endif %}
-                {% if spec.max is not none %}data-max="{{ spec.max }}"{% endif %}
-            >
-            {% if spec.min is not none or spec.max is not none %}
-            <span class="field-hint">
-                Допустимо: {% if spec.min is not none %}от {{ spec.min }}{% endif %}{% if spec.max is not none %} до {{ spec.max }}{% endif %}
-            </span>
-            {% endif %}
-            {% endif %}
-
-            {% if row.overridden %}
-            <input type="hidden" id="reset-{{ spec.key }}" name="reset_{{ spec.key }}" value="">
-            {% endif %}
+                {% if row.overridden %}
+                <input type="hidden" id="reset-{{ spec.key }}" name="reset_{{ spec.key }}" value="">
+                {% endif %}
+            </div>
         </div>
+        {% endfor %}
     </div>
     {% endfor %}
 
-    <button type="submit" class="btn btn-primary">Сохранить</button>
+    <p class="empty-hint" id="settings-empty" hidden>Ничего не найдено.</p>
+
+    <div class="card settings-footer">
+        <button type="submit" class="btn btn-primary">Сохранить</button>
+        <span class="field-hint">Форма сохраняется целиком: если хотя бы одно значение неверно, не изменится ничего.</span>
+    </div>
 </form>
 
 {% endblock %}
@@ -149,7 +171,7 @@ document.addEventListener("DOMContentLoaded", () => {
     };
 
     // Инициализация для каждого поля
-    const allInputs = document.querySelectorAll(".settings-row-control input[data-default]");
+    const allInputs = document.querySelectorAll(".settings-row-control [data-default]");
     allInputs.forEach((field) => {
         const key = field.id.replace("field-", "");
         const kind = field.type === "checkbox" ? "bool" : "text";
@@ -170,6 +192,26 @@ document.addEventListener("DOMContentLoaded", () => {
         field.addEventListener("input", handleChange);
         field.addEventListener("change", handleChange);
     });
+
+    // Быстрый поиск по настройкам
+    const filter = document.getElementById("settings-filter");
+    if (filter) {
+        filter.addEventListener("input", () => {
+            const q = filter.value.trim().toLowerCase();
+            let shown = 0;
+            document.querySelectorAll("[data-settings-group]").forEach((group) => {
+                let any = false;
+                group.querySelectorAll("[data-settings-row]").forEach((row) => {
+                    const hit = !q || row.dataset.search.includes(q);
+                    row.hidden = !hit;
+                    any = any || hit;
+                });
+                group.hidden = !any;
+                if (any) shown++;
+            });
+            document.getElementById("settings-empty").hidden = shown > 0;
+        });
+    }
 
     // Инициализация существующих кнопок сброса
     document.querySelectorAll(".tag-reset-btn").forEach((btn) => {

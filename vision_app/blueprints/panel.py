@@ -3,7 +3,7 @@
 import json
 from urllib.parse import urlparse
 
-from flask import Blueprint, current_app, flash, jsonify, redirect, render_template, request, url_for
+from flask import Blueprint, flash, jsonify, redirect, render_template, request, url_for
 from flask_login import current_user
 from sqlalchemy import func, select
 from sqlalchemy.orm import joinedload
@@ -16,12 +16,12 @@ from ..forms import AccountForm, CategoryForm, DeleteAccountForm, DeleteCategory
 from ..categories_store import seed_default_categories
 from ..history import delete_finished, delete_user_account
 from ..settings_store import (
-    RUNTIME_SETTINGS,
-    get_runtime_setting,
+    SETTING_GROUPS,
+    default_value,
+    display_value,
+    effective_bounds,
     is_runtime_setting_overridden,
-    reset_runtime_setting,
-    runtime_setting_unchanged,
-    set_runtime_setting,
+    save_runtime_settings,
 )
 from ..models import ROLE_CHOICES, ROLE_LABELS, AnalysisResult, Category, Role, Status, User
 from ..services import VisionApiError, check_health
@@ -325,49 +325,44 @@ def user_clear_history(pk: int):
 @bp.route("/settings/", methods=["GET", "POST"])
 @head_admin_required
 def settings():
-    """Настройки очереди и клиента vision-сервера — меняются на ходу, без перезапуска.
+    """Все настройки из config.py (кроме ключей, путей и логирования) — меняются на ходу, без перезапуска.
 
-    Хранятся в БД (см. settings_store.py); значение по умолчанию берётся из .env/Config,
-    пока главный админ явно его не переопределит здесь.
+    Хранятся в БД (см. settings_store.py); пока главный админ явно не переопределит значение здесь,
+    действует то, что задано в config.py/.env. Форма сохраняется целиком: при любой ошибке
+    валидации не меняется ничего.
     """
     if request.method == "POST":
-        errors = []
-        for spec in RUNTIME_SETTINGS:
-            if request.form.get(f"reset_{spec.key}"):
-                reset_runtime_setting(spec.key)
-                continue
-            # Невыбранный чекбокс браузер вообще не отправляет — это и есть "выключено",
-            # поэтому дефолт при отсутствии ключа в форме — пустая строка, а не "1".
-            raw = request.form.get(spec.key, "")
-            if runtime_setting_unchanged(spec.key, raw):
-                # Поле не трогали — не создаём/не трогаем переопределение. Иначе
-                # сохранение формы помечало бы «переопределено» вообще всё сразу,
-                # а не только реально изменённую настройку.
-                continue
-            try:
-                set_runtime_setting(spec.key, raw)
-            except ValueError as exc:
-                errors.append(str(exc))
-
+        errors, warnings = save_runtime_settings(request.form)
         if errors:
-            db.session.rollback()
             for message in errors:
                 flash(message, "error")
+            flash("Настройки не сохранены — исправьте ошибки и повторите.", "error")
         else:
-            db.session.commit()
-            flash("Настройки сохранены.", "success")
+            flash("Настройки сохранены и уже действуют.", "success")
+            for message in warnings:
+                flash(message, "warning")
         return redirect(url_for("panel.settings"))
 
-    rows = [
-        {
-            "spec": spec,
-            "value": get_runtime_setting(spec.key),
-            "overridden": is_runtime_setting_overridden(spec.key),
-            "default": current_app.config.get(spec.key),
-        }
-        for spec in RUNTIME_SETTINGS
-    ]
-    return render_template("panel/settings.html", rows=rows)
+    groups = []
+    for title, description, specs in SETTING_GROUPS:
+        rows = []
+        for spec in specs:
+            lo, hi = effective_bounds(spec)
+            if spec.kind == "int" and spec.scale > 1:
+                lo = lo // spec.scale if spec.min_key else lo
+                hi = hi // spec.scale if spec.max_key else hi
+            rows.append(
+                {
+                    "spec": spec,
+                    "value": display_value(spec, conf(spec.key)),
+                    "overridden": is_runtime_setting_overridden(spec.key),
+                    "default": display_value(spec, default_value(spec.key)),
+                    "lo": lo if spec.kind in ("int", "float", "days", "opt_int") else None,
+                    "hi": hi if spec.kind in ("int", "float", "days", "opt_int") else None,
+                }
+            )
+        groups.append({"title": title, "description": description, "rows": rows})
+    return render_template("panel/settings.html", groups=groups)
 
 
 # ----------------------------------------------------------------------------

@@ -147,3 +147,15 @@
 @media (max-width: 640px) {
     .settings-row { grid-template-columns: 1fr; }
 }
+/* Номер анализа (№42) — тот же id, по которому анализ находит и нейросеть в чате. */
+.id-tag { font-family: var(--font-mono); font-size: 0.78rem; color: var(--text-dim); margin-right: 4px; white-space: nowrap; }
+.id-tag-lg { font-size: 0.9rem; font-weight: 400; vertical-align: middle; }
+.col-id { width: 56px; font-family: var(--font-mono); color: var(--text-dim); white-space: nowrap; }
+
+/* Страница настроек: группы, панель поиска, имя константы под подписью */
+.settings-toolbar { display: flex; gap: 12px; align-items: center; position: sticky; top: 8px; z-index: 5; }
+.settings-toolbar .input { flex: 1; }
+.settings-group[hidden], .settings-row[hidden] { display: none; }
+.settings-key { display: block; font-size: 0.75rem; color: var(--text-dim); margin-top: 2px; }
+.settings-footer { display: flex; gap: 12px; align-items: center; }
+.settings-group .settings-row { margin-top: 16px; }

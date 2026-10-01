@@ -38,7 +38,7 @@ from flask import current_app, url_for
 from sqlalchemy import select
 
 from .. import image_dedup, vector_search
-from ..config import Config, conf
+from ..config import conf
 from ..extensions import db
 from ..models import RISK_LABELS, AnalysisResult, Category, RiskLevel, Status, User
 from ..services import EmbeddingNotReady, VisionApiError
@@ -46,16 +46,21 @@ from ..utils import local_dt
 
 TOOL_NAME = "search_analyses"
 
-# Лимиты инструмента живут в config.py (SEARCH_*). Публичные имена без «_» используются ещё и
-# в runner.py — оттуда числа попадают в промпт модели, поэтому правится только Config.
-DEFAULT_LIMIT = Config.SEARCH_DEFAULT_LIMIT
-MAX_LIMIT = Config.SEARCH_MAX_LIMIT
-MAX_SINCE_DAYS = Config.SEARCH_MAX_SINCE_DAYS
-_SCAN_LIMIT = Config.SEARCH_SCAN_LIMIT  # сколько последних строк максимум разбираем (защита от полного скана)
-_MAX_CARDS = Config.SEARCH_MAX_CARDS  # больше карточек под одним ответом — визуальный шум
-_DESC_LEN = Config.SEARCH_DESC_CHARS
-_MAX_QUERY_CHARS = Config.SEARCH_MAX_QUERY_CHARS
-_MAX_KEYWORDS = Config.SEARCH_MAX_KEYWORDS
+
+# Лимиты инструмента — в config.py (SEARCH_*), меняются в /panel/settings/ без перезапуска, поэтому
+# читаются в момент использования. Эти функции вызывает и runner.py: числа попадают в промпт модели.
+def default_limit() -> int:
+    return conf("SEARCH_DEFAULT_LIMIT")
+
+
+def max_limit() -> int:
+    return conf("SEARCH_MAX_LIMIT")
+
+
+def max_since_days() -> int:
+    return conf("SEARCH_MAX_SINCE_DAYS")
+
+
 _VALID_RISKS = {RiskLevel.LOW, RiskLevel.MEDIUM, RiskLevel.HIGH, RiskLevel.UNKNOWN}
 
 # Порядок выдачи: по умолчанию от новых к старым; «самый первый / самый старый анализ» —
@@ -151,9 +156,10 @@ def _keywords_arg(value, warnings: list[str]) -> tuple[list[str], list[str]]:
         if stem not in stems:
             stems.append(stem)
             originals.append(clean.lower())
-    if len(stems) > _MAX_KEYWORDS:
-        warnings.append(f"ключевых слов больше {_MAX_KEYWORDS} — лишние отброшены")
-        stems, originals = stems[:_MAX_KEYWORDS], originals[:_MAX_KEYWORDS]
+    max_keywords = conf("SEARCH_MAX_KEYWORDS")
+    if len(stems) > max_keywords:
+        warnings.append(f"ключевых слов больше {max_keywords} — лишние отброшены")
+        stems, originals = stems[:max_keywords], originals[:max_keywords]
     return stems, originals
 
 
@@ -178,7 +184,7 @@ def _query_arg(value) -> str | None:
     даже от текста на картинке) — только строка, схлопнутые пробелы, ограниченная длина."""
     if not isinstance(value, str):
         return None
-    text = " ".join(value.split())[:_MAX_QUERY_CHARS]
+    text = " ".join(value.split())[:conf("SEARCH_MAX_QUERY_CHARS")]
     return text or None
 
 
@@ -199,8 +205,8 @@ def normalize_args(raw) -> tuple[dict, list[str]]:
         warnings.append("неизвестные аргументы проигнорированы: " + ", ".join(unknown))
 
     args: dict = {
-        "limit": _int_arg(raw.get("limit"), 1, MAX_LIMIT) or DEFAULT_LIMIT,
-        "since_days": _int_arg(raw.get("since_days"), 1, MAX_SINCE_DAYS),
+        "limit": _int_arg(raw.get("limit"), 1, max_limit()) or default_limit(),
+        "since_days": _int_arg(raw.get("since_days"), 1, max_since_days()),
         "risk_level": None,
         "categories": [],
         "needs_review": _bool_arg(raw.get("needs_review")),
@@ -292,7 +298,7 @@ def _fetch_rows(user: User, args: dict) -> list[AnalysisResult]:
         ordering = (AnalysisResult.created_at.asc(), AnalysisResult.id.asc())
     else:
         ordering = (AnalysisResult.created_at.desc(), AnalysisResult.id.desc())
-    stmt = select(AnalysisResult).where(*_conditions(user, args)).order_by(*ordering).limit(_SCAN_LIMIT)
+    stmt = select(AnalysisResult).where(*_conditions(user, args)).order_by(*ordering).limit(conf("SEARCH_SCAN_LIMIT"))
     rows = list(db.session.scalars(stmt).all())
 
     if args["categories"]:
@@ -320,8 +326,9 @@ def _record(
     row: AnalysisResult, show_user: bool, similarity: float | None = None, same_image: list[int] | None = None
 ) -> dict:
     desc = _clean((row.description or "").strip().replace("\n", " "))
-    if len(desc) > _DESC_LEN:
-        desc = desc[: _DESC_LEN - 1] + "…"
+    desc_len = conf("SEARCH_DESC_CHARS")
+    if len(desc) > desc_len:
+        desc = desc[: desc_len - 1] + "…"
     rec = {
         "id": row.id,
         "date": local_dt(row.created_at),
@@ -342,12 +349,12 @@ def _record(
 
 def _build_reference_cards(rows: list[AnalysisResult], show_user: bool) -> list[dict]:
     cards = []
-    for row in rows[:_MAX_CARDS]:
+    for row in rows[:conf("SEARCH_MAX_CARDS")]:
         card = {
             "id": row.id,
             "url": url_for("analyzer.result_detail", pk=row.id),
             "thumb_url": url_for("analyzer.thumb", filename=row.image_path) if row.image_path else "",
-            "label": row.original_name or f"Анализ #{row.id}",
+            "label": row.original_name or f"Анализ №{row.id}",
             "risk_level": row.risk_level,
             "risk_label": row.risk_level_display,
             "date": local_dt(row.created_at),
@@ -540,7 +547,7 @@ def search_analyses(user: User, raw_args) -> ToolResult:
     if not rows and args["keywords"] and args["keywords_text"]:
         fallback_args = {
             **args, "keywords": [], "keywords_text": "", "similar_to": None,
-            "query": args["keywords_text"][:_MAX_QUERY_CHARS],
+            "query": args["keywords_text"][:conf("SEARCH_MAX_QUERY_CHARS")],
         }
         fallback = _search_semantic(user, fallback_args, [*warnings, _KEYWORDS_FALLBACK])
         if "error" not in json.loads(fallback.text):  # эмбеддинги недоступны — честный «0» ниже лучше ошибки
@@ -571,9 +578,9 @@ def search_analyses(user: User, raw_args) -> ToolResult:
         payload["keywords"] = args["keywords"]  # какие основы слов реально искались
     if raw_count > len(rows):
         payload["duplicates_merged"] = raw_count - len(rows)  # повторные анализы тех же файлов, склеены
-    if raw_count >= _SCAN_LIMIT:
+    if raw_count >= conf("SEARCH_SCAN_LIMIT"):
         which = "самых старых" if args["order"] == _ORDER_OLDEST else "самых свежих"
-        payload["note"] = f"учтены только {_SCAN_LIMIT} {which} записей"
+        payload["note"] = f"учтены только {conf('SEARCH_SCAN_LIMIT')} {which} записей"
     if warnings:
         payload["warnings"] = warnings
 

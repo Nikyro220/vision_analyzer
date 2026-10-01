@@ -207,11 +207,32 @@ class Config:
     LOG_ERROR_BACKUP_DAYS = 60  # app.error.log
 
 
+# Хук переопределений из БД (ставит settings_store.py). Так config.py не импортирует БД/модели,
+# а `conf()` при этом видит значения, которые главный админ поменял в /panel/settings/.
+NO_OVERRIDE = object()
+_override_provider = None
+
+
+def set_override_provider(provider) -> None:
+    """provider(key) -> значение из БД или NO_OVERRIDE. Вызывается один раз из settings_store."""
+    global _override_provider
+    _override_provider = provider
+
+
 def conf(key: str):
-    """Значение настройки: из app.config (учитывает create_app(config=...) и тесты), а вне
-    контекста приложения — из Config. Так одно и то же имя читается одинаково и в запросе, и
-    в фоновом потоке, и при импорте."""
+    """Действующее значение настройки.
+
+    Порядок: переопределение главного админа из /panel/settings/ (БД, подхватывается на лету) ->
+    app.config (учитывает create_app(config=...) и тесты) -> Config. Вне контекста приложения
+    (при импорте) — просто Config. Так одно и то же имя читается одинаково и в запросе, и в
+    фоновом потоке. Всё, что должно меняться без перезапуска, нужно читать через conf() В МОМЕНТ
+    использования, а не сохранять в константу на уровне модуля.
+    """
     if has_app_context():
+        if _override_provider is not None:
+            value = _override_provider(key)
+            if value is not NO_OVERRIDE:
+                return value
         try:
             return current_app.config[key]
         except KeyError:

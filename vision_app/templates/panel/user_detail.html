@@ -86,6 +86,7 @@
                 <a href="{{ url_for('analyzer.result_detail', pk=item.id) }}" class="mini-list-row">
                     <img class="row-thumb" src="{{ url_for('analyzer.thumb', filename=item.image_path) }}" alt="" loading="lazy" width="36" height="36" onerror="this.style.visibility='hidden'">
                     <span class="risk-dot risk-{{ item.risk_level }}"></span>
+                    <span class="id-tag">№{{ item.id }}</span>
                     <span class="mini-list-name">{{ (item.original_name or 'без имени')|trunc(28) }}</span>
                     <span class="mini-list-date">{{ item.created_at|localdt('short') }}</span>
                 </a>

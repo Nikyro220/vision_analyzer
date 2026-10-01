@@ -6,16 +6,27 @@ import logging
 from pathlib import Path
 
 from flask import current_app
-from sqlalchemy import delete, func, select
+from sqlalchemy import delete, func, or_, select
 
-from .config import Config
+from .config import Config, conf
 from .extensions import db
-from .models import AnalysisEmbedding, AnalysisResult, Status, User
+from .models import (
+    AnalysisEmbedding,
+    AnalysisResult,
+    ChatAnalysisJob,
+    ChatMessage,
+    ChatSession,
+    Status,
+    User,
+)
 from .thumbs import THUMBS_DIR, thumb_rel
 
 log = logging.getLogger("vision_app.history")
 
-_CHUNK = Config.SQL_IN_CHUNK  # не упираемся в лимит числа параметров SQL
+
+def _chunk() -> int:
+    """Размер пачки id в IN (...) — не упираемся в лимит числа параметров SQL (SQL_IN_CHUNK)."""
+    return max(int(conf("SQL_IN_CHUNK")), 1)
 
 
 def _prune_empty_dirs(parent: Path, stop_root: Path) -> None:
@@ -77,16 +88,17 @@ def delete_finished(*conditions) -> int:
         return 0
 
     ids = [r.id for r in rows]
-    for i in range(0, len(ids), _CHUNK):
+    chunk = _chunk()
+    for i in range(0, len(ids), chunk):
         # SQLite не выполняет ON DELETE CASCADE без PRAGMA foreign_keys — чистим векторы сами.
         db.session.execute(
             delete(AnalysisEmbedding)
-            .where(AnalysisEmbedding.analysis_id.in_(ids[i : i + _CHUNK]))
+            .where(AnalysisEmbedding.analysis_id.in_(ids[i : i + chunk]))
             .execution_options(synchronize_session=False)
         )
         db.session.execute(
             delete(AnalysisResult)
-            .where(AnalysisResult.id.in_(ids[i : i + _CHUNK]), AnalysisResult.status == Status.DONE)
+            .where(AnalysisResult.id.in_(ids[i : i + chunk]), AnalysisResult.status == Status.DONE)
             .execution_options(synchronize_session=False)
         )
     db.session.commit()
@@ -96,27 +108,75 @@ def delete_finished(*conditions) -> int:
     return len(ids)
 
 
-def delete_user_account(user: User) -> None:
-    """Удаляет пользователя целиком: все его анализы (любого статуса) вместе с
-    файлами изображений, а затем саму учётную запись.
+def _purge_owned(analysis_where, session_where) -> tuple[list[str], list[str], int, int]:
+    """Удаляет анализы и чаты, подходящие под условия, вместе со ВСЕМИ зависимыми строками
+    (векторы, задачи анализа из чата, сообщения). Без коммита.
 
-    Записи AnalysisResult (и чаты) удалились бы каскадом на уровне БД (ondelete="CASCADE"),
-    но файлы изображений — загрузки и вложения чатов — так не подчистить, поэтому собираем пути заранее.
+    Возвращает (пути загрузок анализов, пути вложений чатов, число анализов, число чатов) —
+    файлы удаляет вызывающий, уже после коммита.
+
+    Всё делается явно, а не через ON DELETE CASCADE: связи User -> AnalysisResult / ChatSession
+    объявлены с ondelete="CASCADE" и passive_deletes=True, то есть ORM рассчитывает, что каскад
+    выполнит БД. SQLite же не проверяет внешние ключи, пока не включён PRAGMA foreign_keys (в
+    приложении он выключен), — и строки анализов и чатов оставались «сиротами» без владельца
+    (в панели админа у них пропадал ник, файлы на диске не чистились). Порядок удаления — от
+    дочерних таблиц к родительским, чтобы то же работало и с включёнными внешними ключами.
     """
     from . import chat_images  # локально: chat_images сам импортирует этот модуль
 
-    paths = db.session.scalars(
-        select(AnalysisResult.image_path).where(AnalysisResult.user_id == user.id)
-    ).all()
-    chat_paths = chat_images.user_paths(user.id)  # вложения чатов — собираем до удаления записей
+    analysis_ids = select(AnalysisResult.id).where(analysis_where)
+    session_ids = select(ChatSession.id).where(session_where)
+    opts = {"synchronize_session": False}
+
+    paths = [p for p in db.session.scalars(select(AnalysisResult.image_path).where(analysis_where)) if p]
+    chat_paths = chat_images.paths_of(
+        db.session.scalars(select(ChatMessage).where(ChatMessage.session_id.in_(session_ids))).all()
+    )  # вложения чатов — собираем до удаления записей
 
     db.session.execute(
-        delete(AnalysisEmbedding)
-        .where(AnalysisEmbedding.analysis_id.in_(select(AnalysisResult.id).where(AnalysisResult.user_id == user.id)))
-        .execution_options(synchronize_session=False)
+        delete(AnalysisEmbedding).where(AnalysisEmbedding.analysis_id.in_(analysis_ids)).execution_options(**opts)
     )
-    db.session.delete(user)
-    db.session.commit()
+    db.session.execute(
+        delete(ChatAnalysisJob)
+        .where(or_(ChatAnalysisJob.session_id.in_(session_ids), ChatAnalysisJob.analysis_id.in_(analysis_ids)))
+        .execution_options(**opts)
+    )
+    db.session.execute(delete(ChatMessage).where(ChatMessage.session_id.in_(session_ids)).execution_options(**opts))
+    chats = db.session.execute(delete(ChatSession).where(session_where).execution_options(**opts))
+    analyses = db.session.execute(delete(AnalysisResult).where(analysis_where).execution_options(**opts))
+    return paths, chat_paths, analyses.rowcount or 0, chats.rowcount or 0
 
-    remove_image_files([p for p in paths if p])
+
+def delete_user_account(user: User) -> None:
+    """Удаляет пользователя целиком: все его анализы (любого статуса), чаты и сообщения вместе с
+    файлами изображений, а затем саму учётную запись.
+
+    Записей «от имени» удалённого пользователя не остаётся: в истории админа не бывает анализов
+    без указания, чей он.
+    """
+    from . import chat_images
+
+    user_id = user.id
+    paths, chat_paths, _, _ = _purge_owned(AnalysisResult.user_id == user_id, ChatSession.user_id == user_id)
+    db.session.execute(delete(User).where(User.id == user_id).execution_options(synchronize_session=False))
+    db.session.commit()
+    db.session.expire_all()
+
+    remove_image_files(paths)
     chat_images.remove_files(chat_paths)
+
+
+def purge_orphans() -> dict[str, int]:
+    """Удаляет данные, чей владелец уже удалён (остались от версий, где каскад на SQLite не
+    срабатывал): анализы, чаты, сообщения и файлы. Возвращает {"analyses": N, "chats": M}.
+    Нужен app context."""
+    from . import chat_images
+
+    known_users = select(User.id)
+    paths, chat_paths, analyses, chats = _purge_owned(
+        ~AnalysisResult.user_id.in_(known_users), ~ChatSession.user_id.in_(known_users)
+    )
+    db.session.commit()
+    remove_image_files(paths)
+    chat_images.remove_files(chat_paths)
+    return {"analyses": analyses, "chats": chats}

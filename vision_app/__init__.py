@@ -11,11 +11,12 @@ from flask_login import current_user
 from flask_wtf.csrf import CSRFError
 
 from .categories_store import normalize_legacy_wrappers, seed_default_categories
-from .config import Config
+from .config import Config, conf
 from .extensions import csrf, db, login_manager, migrate
 from .models import ROLE_CHOICES, ROLE_LABELS, RISK_LABELS, Role, User
 from .queue_worker import ensure_worker, worker_enabled
 from .schema import ensure_schema
+from . import settings_store
 from . import image_dedup, vector_search
 from .utils import local_dt, page_url, plural, truncate_chars
 
@@ -34,6 +35,10 @@ def create_app(config: dict | None = None) -> Flask:
     # SQLite: обработчик очереди пишет в БД из отдельного потока — даём ждать блокировку дольше 5 с (SQLITE_TIMEOUT).
     if app.config["SQLALCHEMY_DATABASE_URI"].startswith("sqlite") and "SQLALCHEMY_ENGINE_OPTIONS" not in app.config:
         app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {"connect_args": {"timeout": app.config["SQLITE_TIMEOUT"]}}
+
+    # Исходные значения ключей Flask (лимит запроса, сессия, cookie, CSRF): к ним возвращаемся,
+    # когда главный админ сбрасывает переопределение в /panel/settings/.
+    settings_store.install(app)
 
     # --- расширения ---
     db.init_app(app)
@@ -61,6 +66,7 @@ def create_app(config: dict | None = None) -> Flask:
     app.jinja_env.filters["localdt"] = local_dt
     app.jinja_env.filters["trunc"] = truncate_chars
     app.jinja_env.filters["plural"] = plural
+    app.jinja_env.globals["conf"] = conf  # шаблоны читают настройки на ходу: {{ conf("CAPTION_MAX_CHARS") }}
 
     @app.context_processor
     def inject_globals():
@@ -71,6 +77,12 @@ def create_app(config: dict | None = None) -> Flask:
             "ROLE_CHOICES": ROLE_CHOICES,
             "RISK_LABELS": RISK_LABELS,
         }
+
+    # --- настройки из /panel/settings/: ключи, которые читает сам Flask, переносим в app.config ---
+    @app.before_request
+    def apply_runtime_settings():
+        settings_store.sync_flask_config(app)
+        return None
 
     # --- очередь анализов: поток-обработчик стартует лениво, при первом запросе ---
     @app.before_request
@@ -150,6 +162,29 @@ def _register_cli(app: Flask) -> None:
         db.session.commit()
         click.echo(f"«{username}» → {ROLE_LABELS[role]}")
 
+    @app.cli.command("reset-settings")
+    @click.argument("keys", nargs=-1)
+    def reset_settings(keys: tuple[str, ...]):
+        """Сбросить настройки из /panel/settings/ к значениям config.py/.env: перечисленные ключи
+        или все сразу, если ключи не заданы (например, если после смены настроек не войти в панель)."""
+        if not keys:
+            click.echo(f"Сброшено настроек: {settings_store.reset_all_runtime_settings()}.")
+            return
+        unknown = [k for k in keys if k not in settings_store.RUNTIME_SETTINGS_BY_KEY]
+        if unknown:
+            raise click.ClickException(f"Неизвестные настройки: {', '.join(unknown)}")
+        for key in keys:
+            settings_store.reset_runtime_setting(key)
+        click.echo(f"Сброшено: {', '.join(keys)}.")
+
+    @app.cli.command("purge-orphans")
+    def purge_orphans_cmd():
+        """Удалить анализы и чаты уже удалённых пользователей (остались от старого удаления аккаунта)."""
+        from .history import purge_orphans
+
+        result = purge_orphans()
+        click.echo(f"Удалено анализов: {result['analyses']}, чатов: {result['chats']}.")
+
     @app.cli.command("seed-categories")
     def seed_categories():
         """Загрузить категории с сервера анализа (GET /categories), если таблица categories пуста."""
@@ -195,7 +230,7 @@ def _register_cli(app: Flask) -> None:
                 raise click.ClickException(f"Не удалось получить эмбеддинг запроса: {exc}")
             result = vector_search.semantic_search(
                 conditions, qvec, model, limit=limit, min_similarity=-1.0,
-                scan_limit=int(app.config["EMBEDDING_SCAN_LIMIT"]),
+                scan_limit=int(conf("EMBEDDING_SCAN_LIMIT")),
             )
             rows = {
                 r.id: r for r in db.session.scalars(
@@ -214,7 +249,7 @@ def _register_cli(app: Flask) -> None:
         """Посчитать хеши файлов у анализов, где их ещё нет (для склейки повторных загрузок одного файла)."""
         total = missing = 0
         while True:
-            hashed, lost = image_dedup.backfill_hashes(limit=app.config["DEDUP_CLI_BATCH"])
+            hashed, lost = image_dedup.backfill_hashes(limit=conf("DEDUP_CLI_BATCH"))
             if not hashed and not lost:
                 break
             total += hashed

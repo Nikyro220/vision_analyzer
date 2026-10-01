@@ -5,7 +5,7 @@
 {% macro queue_row(item) %}
 <li class="queue-item queue-item--{{ item.status }}" data-id="{{ item.id }}">
     <span class="queue-icon" aria-hidden="true"></span>
-    <span class="queue-name" title="{{ item.name }}">{{ item.name|trunc(30) }}</span>
+    <span class="queue-name" title="{{ item.name }}"><span class="id-tag">№{{ item.id }}</span> {{ item.name|trunc(30) }}</span>
     <span class="queue-status">
         {% if item.status == 'processing' %}Обрабатывается · {{ '%d:%02d' % (item.elapsed // 60, item.elapsed % 60) }}
         {% elif item.ahead > 0 %}В очереди · перед вами: {{ item.ahead }}
@@ -34,7 +34,7 @@
                 {% if target_backend %}Анализ на: <strong>{{ target_backend }}</strong> · модель: <strong>{{ target_model or 'авто' }}</strong>
                 {% else %}Анализ на бэкенде и модели по умолчанию.{% endif %}
             </p>
-            <form method="post" enctype="multipart/form-data" class="form" id="upload-form" data-caption-max="{{ config.CAPTION_MAX_CHARS }}" novalidate>
+            <form method="post" enctype="multipart/form-data" class="form" id="upload-form" data-caption-max="{{ conf("CAPTION_MAX_CHARS") }}" novalidate>
                 {{ form.hidden_tag() }}
                 <div class="dropzone" id="dropzone">
                     <input type="file" name="image" id="id_image" accept="image/*" multiple required>
@@ -72,6 +72,7 @@
                 <a href="{{ item.url }}" class="mini-list-row">
                     {% if item.thumb_url %}<img class="row-thumb" src="{{ item.thumb_url }}" alt="" loading="lazy" width="36" height="36" onerror="this.style.visibility='hidden'">{% endif %}
                     <span class="risk-dot risk-{{ item.risk_level }}"></span>
+                    <span class="id-tag">№{{ item.id }}</span>
                     <span class="mini-list-name">{{ item.name|trunc(28) }}</span>{% if item.is_new %} <span class="tag tag-new">новое</span>{% endif %}
                     <span class="mini-list-date">{{ item.date }}</span>
                 </a>

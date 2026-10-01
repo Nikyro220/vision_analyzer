@@ -85,7 +85,7 @@
             <button type="button" class="btn btn-secondary chat-attach-btn" id="chat-attach-btn"
                     title="Прикрепить изображение (до {{ max_images }} шт., до {{ max_image_mb }} МБ каждое)"
                     aria-label="Прикрепить изображение">📎</button>
-            <textarea id="chat-input" class="chat-input" rows="1" maxlength="{{ config.CHAT_MAX_MESSAGE_LEN }}"
+            <textarea id="chat-input" class="chat-input" rows="1" maxlength="{{ conf("CHAT_MAX_MESSAGE_LEN") }}"
                       placeholder="Сообщение…" autofocus></textarea>
             <button type="submit" class="btn btn-primary" id="chat-send-btn">Отправить</button>
         </form>

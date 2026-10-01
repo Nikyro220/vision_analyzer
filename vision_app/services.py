@@ -25,7 +25,7 @@ from urllib.parse import quote
 
 import requests
 
-from .config import Config, conf
+from .config import conf
 
 
 # Бэкенды, которые понимает сервер (параметр ?backend=).
@@ -89,7 +89,7 @@ def check_health() -> dict:
 def analyze_image(
     image_bytes: bytes,
     mime_type: str,
-    lang: str = Config.DEFAULT_LANG,
+    lang: str | None = None,  # None -> DEFAULT_LANG из настроек
     backend: str = "",
     model: str = "",
     caption: str = "",
@@ -115,6 +115,7 @@ def analyze_image(
     туда просто не влезают уже на 4-5 включённых категориях.
     """
     url = f"{_base_url()}/analyze"
+    lang = lang or conf("DEFAULT_LANG")
 
     if categories:
         payload: dict = {
@@ -357,7 +358,7 @@ def chat_with_model(
     images: list[str] | None = None,
     backend: str = "",
     model: str = "",
-    lang: str = Config.DEFAULT_LANG,
+    lang: str | None = None,  # None -> DEFAULT_LANG из настроек
     system: str = "",
 ) -> ChatOutcome:
     """Отправляет одно сообщение на POST /chat (см. inference/chat.py) и
@@ -369,6 +370,7 @@ def chat_with_model(
     для мультимодального сообщения.
     """
     url = f"{_base_url()}/chat"
+    lang = lang or conf("DEFAULT_LANG")
 
     payload: dict = {"message": message, "lang": lang}
     if history:

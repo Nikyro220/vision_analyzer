@@ -32,17 +32,16 @@ from sqlalchemy import delete, func, or_, select
 from sqlalchemy.exc import IntegrityError
 
 from . import services
-from .config import Config
+from .config import conf
 from .extensions import db
 from .models import AnalysisEmbedding, AnalysisResult, Status, utcnow
 from .services import EmbeddingNotReady, VisionApiError
 
 log = logging.getLogger("vision_app.vector_search")
 
-# Размеры батча/текста/выдачи и паузы фоновой индексации — в config.py (EMBEDDING_*).
-_BATCH = Config.EMBEDDING_BATCH_SIZE
-_MAX_TEXT_CHARS = Config.EMBEDDING_MAX_TEXT_CHARS
-_MAX_MATCHED_IDS = Config.EMBEDDING_MAX_MATCHED_IDS
+# Размеры батча/текста/выдачи и паузы фоновой индексации — в config.py (EMBEDDING_*); читаются через
+# conf() в момент использования, чтобы правки в /panel/settings/ действовали без перезапуска.
+_FALLBACK_PAUSE = 60  # сек; только если не удалось даже прочитать настройку
 
 
 # ----------------------------------------------------------------------------
@@ -51,7 +50,7 @@ _MAX_MATCHED_IDS = Config.EMBEDDING_MAX_MATCHED_IDS
 def embedding_text(description: str | None, caption: str | None) -> str:
     """Что именно эмбеддим. Пустая строка — эмбеддить нечего."""
     parts = [(description or "").strip(), (caption or "").strip()]
-    return "\n".join(p for p in parts if p)[:_MAX_TEXT_CHARS]
+    return "\n".join(p for p in parts if p)[:int(conf("EMBEDDING_MAX_TEXT_CHARS"))]
 
 
 def _text_hash(text: str) -> str:
@@ -153,7 +152,7 @@ def _delete_orphans() -> int:
 
 def backfill(*, everything: bool = False, max_batches: int | None = None) -> BackfillResult:
     """Индексирует анализы без вектора или с вектором другой модели (everything=True —
-    пересчитывает вообще все). Идёт батчами по _BATCH по возрастанию id (keyset), поэтому
+    пересчитывает вообще все). Идёт батчами по EMBEDDING_BATCH_SIZE по возрастанию id (keyset), поэтому
     не зацикливается на строках, которые не удалось обработать. Нужен app context."""
     try:
         status = services.get_embedding_status()
@@ -177,7 +176,7 @@ def backfill(*, everything: bool = False, max_batches: int | None = None) -> Bac
                 AnalysisResult.description != "",
             )
             .order_by(AnalysisResult.id)
-            .limit(_BATCH)
+            .limit(int(conf("EMBEDDING_BATCH_SIZE")))
         )
         if not everything:
             stmt = stmt.where(
@@ -222,21 +221,25 @@ def idle_backfill(app) -> None:
         return
     try:
         with app.app_context():
-            result = backfill(max_batches=Config.EMBEDDING_IDLE_BATCHES)
+            result = backfill(max_batches=int(conf("EMBEDDING_IDLE_BATCHES")))
+            # паузы читаем внутри контекста — иначе не увидим настройки из БД
+            pause_unavailable = conf("EMBEDDING_IDLE_PAUSE_UNAVAILABLE")
+            pause_retry = conf("EMBEDDING_IDLE_PAUSE_RETRY")
+            pause_nothing = conf("EMBEDDING_IDLE_PAUSE_NOTHING")
         if result.reason:
             # модель качается/сервер лежит/эмбеддинги выключены — не долбим сервер каждые 5 с
             _next_idle_run = now + (
-                Config.EMBEDDING_IDLE_PAUSE_UNAVAILABLE
+                pause_unavailable
                 if result.reason.startswith(("state=disabled", "state=unavailable"))
-                else Config.EMBEDDING_IDLE_PAUSE_RETRY
+                else pause_retry
             )
         elif result.indexed:
             _next_idle_run = 0.0  # могло остаться ещё — продолжим на следующем холостом цикле
         else:
-            _next_idle_run = now + Config.EMBEDDING_IDLE_PAUSE_NOTHING
+            _next_idle_run = now + pause_nothing
     except Exception:  # noqa: BLE001
         log.exception("vector_search: сбой фоновой индексации")
-        _next_idle_run = now + Config.EMBEDDING_IDLE_PAUSE_RETRY
+        _next_idle_run = now + _FALLBACK_PAUSE
     finally:
         _idle_lock.release()
 
@@ -259,7 +262,7 @@ def embed_query(text: str) -> tuple[np.ndarray, str]:
 @dataclass
 class SemanticResult:
     hits: list[tuple[int, float]] = field(default_factory=list)  # (analysis_id, similarity), лучшие первыми
-    ranked: list[tuple[int, float]] = field(default_factory=list)  # ВСЕ выше порога, лучшие первыми (до _MAX_MATCHED_IDS)
+    ranked: list[tuple[int, float]] = field(default_factory=list)  # ВСЕ выше порога, лучшие первыми (до EMBEDDING_MAX_MATCHED_IDS)
     matched: int = 0  # сколько всего выше порога
     scanned: int = 0  # сколько векторов сравнили
     best_score: float | None = None  # лучший скор, даже если он ниже порога
@@ -339,7 +342,7 @@ def semantic_search(
         ", ".join(f"#{ids[i]}={scores[i]:.2f}" for i in top),
     )
     result.matched = int(idx.size)
-    result.ranked = [(ids[i], float(scores[i])) for i in idx[:_MAX_MATCHED_IDS]]
+    result.ranked = [(ids[i], float(scores[i])) for i in idx[:int(conf("EMBEDDING_MAX_MATCHED_IDS"))]]
     result.hits = [(ids[i], float(scores[i])) for i in idx[:limit]]
     return result
 

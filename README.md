@@ -109,7 +109,7 @@ cd inference && python server.py
 | `blueprints/panel.py` | Админка: пользователи, роли, все анализы, статистика |
 | `queue_worker.py` | Фоновый поток, обрабатывающий очередь анализов по одному |
 | `services.py` | Клиент к `inference/server.py` (`/analyze`, `/health`, `/models`, `/sampling`) |
-| `settings_store.py` | Выбранные бэкенд/модель для анализа (хранятся в БД) |
+| `settings_store.py` | Выбранные бэкенд/модель для анализа и переопределения констант `config.py` из `/panel/settings/` (хранятся в БД, применяются без перезапуска; `flask reset-settings` — сброс) |
 | `history.py` | Удаление записей истории вместе с файлами |
 | `blueprints/chat.py` | Чат с моделью: сессии, отправка сообщений (в т.ч. с изображениями), отдача вложений |
 | `chat_images.py` | Вложения чата: проверка через Pillow, хранение в `UPLOAD_FOLDER/chat_uploads/`, подготовка для модели (`to_data_url`), удаление |

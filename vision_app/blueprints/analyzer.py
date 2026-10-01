@@ -18,7 +18,7 @@ from flask import (
     url_for,
 )
 from flask_login import current_user, login_required
-from sqlalchemy import delete, func, select, update
+from sqlalchemy import delete, func, or_, select, update
 
 from ..config import Config, conf
 from ..decorators import staff_required
@@ -38,7 +38,7 @@ from ..services import (
 )
 from ..settings_store import clear_analysis_target, get_analysis_target, set_analysis_target
 from ..thumbs import ensure_thumb
-from ..utils import is_safe_next, local_dt, paginate, plural
+from ..utils import is_safe_next, local_dt, paginate, plural, query_to_id
 
 bp = Blueprint("analyzer", __name__)
 
@@ -48,13 +48,17 @@ _FILES = ("файл", "файла", "файлов")
 def _own_results(q: str = ""):
     """История пользователя — только ЗАВЕРШЁННЫЕ анализы (очередь показывается отдельно).
 
-    ``q`` — необязательный поиск по имени файла.
+    ``q`` — необязательный поиск по имени файла или по номеру анализа («42», «#42»).
     """
     stmt = select(AnalysisResult).where(
         AnalysisResult.user_id == current_user.id, AnalysisResult.status == Status.DONE
     )
     if q:
-        stmt = stmt.where(AnalysisResult.original_name.icontains(q, autoescape=True))
+        match = AnalysisResult.original_name.icontains(q, autoescape=True)
+        number = query_to_id(q)
+        if number is not None:
+            match = or_(match, AnalysisResult.id == number)
+        stmt = stmt.where(match)
     return stmt.order_by(AnalysisResult.created_at.desc(), AnalysisResult.id.desc())
 
 
@@ -143,6 +147,7 @@ def _enqueue_uploads(form: ImageUploadForm):
     now = datetime.now(timezone.utc)
     root = Path(current_app.config["UPLOAD_FOLDER"])
     written: list[Path] = []
+    added: list[AnalysisResult] = []
     try:
         for item in form.accepted:
             # Файл на диске хранится под случайным именем, оригинальное имя — только в БД.
@@ -151,17 +156,17 @@ def _enqueue_uploads(form: ImageUploadForm):
             abs_path.parent.mkdir(parents=True, exist_ok=True)
             abs_path.write_bytes(item.data)
             written.append(abs_path)
-            db.session.add(
-                AnalysisResult(
-                    user_id=current_user.id,
-                    image_path=rel_path,
-                    original_name=item.filename[:255],
-                    image_mime=item.mime,
-                    image_hash=image_dedup.sha256_bytes(item.data),
-                    caption=item.caption,
-                    status=Status.QUEUED,
-                )
+            row = AnalysisResult(
+                user_id=current_user.id,
+                image_path=rel_path,
+                original_name=item.filename[:255],
+                image_mime=item.mime,
+                image_hash=image_dedup.sha256_bytes(item.data),
+                caption=item.caption,
+                status=Status.QUEUED,
             )
+            db.session.add(row)
+            added.append(row)
         db.session.commit()
     except Exception:
         db.session.rollback()
@@ -170,7 +175,8 @@ def _enqueue_uploads(form: ImageUploadForm):
         raise
 
     wake_worker(current_app)
-    flash(f"Добавлено в очередь: {plural(len(form.accepted), _FILES)}.", "success")
+    numbers = ", ".join(f"№{row.id}" for row in added)  # id доступны после commit
+    flash(f"Добавлено в очередь: {plural(len(form.accepted), _FILES)} ({numbers}).", "success")
     shown = conf("REJECTED_FILES_SHOWN")
     for name, reason in form.rejected[:shown]:
         flash(f"Пропущен файл «{name}»: {reason}.", "warning")

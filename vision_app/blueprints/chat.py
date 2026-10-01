@@ -22,7 +22,7 @@ from sqlalchemy import func, or_, select, update
 
 from .. import chat_images, chat_jobs
 from ..chat_tools import ChatImage, attachment_note, delivery_message, run_chat_turn
-from ..config import Config, conf
+from ..config import conf
 from ..extensions import db
 from ..models import ChatMessage, ChatRole, ChatSession, utcnow
 from ..services import VisionApiError
@@ -401,7 +401,7 @@ def _run_turn(session_row: ChatSession, message: str, saved: list[dict], progres
     # см. chat_tools/runner.py. Результат анализа из очереди придёт позже, отдельным ходом (pending() ниже).
     try:
         turn = run_chat_turn(
-            current_user, model_message, history, target_backend, target_model, lang=Config.DEFAULT_LANG,
+            current_user, model_message, history, target_backend, target_model, lang=conf("DEFAULT_LANG"),
             images=all_images, session_id=session_row.id, message_images=message_images,
         )
     except VisionApiError as exc:
@@ -507,7 +507,7 @@ def _deliver(session_row: ChatSession, job, row) -> dict:
         target_backend, target_model = get_analysis_target()
         try:
             turn = run_chat_turn(
-                current_user, delivery_message(payload), history, target_backend, target_model, lang=Config.DEFAULT_LANG,
+                current_user, delivery_message(payload), history, target_backend, target_model, lang=conf("DEFAULT_LANG"),
                 images=all_images, session_id=session_row.id,
             )
             reply, backend, model = turn.reply, turn.backend, turn.model

@@ -193,6 +193,15 @@ class AnalysisResult(db.Model):
     image_hash = db.Column(db.String(64), nullable=True, index=True)
 
     @property
+    def owner_label(self) -> str:
+        """Логин владельца для списков админ-панели. Запись без владельца (остались от аккаунтов,
+        удалённых до исправления каскада) подписываем явно, а не показываем пустую ячейку;
+        убрать такие записи можно командой `flask purge-orphans`."""
+        if self.user is not None:
+            return self.user.username
+        return f"удалённый пользователь (id {self.user_id})"
+
+    @property
     def is_error(self) -> bool:
         return bool(self.error)
 

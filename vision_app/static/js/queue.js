@@ -207,8 +207,10 @@
     li.dataset.id = item.id;
     var icon = el("span", "queue-icon");
     icon.setAttribute("aria-hidden", "true");
-    var name = el("span", "queue-name", truncate(item.name, 30));
+    var name = el("span", "queue-name");
     name.title = item.name;
+    name.appendChild(el("span", "id-tag", "№" + item.id));
+    name.appendChild(document.createTextNode(" " + truncate(item.name, 30)));
     li.appendChild(icon);
     li.appendChild(name);
     li.appendChild(el("span", "queue-status", statusText(item)));
@@ -244,6 +246,7 @@
       a.appendChild(img);
     }
     a.appendChild(el("span", "risk-dot risk-" + item.risk_level));
+    a.appendChild(el("span", "id-tag", "№" + item.id));
     a.appendChild(el("span", "mini-list-name", truncate(item.name, 28)));
     if (item.is_new) {
       var badge = el("span", "tag tag-new", "новое");

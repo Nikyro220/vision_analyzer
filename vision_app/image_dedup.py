@@ -27,13 +27,11 @@ from pathlib import Path
 from flask import current_app
 from sqlalchemy import select, update
 
-from .config import Config
+from .config import conf
 from .extensions import db
 from .models import AnalysisResult
 
 log = logging.getLogger("vision_app.image_dedup")
-
-_CHUNK = Config.FILE_HASH_CHUNK_BYTES
 
 
 def sha256_bytes(data: bytes) -> str:
@@ -42,16 +40,23 @@ def sha256_bytes(data: bytes) -> str:
 
 def _hash_file(path: Path) -> str:
     digest = hashlib.sha256()
+    chunk_size = int(conf("FILE_HASH_CHUNK_BYTES"))
     with path.open("rb") as fh:
-        while chunk := fh.read(_CHUNK):
+        while chunk := fh.read(chunk_size):
             digest.update(chunk)
     return digest.hexdigest()
 
 
-def backfill_hashes(limit: int | None = Config.DEDUP_DEFAULT_BATCH) -> tuple[int, int]:
+_DEFAULT = object()
+_FALLBACK_PAUSE = 600  # сек; только если не удалось даже прочитать настройку
+
+
+def backfill_hashes(limit=_DEFAULT) -> tuple[int, int]:
     """Считает image_hash для записей, где его ещё нет. Возвращает (посчитано, файл потерян).
     Потерянные файлы получают пустую строку — чтобы не пытаться снова и не склеивать их между
-    собой. Нужен app context."""
+    собой. Нужен app context. limit по умолчанию — DEDUP_DEFAULT_BATCH, None — без ограничения."""
+    if limit is _DEFAULT:
+        limit = conf("DEDUP_DEFAULT_BATCH")
     root = Path(current_app.config["UPLOAD_FOLDER"])
     stmt = (
         select(AnalysisResult.id, AnalysisResult.image_path)
@@ -95,11 +100,12 @@ def idle_backfill(app) -> None:
         return
     try:
         with app.app_context():
-            hashed, missing = backfill_hashes(limit=Config.DEDUP_IDLE_BATCH)
-        _next_idle_run = 0.0 if (hashed or missing) else now + Config.DEDUP_IDLE_PAUSE
+            hashed, missing = backfill_hashes(limit=conf("DEDUP_IDLE_BATCH"))
+            pause = conf("DEDUP_IDLE_PAUSE")  # читаем внутри контекста — иначе не увидим настройку из БД
+        _next_idle_run = 0.0 if (hashed or missing) else now + pause
     except Exception:  # noqa: BLE001
         log.exception("image_dedup: сбой фонового подсчёта хешей")
-        _next_idle_run = now + Config.DEDUP_IDLE_PAUSE
+        _next_idle_run = now + _FALLBACK_PAUSE
     finally:
         _idle_lock.release()
 

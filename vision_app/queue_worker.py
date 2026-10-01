@@ -31,7 +31,7 @@ from sqlalchemy import or_, select, update
 
 from . import image_dedup, vector_search
 from .categories_store import build_categories_payload
-from .config import Config, conf
+from .config import conf
 from .extensions import db
 from .models import AnalysisResult, Status, utcnow
 from .services import VisionApiError, analyze_image
@@ -101,7 +101,7 @@ def _run_analysis(app, image_path: str, image_mime: str, caption: str = ""):
 
     try:
         outcome = analyze_image(
-            data, mime, lang=Config.DEFAULT_LANG, backend=backend, model=model, caption=caption, categories=categories,
+            data, mime, backend=backend, model=model, caption=caption, categories=categories,
         )
         return outcome, ""
     except VisionApiError as exc:
@@ -229,7 +229,7 @@ class QueueWorker(threading.Thread):
             except Exception:  # noqa: BLE001 — поток не должен умирать из-за одной ошибки
                 log.exception("Очередь: обработчик #%d — ошибка цикла обработки", self.index)
                 busy = False
-                time.sleep(Config.QUEUE_ERROR_PAUSE_SECONDS)
+                time.sleep(conf("QUEUE_ERROR_PAUSE_SECONDS"))
             if not busy:
                 vector_search.idle_backfill(self.app)  # добирает векторы, пропущенные при анализе
                 image_dedup.idle_backfill(self.app)  # считает хеши файлов у старых записей
@@ -262,9 +262,9 @@ def worker_count(app) -> int:
         try:
             n = int(get_runtime_setting("QUEUE_WORKERS"))
         except (TypeError, ValueError):
-            n = Config.QUEUE_WORKERS_MIN
+            n = conf("QUEUE_WORKERS_MIN")
     # разумный потолок, чтобы опечатка в настройке не завела 100 потоков
-    return min(max(n, Config.QUEUE_WORKERS_MIN), Config.QUEUE_WORKERS_MAX)
+    return min(max(n, conf("QUEUE_WORKERS_MIN")), conf("QUEUE_WORKERS_MAX"))
 
 
 # Приложения, для которых уже когда-либо выполнялся _bootstrap_once (возврат в очередь
@@ -336,4 +336,4 @@ def stop_worker(app) -> None:
     for worker in workers:
         worker.shutdown()
     for worker in workers:
-        worker.join(timeout=Config.QUEUE_STOP_JOIN_TIMEOUT)
+        worker.join(timeout=conf("QUEUE_STOP_JOIN_TIMEOUT"))

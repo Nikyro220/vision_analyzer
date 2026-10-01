@@ -30,15 +30,15 @@ from dataclasses import dataclass, field
 
 from flask import current_app
 
-from .analyses import DEFAULT_LIMIT, MAX_LIMIT, MAX_SINCE_DAYS, TOOL_NAME, ToolResult, active_categories, search_analyses
+from .analyses import TOOL_NAME, ToolResult, active_categories, default_limit, max_limit, max_since_days, search_analyses
 from .images import TOOL_NAME as IMAGE_TOOL_NAME
 from .images import ChatImage, analyze_chat_image, images_prompt_block
-from .users import DEFAULT_LIMIT as USERS_DEFAULT_LIMIT
-from .users import MAX_LIMIT as USERS_MAX_LIMIT
-from .users import MAX_SINCE_DAYS as USERS_MAX_SINCE_DAYS
 from .users import TOOL_NAME as USERS_TOOL_NAME
+from .users import default_limit as users_default_limit
+from .users import max_limit as users_max_limit
+from .users import max_since_days as users_max_since_days
 from .users import search_users
-from ..config import Config, conf
+from ..config import conf
 from ..services import chat_with_model
 
 _FALLBACK_REPLY = "Не удалось получить данные из истории анализов. Попробуйте переформулировать вопрос."
@@ -84,8 +84,8 @@ def build_tool_system_prompt(user=None, images: list[ChatImage] | None = None) -
             "  - username (строка) — частичный поиск по имени пользователя (регистр не важен).\n"
             f"  - role — фильтр по роли: {users_roles_note}.\n"
             "  - active (true/false) — только активные или только заблокированные аккаунты.\n"
-            f"  - since_days (число 1..{USERS_MAX_SINCE_DAYS}) — только зарегистрировавшиеся за последние N дней.\n"
-            f"  - limit (число 1..{USERS_MAX_LIMIT}, по умолчанию {USERS_DEFAULT_LIMIT}) — сколько записей вернуть.\n"
+            f"  - since_days (число 1..{users_max_since_days()}) — только зарегистрировавшиеся за последние N дней.\n"
+            f"  - limit (число 1..{users_max_limit()}, по умолчанию {users_default_limit()}) — сколько записей вернуть.\n"
             "  - count_only (true/false) — вернуть только общее число без списка.\n"
             "Когда использовать: вопросы про «пользователей», «юзеров», «кто зарегистрирован», "
             "«найди пользователя X», «сколько заблокированных», «кто из admins».\n"
@@ -161,14 +161,14 @@ def build_tool_system_prompt(user=None, images: list[ChatImage] | None = None) -
         f"{TOOL_NAME} — поиск и статистика по завершённым анализам. Права доступа применяет "
         "система: чужие данные ты получить не можешь.\n"
         "Аргументы (все необязательные):\n"
-        f"  - limit (число 1..{MAX_LIMIT}, по умолчанию {DEFAULT_LIMIT}) — сколько записей вернуть (по умолчанию последних; при "
+        f"  - limit (число 1..{max_limit()}, по умолчанию {default_limit()}) — сколько записей вернуть (по умолчанию последних; при "
         "query/similar_to — самых подходящих); «последний анализ» → 1.\n"
         "  - order — порядок записей: \"newest\" (по умолчанию, от новых к старым) или \"oldest\" (от старых к "
         "новым). «Самый первый / самый ранний / самый старый анализ», «с самого начала», «первый в базе» → "
         "order=\"oldest\" (обычно вместе с limit=1); «последний», «свежий», «новый» → newest. Никогда не "
         "подменяй «первый» на «последний»: у каждой записи есть дата — сверь её с вопросом. При query/"
         "similar_to порядок задаёт сходство, и order не действует.\n"
-        f"  - since_days (число 1..{MAX_SINCE_DAYS}) — только за последние N дней "
+        f"  - since_days (число 1..{max_since_days()}) — только за последние N дней "
         "(«сегодня» → 1, «за неделю» → 7, «за месяц» → 30).\n"
         '  - risk_level — "low" | "medium" | "high" | "unknown".\n'
         "  - categories — список названий категорий из перечня ниже.\n"
@@ -321,7 +321,7 @@ def run_chat_turn(
     history: list[dict],
     backend: str,
     model: str,
-    lang: str = Config.DEFAULT_LANG,
+    lang: str | None = None,
     images: list[ChatImage] | None = None,
     session_id: int | None = None,
     message_images: list[str] | None = None,

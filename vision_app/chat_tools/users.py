@@ -15,7 +15,7 @@ from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import func, select
 
-from ..config import Config
+from ..config import conf
 from ..extensions import db
 from ..models import AnalysisResult, Role, ROLE_LABELS, User
 from ..utils import local_dt
@@ -23,9 +23,16 @@ from ..utils import local_dt
 TOOL_NAME = "search_users"
 
 # Лимиты живут в config.py (USER_SEARCH_*); публичные имена используются и в промпте (runner.py).
-DEFAULT_LIMIT = Config.USER_SEARCH_DEFAULT_LIMIT
-MAX_LIMIT = Config.USER_SEARCH_MAX_LIMIT
-MAX_SINCE_DAYS = Config.USER_SEARCH_MAX_SINCE_DAYS
+def default_limit() -> int:
+    return conf("USER_SEARCH_DEFAULT_LIMIT")
+
+
+def max_limit() -> int:
+    return conf("USER_SEARCH_MAX_LIMIT")
+
+
+def max_since_days() -> int:
+    return conf("USER_SEARCH_MAX_SINCE_DAYS")
 
 
 @dataclass
@@ -83,9 +90,9 @@ def normalize_args(raw) -> tuple[dict, list[str]]:
         "username": None,
         "role": None,
         "active": None,
-        "limit": _int_arg(raw.get("limit"), 1, MAX_LIMIT) or DEFAULT_LIMIT,
+        "limit": _int_arg(raw.get("limit"), 1, max_limit()) or default_limit(),
         "count_only": bool(raw.get("count_only")),
-        "since_days": _int_arg(raw.get("since_days"), 1, MAX_SINCE_DAYS),
+        "since_days": _int_arg(raw.get("since_days"), 1, max_since_days()),
     }
 
     # Имя пользователя: частичный регистронезависимый поиск (LIKE)

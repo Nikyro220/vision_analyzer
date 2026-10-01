@@ -52,9 +52,10 @@ def _root() -> Path:
     return Path(current_app.config["UPLOAD_FOLDER"]).resolve()
 
 
-def clean_name(name: str, limit: int = Config.CHAT_ATTACHMENT_NAME_MAX) -> str:
+def clean_name(name: str, limit: int | None = None) -> str:
     """Имя файла для отображения и для подстановки в промпт: без управляющих символов
     и кавычек-ёлочек (в промпте имя заключено в «»), укороченное."""
+    limit = limit or conf("CHAT_ATTACHMENT_NAME_MAX")
     text = _CONTROL_RE.sub(" ", str(name or "")).replace("«", "").replace("»", "").strip()
     text = " ".join(text.split())
     if len(text) > limit:

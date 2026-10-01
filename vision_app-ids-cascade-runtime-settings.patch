@@ -1,0 +1,2247 @@
+From c25e9c26c7998a8402250028c43b5ee6656da04c Mon Sep 17 00:00:00 2001
+From: dev <a@b.c>
+Date: Thu, 1 Oct 2026 03:44:23 +0000
+Subject: [PATCH] feat: analysis ids in UI, real cascade on account deletion,
+ runtime-editable config constants
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+- show analysis number (№) in history, result page, queue, recent lists, upload flash; search history by number
+- delete_user_account now explicitly removes analyses, embeddings, chats, messages and files
+  (SQLite does not run ON DELETE CASCADE without PRAGMA foreign_keys); flask purge-orphans cleans old leftovers
+- /panel/settings/: all config.py constants (except secrets, paths, logging, SQLite timeout) are editable
+  by head admin and applied without restart; flask reset-settings as a safety net
+---
+ README.md                                     |   2 +-
+ vision_app/__init__.py                        |  41 +-
+ vision_app/blueprints/analyzer.py             |  36 +-
+ vision_app/blueprints/chat.py                 |   6 +-
+ vision_app/blueprints/panel.py                |  75 ++-
+ vision_app/chat_images.py                     |   3 +-
+ vision_app/chat_tools/analyses.py             |  57 +-
+ vision_app/chat_tools/runner.py               |  20 +-
+ vision_app/chat_tools/users.py                |  19 +-
+ vision_app/config.py                          |  27 +-
+ vision_app/history.py                         | 102 ++-
+ vision_app/image_dedup.py                     |  24 +-
+ vision_app/models.py                          |   9 +
+ vision_app/queue_worker.py                    |  12 +-
+ vision_app/services.py                        |   8 +-
+ vision_app/settings_store.py                  | 581 +++++++++++++++---
+ vision_app/static/css/queue.css               |  14 +-
+ vision_app/static/js/queue.js                 |   5 +-
+ vision_app/templates/accounts/profile.html    |   1 +
+ .../templates/analyzer/_history_results.html  |   2 +
+ vision_app/templates/analyzer/dashboard.html  |   5 +-
+ vision_app/templates/analyzer/health.html     |   2 +-
+ vision_app/templates/analyzer/history.html    |   2 +-
+ .../templates/analyzer/result_detail.html     |   4 +-
+ vision_app/templates/chat/chat.html           |   2 +-
+ .../templates/panel/_analyses_results.html    |   6 +-
+ vision_app/templates/panel/analyses.html      |   2 +-
+ vision_app/templates/panel/settings.html      | 142 +++--
+ vision_app/templates/panel/user_detail.html   |   1 +
+ vision_app/templates/panel/user_history.html  |   2 +
+ vision_app/thumbs.py                          |  13 +-
+ vision_app/utils.py                           |   9 +
+ vision_app/vector_search.py                   |  33 +-
+ 33 files changed, 938 insertions(+), 329 deletions(-)
+
+diff --git a/README.md b/README.md
+index e3749f0..c91d32b 100644
+--- a/README.md
++++ b/README.md
+@@ -109,7 +109,7 @@ cd inference && python server.py
+ | `blueprints/panel.py` | Админка: пользователи, роли, все анализы, статистика |
+ | `queue_worker.py` | Фоновый поток, обрабатывающий очередь анализов по одному |
+ | `services.py` | Клиент к `inference/server.py` (`/analyze`, `/health`, `/models`, `/sampling`) |
+-| `settings_store.py` | Выбранные бэкенд/модель для анализа (хранятся в БД) |
++| `settings_store.py` | Выбранные бэкенд/модель для анализа и переопределения констант `config.py` из `/panel/settings/` (хранятся в БД, применяются без перезапуска; `flask reset-settings` — сброс) |
+ | `history.py` | Удаление записей истории вместе с файлами |
+ | `blueprints/chat.py` | Чат с моделью: сессии, отправка сообщений (в т.ч. с изображениями), отдача вложений |
+ | `chat_images.py` | Вложения чата: проверка через Pillow, хранение в `UPLOAD_FOLDER/chat_uploads/`, подготовка для модели (`to_data_url`), удаление |
+diff --git a/vision_app/__init__.py b/vision_app/__init__.py
+index 9b4c022..411084c 100644
+--- a/vision_app/__init__.py
++++ b/vision_app/__init__.py
+@@ -11,11 +11,12 @@ from flask_login import current_user
+ from flask_wtf.csrf import CSRFError
+ 
+ from .categories_store import normalize_legacy_wrappers, seed_default_categories
+-from .config import Config
++from .config import Config, conf
+ from .extensions import csrf, db, login_manager, migrate
+ from .models import ROLE_CHOICES, ROLE_LABELS, RISK_LABELS, Role, User
+ from .queue_worker import ensure_worker, worker_enabled
+ from .schema import ensure_schema
++from . import settings_store
+ from . import image_dedup, vector_search
+ from .utils import local_dt, page_url, plural, truncate_chars
+ 
+@@ -35,6 +36,10 @@ def create_app(config: dict | None = None) -> Flask:
+     if app.config["SQLALCHEMY_DATABASE_URI"].startswith("sqlite") and "SQLALCHEMY_ENGINE_OPTIONS" not in app.config:
+         app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {"connect_args": {"timeout": app.config["SQLITE_TIMEOUT"]}}
+ 
++    # Исходные значения ключей Flask (лимит запроса, сессия, cookie, CSRF): к ним возвращаемся,
++    # когда главный админ сбрасывает переопределение в /panel/settings/.
++    settings_store.install(app)
++
+     # --- расширения ---
+     db.init_app(app)
+     migrate.init_app(app, db)
+@@ -61,6 +66,7 @@ def create_app(config: dict | None = None) -> Flask:
+     app.jinja_env.filters["localdt"] = local_dt
+     app.jinja_env.filters["trunc"] = truncate_chars
+     app.jinja_env.filters["plural"] = plural
++    app.jinja_env.globals["conf"] = conf  # шаблоны читают настройки на ходу: {{ conf("CAPTION_MAX_CHARS") }}
+ 
+     @app.context_processor
+     def inject_globals():
+@@ -72,6 +78,12 @@ def create_app(config: dict | None = None) -> Flask:
+             "RISK_LABELS": RISK_LABELS,
+         }
+ 
++    # --- настройки из /panel/settings/: ключи, которые читает сам Flask, переносим в app.config ---
++    @app.before_request
++    def apply_runtime_settings():
++        settings_store.sync_flask_config(app)
++        return None
++
+     # --- очередь анализов: поток-обработчик стартует лениво, при первом запросе ---
+     @app.before_request
+     def start_queue_worker():
+@@ -150,6 +162,29 @@ def _register_cli(app: Flask) -> None:
+         db.session.commit()
+         click.echo(f"«{username}» → {ROLE_LABELS[role]}")
+ 
++    @app.cli.command("reset-settings")
++    @click.argument("keys", nargs=-1)
++    def reset_settings(keys: tuple[str, ...]):
++        """Сбросить настройки из /panel/settings/ к значениям config.py/.env: перечисленные ключи
++        или все сразу, если ключи не заданы (например, если после смены настроек не войти в панель)."""
++        if not keys:
++            click.echo(f"Сброшено настроек: {settings_store.reset_all_runtime_settings()}.")
++            return
++        unknown = [k for k in keys if k not in settings_store.RUNTIME_SETTINGS_BY_KEY]
++        if unknown:
++            raise click.ClickException(f"Неизвестные настройки: {', '.join(unknown)}")
++        for key in keys:
++            settings_store.reset_runtime_setting(key)
++        click.echo(f"Сброшено: {', '.join(keys)}.")
++
++    @app.cli.command("purge-orphans")
++    def purge_orphans_cmd():
++        """Удалить анализы и чаты уже удалённых пользователей (остались от старого удаления аккаунта)."""
++        from .history import purge_orphans
++
++        result = purge_orphans()
++        click.echo(f"Удалено анализов: {result['analyses']}, чатов: {result['chats']}.")
++
+     @app.cli.command("seed-categories")
+     def seed_categories():
+         """Загрузить категории с сервера анализа (GET /categories), если таблица categories пуста."""
+@@ -195,7 +230,7 @@ def _register_cli(app: Flask) -> None:
+                 raise click.ClickException(f"Не удалось получить эмбеддинг запроса: {exc}")
+             result = vector_search.semantic_search(
+                 conditions, qvec, model, limit=limit, min_similarity=-1.0,
+-                scan_limit=int(app.config["EMBEDDING_SCAN_LIMIT"]),
++                scan_limit=int(conf("EMBEDDING_SCAN_LIMIT")),
+             )
+             rows = {
+                 r.id: r for r in db.session.scalars(
+@@ -214,7 +249,7 @@ def _register_cli(app: Flask) -> None:
+         """Посчитать хеши файлов у анализов, где их ещё нет (для склейки повторных загрузок одного файла)."""
+         total = missing = 0
+         while True:
+-            hashed, lost = image_dedup.backfill_hashes(limit=app.config["DEDUP_CLI_BATCH"])
++            hashed, lost = image_dedup.backfill_hashes(limit=conf("DEDUP_CLI_BATCH"))
+             if not hashed and not lost:
+                 break
+             total += hashed
+diff --git a/vision_app/blueprints/analyzer.py b/vision_app/blueprints/analyzer.py
+index 34d234a..2e7a5a8 100644
+--- a/vision_app/blueprints/analyzer.py
++++ b/vision_app/blueprints/analyzer.py
+@@ -18,7 +18,7 @@ from flask import (
+     url_for,
+ )
+ from flask_login import current_user, login_required
+-from sqlalchemy import delete, func, select, update
++from sqlalchemy import delete, func, or_, select, update
+ 
+ from ..config import Config, conf
+ from ..decorators import staff_required
+@@ -38,7 +38,7 @@ from ..services import (
+ )
+ from ..settings_store import clear_analysis_target, get_analysis_target, set_analysis_target
+ from ..thumbs import ensure_thumb
+-from ..utils import is_safe_next, local_dt, paginate, plural
++from ..utils import is_safe_next, local_dt, paginate, plural, query_to_id
+ 
+ bp = Blueprint("analyzer", __name__)
+ 
+@@ -48,13 +48,17 @@ _FILES = ("файл", "файла", "файлов")
+ def _own_results(q: str = ""):
+     """История пользователя — только ЗАВЕРШЁННЫЕ анализы (очередь показывается отдельно).
+ 
+-    ``q`` — необязательный поиск по имени файла.
++    ``q`` — необязательный поиск по имени файла или по номеру анализа («42», «#42»).
+     """
+     stmt = select(AnalysisResult).where(
+         AnalysisResult.user_id == current_user.id, AnalysisResult.status == Status.DONE
+     )
+     if q:
+-        stmt = stmt.where(AnalysisResult.original_name.icontains(q, autoescape=True))
++        match = AnalysisResult.original_name.icontains(q, autoescape=True)
++        number = query_to_id(q)
++        if number is not None:
++            match = or_(match, AnalysisResult.id == number)
++        stmt = stmt.where(match)
+     return stmt.order_by(AnalysisResult.created_at.desc(), AnalysisResult.id.desc())
+ 
+ 
+@@ -143,6 +147,7 @@ def _enqueue_uploads(form: ImageUploadForm):
+     now = datetime.now(timezone.utc)
+     root = Path(current_app.config["UPLOAD_FOLDER"])
+     written: list[Path] = []
++    added: list[AnalysisResult] = []
+     try:
+         for item in form.accepted:
+             # Файл на диске хранится под случайным именем, оригинальное имя — только в БД.
+@@ -151,17 +156,17 @@ def _enqueue_uploads(form: ImageUploadForm):
+             abs_path.parent.mkdir(parents=True, exist_ok=True)
+             abs_path.write_bytes(item.data)
+             written.append(abs_path)
+-            db.session.add(
+-                AnalysisResult(
+-                    user_id=current_user.id,
+-                    image_path=rel_path,
+-                    original_name=item.filename[:255],
+-                    image_mime=item.mime,
+-                    image_hash=image_dedup.sha256_bytes(item.data),
+-                    caption=item.caption,
+-                    status=Status.QUEUED,
+-                )
++            row = AnalysisResult(
++                user_id=current_user.id,
++                image_path=rel_path,
++                original_name=item.filename[:255],
++                image_mime=item.mime,
++                image_hash=image_dedup.sha256_bytes(item.data),
++                caption=item.caption,
++                status=Status.QUEUED,
+             )
++            db.session.add(row)
++            added.append(row)
+         db.session.commit()
+     except Exception:
+         db.session.rollback()
+@@ -170,7 +175,8 @@ def _enqueue_uploads(form: ImageUploadForm):
+         raise
+ 
+     wake_worker(current_app)
+-    flash(f"Добавлено в очередь: {plural(len(form.accepted), _FILES)}.", "success")
++    numbers = ", ".join(f"№{row.id}" for row in added)  # id доступны после commit
++    flash(f"Добавлено в очередь: {plural(len(form.accepted), _FILES)} ({numbers}).", "success")
+     shown = conf("REJECTED_FILES_SHOWN")
+     for name, reason in form.rejected[:shown]:
+         flash(f"Пропущен файл «{name}»: {reason}.", "warning")
+diff --git a/vision_app/blueprints/chat.py b/vision_app/blueprints/chat.py
+index 48f45b4..5a5e202 100644
+--- a/vision_app/blueprints/chat.py
++++ b/vision_app/blueprints/chat.py
+@@ -22,7 +22,7 @@ from sqlalchemy import func, or_, select, update
+ 
+ from .. import chat_images, chat_jobs
+ from ..chat_tools import ChatImage, attachment_note, delivery_message, run_chat_turn
+-from ..config import Config, conf
++from ..config import conf
+ from ..extensions import db
+ from ..models import ChatMessage, ChatRole, ChatSession, utcnow
+ from ..services import VisionApiError
+@@ -401,7 +401,7 @@ def _run_turn(session_row: ChatSession, message: str, saved: list[dict], progres
+     # см. chat_tools/runner.py. Результат анализа из очереди придёт позже, отдельным ходом (pending() ниже).
+     try:
+         turn = run_chat_turn(
+-            current_user, model_message, history, target_backend, target_model, lang=Config.DEFAULT_LANG,
++            current_user, model_message, history, target_backend, target_model, lang=conf("DEFAULT_LANG"),
+             images=all_images, session_id=session_row.id, message_images=message_images,
+         )
+     except VisionApiError as exc:
+@@ -507,7 +507,7 @@ def _deliver(session_row: ChatSession, job, row) -> dict:
+         target_backend, target_model = get_analysis_target()
+         try:
+             turn = run_chat_turn(
+-                current_user, delivery_message(payload), history, target_backend, target_model, lang=Config.DEFAULT_LANG,
++                current_user, delivery_message(payload), history, target_backend, target_model, lang=conf("DEFAULT_LANG"),
+                 images=all_images, session_id=session_row.id,
+             )
+             reply, backend, model = turn.reply, turn.backend, turn.model
+diff --git a/vision_app/blueprints/panel.py b/vision_app/blueprints/panel.py
+index ead1f8f..2c4b37e 100644
+--- a/vision_app/blueprints/panel.py
++++ b/vision_app/blueprints/panel.py
+@@ -3,7 +3,7 @@
+ import json
+ from urllib.parse import urlparse
+ 
+-from flask import Blueprint, current_app, flash, jsonify, redirect, render_template, request, url_for
++from flask import Blueprint, flash, jsonify, redirect, render_template, request, url_for
+ from flask_login import current_user
+ from sqlalchemy import func, select
+ from sqlalchemy.orm import joinedload
+@@ -16,12 +16,12 @@ from ..forms import AccountForm, CategoryForm, DeleteAccountForm, DeleteCategory
+ from ..categories_store import seed_default_categories
+ from ..history import delete_finished, delete_user_account
+ from ..settings_store import (
+-    RUNTIME_SETTINGS,
+-    get_runtime_setting,
++    SETTING_GROUPS,
++    default_value,
++    display_value,
++    effective_bounds,
+     is_runtime_setting_overridden,
+-    reset_runtime_setting,
+-    runtime_setting_unchanged,
+-    set_runtime_setting,
++    save_runtime_settings,
+ )
+ from ..models import ROLE_CHOICES, ROLE_LABELS, AnalysisResult, Category, Role, Status, User
+ from ..services import VisionApiError, check_health
+@@ -325,49 +325,44 @@ def user_clear_history(pk: int):
+ @bp.route("/settings/", methods=["GET", "POST"])
+ @head_admin_required
+ def settings():
+-    """Настройки очереди и клиента vision-сервера — меняются на ходу, без перезапуска.
++    """Все настройки из config.py (кроме ключей, путей и логирования) — меняются на ходу, без перезапуска.
+ 
+-    Хранятся в БД (см. settings_store.py); значение по умолчанию берётся из .env/Config,
+-    пока главный админ явно его не переопределит здесь.
++    Хранятся в БД (см. settings_store.py); пока главный админ явно не переопределит значение здесь,
++    действует то, что задано в config.py/.env. Форма сохраняется целиком: при любой ошибке
++    валидации не меняется ничего.
+     """
+     if request.method == "POST":
+-        errors = []
+-        for spec in RUNTIME_SETTINGS:
+-            if request.form.get(f"reset_{spec.key}"):
+-                reset_runtime_setting(spec.key)
+-                continue
+-            # Невыбранный чекбокс браузер вообще не отправляет — это и есть "выключено",
+-            # поэтому дефолт при отсутствии ключа в форме — пустая строка, а не "1".
+-            raw = request.form.get(spec.key, "")
+-            if runtime_setting_unchanged(spec.key, raw):
+-                # Поле не трогали — не создаём/не трогаем переопределение. Иначе
+-                # сохранение формы помечало бы «переопределено» вообще всё сразу,
+-                # а не только реально изменённую настройку.
+-                continue
+-            try:
+-                set_runtime_setting(spec.key, raw)
+-            except ValueError as exc:
+-                errors.append(str(exc))
+-
++        errors, warnings = save_runtime_settings(request.form)
+         if errors:
+-            db.session.rollback()
+             for message in errors:
+                 flash(message, "error")
++            flash("Настройки не сохранены — исправьте ошибки и повторите.", "error")
+         else:
+-            db.session.commit()
+-            flash("Настройки сохранены.", "success")
++            flash("Настройки сохранены и уже действуют.", "success")
++            for message in warnings:
++                flash(message, "warning")
+         return redirect(url_for("panel.settings"))
+ 
+-    rows = [
+-        {
+-            "spec": spec,
+-            "value": get_runtime_setting(spec.key),
+-            "overridden": is_runtime_setting_overridden(spec.key),
+-            "default": current_app.config.get(spec.key),
+-        }
+-        for spec in RUNTIME_SETTINGS
+-    ]
+-    return render_template("panel/settings.html", rows=rows)
++    groups = []
++    for title, description, specs in SETTING_GROUPS:
++        rows = []
++        for spec in specs:
++            lo, hi = effective_bounds(spec)
++            if spec.kind == "int" and spec.scale > 1:
++                lo = lo // spec.scale if spec.min_key else lo
++                hi = hi // spec.scale if spec.max_key else hi
++            rows.append(
++                {
++                    "spec": spec,
++                    "value": display_value(spec, conf(spec.key)),
++                    "overridden": is_runtime_setting_overridden(spec.key),
++                    "default": display_value(spec, default_value(spec.key)),
++                    "lo": lo if spec.kind in ("int", "float", "days", "opt_int") else None,
++                    "hi": hi if spec.kind in ("int", "float", "days", "opt_int") else None,
++                }
++            )
++        groups.append({"title": title, "description": description, "rows": rows})
++    return render_template("panel/settings.html", groups=groups)
+ 
+ 
+ # ----------------------------------------------------------------------------
+diff --git a/vision_app/chat_images.py b/vision_app/chat_images.py
+index b820415..3fdd848 100644
+--- a/vision_app/chat_images.py
++++ b/vision_app/chat_images.py
+@@ -52,9 +52,10 @@ def _root() -> Path:
+     return Path(current_app.config["UPLOAD_FOLDER"]).resolve()
+ 
+ 
+-def clean_name(name: str, limit: int = Config.CHAT_ATTACHMENT_NAME_MAX) -> str:
++def clean_name(name: str, limit: int | None = None) -> str:
+     """Имя файла для отображения и для подстановки в промпт: без управляющих символов
+     и кавычек-ёлочек (в промпте имя заключено в «»), укороченное."""
++    limit = limit or conf("CHAT_ATTACHMENT_NAME_MAX")
+     text = _CONTROL_RE.sub(" ", str(name or "")).replace("«", "").replace("»", "").strip()
+     text = " ".join(text.split())
+     if len(text) > limit:
+diff --git a/vision_app/chat_tools/analyses.py b/vision_app/chat_tools/analyses.py
+index bcdac6a..16a60b4 100644
+--- a/vision_app/chat_tools/analyses.py
++++ b/vision_app/chat_tools/analyses.py
+@@ -38,7 +38,7 @@ from flask import current_app, url_for
+ from sqlalchemy import select
+ 
+ from .. import image_dedup, vector_search
+-from ..config import Config, conf
++from ..config import conf
+ from ..extensions import db
+ from ..models import RISK_LABELS, AnalysisResult, Category, RiskLevel, Status, User
+ from ..services import EmbeddingNotReady, VisionApiError
+@@ -46,16 +46,21 @@ from ..utils import local_dt
+ 
+ TOOL_NAME = "search_analyses"
+ 
+-# Лимиты инструмента живут в config.py (SEARCH_*). Публичные имена без «_» используются ещё и
+-# в runner.py — оттуда числа попадают в промпт модели, поэтому правится только Config.
+-DEFAULT_LIMIT = Config.SEARCH_DEFAULT_LIMIT
+-MAX_LIMIT = Config.SEARCH_MAX_LIMIT
+-MAX_SINCE_DAYS = Config.SEARCH_MAX_SINCE_DAYS
+-_SCAN_LIMIT = Config.SEARCH_SCAN_LIMIT  # сколько последних строк максимум разбираем (защита от полного скана)
+-_MAX_CARDS = Config.SEARCH_MAX_CARDS  # больше карточек под одним ответом — визуальный шум
+-_DESC_LEN = Config.SEARCH_DESC_CHARS
+-_MAX_QUERY_CHARS = Config.SEARCH_MAX_QUERY_CHARS
+-_MAX_KEYWORDS = Config.SEARCH_MAX_KEYWORDS
++
++# Лимиты инструмента — в config.py (SEARCH_*), меняются в /panel/settings/ без перезапуска, поэтому
++# читаются в момент использования. Эти функции вызывает и runner.py: числа попадают в промпт модели.
++def default_limit() -> int:
++    return conf("SEARCH_DEFAULT_LIMIT")
++
++
++def max_limit() -> int:
++    return conf("SEARCH_MAX_LIMIT")
++
++
++def max_since_days() -> int:
++    return conf("SEARCH_MAX_SINCE_DAYS")
++
++
+ _VALID_RISKS = {RiskLevel.LOW, RiskLevel.MEDIUM, RiskLevel.HIGH, RiskLevel.UNKNOWN}
+ 
+ # Порядок выдачи: по умолчанию от новых к старым; «самый первый / самый старый анализ» —
+@@ -151,9 +156,10 @@ def _keywords_arg(value, warnings: list[str]) -> tuple[list[str], list[str]]:
+         if stem not in stems:
+             stems.append(stem)
+             originals.append(clean.lower())
+-    if len(stems) > _MAX_KEYWORDS:
+-        warnings.append(f"ключевых слов больше {_MAX_KEYWORDS} — лишние отброшены")
+-        stems, originals = stems[:_MAX_KEYWORDS], originals[:_MAX_KEYWORDS]
++    max_keywords = conf("SEARCH_MAX_KEYWORDS")
++    if len(stems) > max_keywords:
++        warnings.append(f"ключевых слов больше {max_keywords} — лишние отброшены")
++        stems, originals = stems[:max_keywords], originals[:max_keywords]
+     return stems, originals
+ 
+ 
+@@ -178,7 +184,7 @@ def _query_arg(value) -> str | None:
+     даже от текста на картинке) — только строка, схлопнутые пробелы, ограниченная длина."""
+     if not isinstance(value, str):
+         return None
+-    text = " ".join(value.split())[:_MAX_QUERY_CHARS]
++    text = " ".join(value.split())[:conf("SEARCH_MAX_QUERY_CHARS")]
+     return text or None
+ 
+ 
+@@ -199,8 +205,8 @@ def normalize_args(raw) -> tuple[dict, list[str]]:
+         warnings.append("неизвестные аргументы проигнорированы: " + ", ".join(unknown))
+ 
+     args: dict = {
+-        "limit": _int_arg(raw.get("limit"), 1, MAX_LIMIT) or DEFAULT_LIMIT,
+-        "since_days": _int_arg(raw.get("since_days"), 1, MAX_SINCE_DAYS),
++        "limit": _int_arg(raw.get("limit"), 1, max_limit()) or default_limit(),
++        "since_days": _int_arg(raw.get("since_days"), 1, max_since_days()),
+         "risk_level": None,
+         "categories": [],
+         "needs_review": _bool_arg(raw.get("needs_review")),
+@@ -292,7 +298,7 @@ def _fetch_rows(user: User, args: dict) -> list[AnalysisResult]:
+         ordering = (AnalysisResult.created_at.asc(), AnalysisResult.id.asc())
+     else:
+         ordering = (AnalysisResult.created_at.desc(), AnalysisResult.id.desc())
+-    stmt = select(AnalysisResult).where(*_conditions(user, args)).order_by(*ordering).limit(_SCAN_LIMIT)
++    stmt = select(AnalysisResult).where(*_conditions(user, args)).order_by(*ordering).limit(conf("SEARCH_SCAN_LIMIT"))
+     rows = list(db.session.scalars(stmt).all())
+ 
+     if args["categories"]:
+@@ -320,8 +326,9 @@ def _record(
+     row: AnalysisResult, show_user: bool, similarity: float | None = None, same_image: list[int] | None = None
+ ) -> dict:
+     desc = _clean((row.description or "").strip().replace("\n", " "))
+-    if len(desc) > _DESC_LEN:
+-        desc = desc[: _DESC_LEN - 1] + "…"
++    desc_len = conf("SEARCH_DESC_CHARS")
++    if len(desc) > desc_len:
++        desc = desc[: desc_len - 1] + "…"
+     rec = {
+         "id": row.id,
+         "date": local_dt(row.created_at),
+@@ -342,12 +349,12 @@ def _record(
+ 
+ def _build_reference_cards(rows: list[AnalysisResult], show_user: bool) -> list[dict]:
+     cards = []
+-    for row in rows[:_MAX_CARDS]:
++    for row in rows[:conf("SEARCH_MAX_CARDS")]:
+         card = {
+             "id": row.id,
+             "url": url_for("analyzer.result_detail", pk=row.id),
+             "thumb_url": url_for("analyzer.thumb", filename=row.image_path) if row.image_path else "",
+-            "label": row.original_name or f"Анализ #{row.id}",
++            "label": row.original_name or f"Анализ №{row.id}",
+             "risk_level": row.risk_level,
+             "risk_label": row.risk_level_display,
+             "date": local_dt(row.created_at),
+@@ -540,7 +547,7 @@ def search_analyses(user: User, raw_args) -> ToolResult:
+     if not rows and args["keywords"] and args["keywords_text"]:
+         fallback_args = {
+             **args, "keywords": [], "keywords_text": "", "similar_to": None,
+-            "query": args["keywords_text"][:_MAX_QUERY_CHARS],
++            "query": args["keywords_text"][:conf("SEARCH_MAX_QUERY_CHARS")],
+         }
+         fallback = _search_semantic(user, fallback_args, [*warnings, _KEYWORDS_FALLBACK])
+         if "error" not in json.loads(fallback.text):  # эмбеддинги недоступны — честный «0» ниже лучше ошибки
+@@ -571,9 +578,9 @@ def search_analyses(user: User, raw_args) -> ToolResult:
+         payload["keywords"] = args["keywords"]  # какие основы слов реально искались
+     if raw_count > len(rows):
+         payload["duplicates_merged"] = raw_count - len(rows)  # повторные анализы тех же файлов, склеены
+-    if raw_count >= _SCAN_LIMIT:
++    if raw_count >= conf("SEARCH_SCAN_LIMIT"):
+         which = "самых старых" if args["order"] == _ORDER_OLDEST else "самых свежих"
+-        payload["note"] = f"учтены только {_SCAN_LIMIT} {which} записей"
++        payload["note"] = f"учтены только {conf('SEARCH_SCAN_LIMIT')} {which} записей"
+     if warnings:
+         payload["warnings"] = warnings
+ 
+diff --git a/vision_app/chat_tools/runner.py b/vision_app/chat_tools/runner.py
+index 1dd90dd..8ae074b 100644
+--- a/vision_app/chat_tools/runner.py
++++ b/vision_app/chat_tools/runner.py
+@@ -30,15 +30,15 @@ from dataclasses import dataclass, field
+ 
+ from flask import current_app
+ 
+-from .analyses import DEFAULT_LIMIT, MAX_LIMIT, MAX_SINCE_DAYS, TOOL_NAME, ToolResult, active_categories, search_analyses
++from .analyses import TOOL_NAME, ToolResult, active_categories, default_limit, max_limit, max_since_days, search_analyses
+ from .images import TOOL_NAME as IMAGE_TOOL_NAME
+ from .images import ChatImage, analyze_chat_image, images_prompt_block
+-from .users import DEFAULT_LIMIT as USERS_DEFAULT_LIMIT
+-from .users import MAX_LIMIT as USERS_MAX_LIMIT
+-from .users import MAX_SINCE_DAYS as USERS_MAX_SINCE_DAYS
+ from .users import TOOL_NAME as USERS_TOOL_NAME
++from .users import default_limit as users_default_limit
++from .users import max_limit as users_max_limit
++from .users import max_since_days as users_max_since_days
+ from .users import search_users
+-from ..config import Config, conf
++from ..config import conf
+ from ..services import chat_with_model
+ 
+ _FALLBACK_REPLY = "Не удалось получить данные из истории анализов. Попробуйте переформулировать вопрос."
+@@ -84,8 +84,8 @@ def build_tool_system_prompt(user=None, images: list[ChatImage] | None = None) -
+             "  - username (строка) — частичный поиск по имени пользователя (регистр не важен).\n"
+             f"  - role — фильтр по роли: {users_roles_note}.\n"
+             "  - active (true/false) — только активные или только заблокированные аккаунты.\n"
+-            f"  - since_days (число 1..{USERS_MAX_SINCE_DAYS}) — только зарегистрировавшиеся за последние N дней.\n"
+-            f"  - limit (число 1..{USERS_MAX_LIMIT}, по умолчанию {USERS_DEFAULT_LIMIT}) — сколько записей вернуть.\n"
++            f"  - since_days (число 1..{users_max_since_days()}) — только зарегистрировавшиеся за последние N дней.\n"
++            f"  - limit (число 1..{users_max_limit()}, по умолчанию {users_default_limit()}) — сколько записей вернуть.\n"
+             "  - count_only (true/false) — вернуть только общее число без списка.\n"
+             "Когда использовать: вопросы про «пользователей», «юзеров», «кто зарегистрирован», "
+             "«найди пользователя X», «сколько заблокированных», «кто из admins».\n"
+@@ -161,14 +161,14 @@ def build_tool_system_prompt(user=None, images: list[ChatImage] | None = None) -
+         f"{TOOL_NAME} — поиск и статистика по завершённым анализам. Права доступа применяет "
+         "система: чужие данные ты получить не можешь.\n"
+         "Аргументы (все необязательные):\n"
+-        f"  - limit (число 1..{MAX_LIMIT}, по умолчанию {DEFAULT_LIMIT}) — сколько записей вернуть (по умолчанию последних; при "
++        f"  - limit (число 1..{max_limit()}, по умолчанию {default_limit()}) — сколько записей вернуть (по умолчанию последних; при "
+         "query/similar_to — самых подходящих); «последний анализ» → 1.\n"
+         "  - order — порядок записей: \"newest\" (по умолчанию, от новых к старым) или \"oldest\" (от старых к "
+         "новым). «Самый первый / самый ранний / самый старый анализ», «с самого начала», «первый в базе» → "
+         "order=\"oldest\" (обычно вместе с limit=1); «последний», «свежий», «новый» → newest. Никогда не "
+         "подменяй «первый» на «последний»: у каждой записи есть дата — сверь её с вопросом. При query/"
+         "similar_to порядок задаёт сходство, и order не действует.\n"
+-        f"  - since_days (число 1..{MAX_SINCE_DAYS}) — только за последние N дней "
++        f"  - since_days (число 1..{max_since_days()}) — только за последние N дней "
+         "(«сегодня» → 1, «за неделю» → 7, «за месяц» → 30).\n"
+         '  - risk_level — "low" | "medium" | "high" | "unknown".\n'
+         "  - categories — список названий категорий из перечня ниже.\n"
+@@ -321,7 +321,7 @@ def run_chat_turn(
+     history: list[dict],
+     backend: str,
+     model: str,
+-    lang: str = Config.DEFAULT_LANG,
++    lang: str | None = None,
+     images: list[ChatImage] | None = None,
+     session_id: int | None = None,
+     message_images: list[str] | None = None,
+diff --git a/vision_app/chat_tools/users.py b/vision_app/chat_tools/users.py
+index 63b31f2..641f80a 100644
+--- a/vision_app/chat_tools/users.py
++++ b/vision_app/chat_tools/users.py
+@@ -15,7 +15,7 @@ from datetime import datetime, timedelta, timezone
+ 
+ from sqlalchemy import func, select
+ 
+-from ..config import Config
++from ..config import conf
+ from ..extensions import db
+ from ..models import AnalysisResult, Role, ROLE_LABELS, User
+ from ..utils import local_dt
+@@ -23,9 +23,16 @@ from ..utils import local_dt
+ TOOL_NAME = "search_users"
+ 
+ # Лимиты живут в config.py (USER_SEARCH_*); публичные имена используются и в промпте (runner.py).
+-DEFAULT_LIMIT = Config.USER_SEARCH_DEFAULT_LIMIT
+-MAX_LIMIT = Config.USER_SEARCH_MAX_LIMIT
+-MAX_SINCE_DAYS = Config.USER_SEARCH_MAX_SINCE_DAYS
++def default_limit() -> int:
++    return conf("USER_SEARCH_DEFAULT_LIMIT")
++
++
++def max_limit() -> int:
++    return conf("USER_SEARCH_MAX_LIMIT")
++
++
++def max_since_days() -> int:
++    return conf("USER_SEARCH_MAX_SINCE_DAYS")
+ 
+ 
+ @dataclass
+@@ -83,9 +90,9 @@ def normalize_args(raw) -> tuple[dict, list[str]]:
+         "username": None,
+         "role": None,
+         "active": None,
+-        "limit": _int_arg(raw.get("limit"), 1, MAX_LIMIT) or DEFAULT_LIMIT,
++        "limit": _int_arg(raw.get("limit"), 1, max_limit()) or default_limit(),
+         "count_only": bool(raw.get("count_only")),
+-        "since_days": _int_arg(raw.get("since_days"), 1, MAX_SINCE_DAYS),
++        "since_days": _int_arg(raw.get("since_days"), 1, max_since_days()),
+     }
+ 
+     # Имя пользователя: частичный регистронезависимый поиск (LIKE)
+diff --git a/vision_app/config.py b/vision_app/config.py
+index 1c6d6ad..7a54d2b 100644
+--- a/vision_app/config.py
++++ b/vision_app/config.py
+@@ -207,11 +207,32 @@ class Config:
+     LOG_ERROR_BACKUP_DAYS = 60  # app.error.log
+ 
+ 
++# Хук переопределений из БД (ставит settings_store.py). Так config.py не импортирует БД/модели,
++# а `conf()` при этом видит значения, которые главный админ поменял в /panel/settings/.
++NO_OVERRIDE = object()
++_override_provider = None
++
++
++def set_override_provider(provider) -> None:
++    """provider(key) -> значение из БД или NO_OVERRIDE. Вызывается один раз из settings_store."""
++    global _override_provider
++    _override_provider = provider
++
++
+ def conf(key: str):
+-    """Значение настройки: из app.config (учитывает create_app(config=...) и тесты), а вне
+-    контекста приложения — из Config. Так одно и то же имя читается одинаково и в запросе, и
+-    в фоновом потоке, и при импорте."""
++    """Действующее значение настройки.
++
++    Порядок: переопределение главного админа из /panel/settings/ (БД, подхватывается на лету) ->
++    app.config (учитывает create_app(config=...) и тесты) -> Config. Вне контекста приложения
++    (при импорте) — просто Config. Так одно и то же имя читается одинаково и в запросе, и в
++    фоновом потоке. Всё, что должно меняться без перезапуска, нужно читать через conf() В МОМЕНТ
++    использования, а не сохранять в константу на уровне модуля.
++    """
+     if has_app_context():
++        if _override_provider is not None:
++            value = _override_provider(key)
++            if value is not NO_OVERRIDE:
++                return value
+         try:
+             return current_app.config[key]
+         except KeyError:
+diff --git a/vision_app/history.py b/vision_app/history.py
+index 338f481..bd6932a 100644
+--- a/vision_app/history.py
++++ b/vision_app/history.py
+@@ -6,16 +6,27 @@ import logging
+ from pathlib import Path
+ 
+ from flask import current_app
+-from sqlalchemy import delete, func, select
++from sqlalchemy import delete, func, or_, select
+ 
+-from .config import Config
++from .config import Config, conf
+ from .extensions import db
+-from .models import AnalysisEmbedding, AnalysisResult, Status, User
++from .models import (
++    AnalysisEmbedding,
++    AnalysisResult,
++    ChatAnalysisJob,
++    ChatMessage,
++    ChatSession,
++    Status,
++    User,
++)
+ from .thumbs import THUMBS_DIR, thumb_rel
+ 
+ log = logging.getLogger("vision_app.history")
+ 
+-_CHUNK = Config.SQL_IN_CHUNK  # не упираемся в лимит числа параметров SQL
++
++def _chunk() -> int:
++    """Размер пачки id в IN (...) — не упираемся в лимит числа параметров SQL (SQL_IN_CHUNK)."""
++    return max(int(conf("SQL_IN_CHUNK")), 1)
+ 
+ 
+ def _prune_empty_dirs(parent: Path, stop_root: Path) -> None:
+@@ -77,16 +88,17 @@ def delete_finished(*conditions) -> int:
+         return 0
+ 
+     ids = [r.id for r in rows]
+-    for i in range(0, len(ids), _CHUNK):
++    chunk = _chunk()
++    for i in range(0, len(ids), chunk):
+         # SQLite не выполняет ON DELETE CASCADE без PRAGMA foreign_keys — чистим векторы сами.
+         db.session.execute(
+             delete(AnalysisEmbedding)
+-            .where(AnalysisEmbedding.analysis_id.in_(ids[i : i + _CHUNK]))
++            .where(AnalysisEmbedding.analysis_id.in_(ids[i : i + chunk]))
+             .execution_options(synchronize_session=False)
+         )
+         db.session.execute(
+             delete(AnalysisResult)
+-            .where(AnalysisResult.id.in_(ids[i : i + _CHUNK]), AnalysisResult.status == Status.DONE)
++            .where(AnalysisResult.id.in_(ids[i : i + chunk]), AnalysisResult.status == Status.DONE)
+             .execution_options(synchronize_session=False)
+         )
+     db.session.commit()
+@@ -96,27 +108,75 @@ def delete_finished(*conditions) -> int:
+     return len(ids)
+ 
+ 
+-def delete_user_account(user: User) -> None:
+-    """Удаляет пользователя целиком: все его анализы (любого статуса) вместе с
+-    файлами изображений, а затем саму учётную запись.
++def _purge_owned(analysis_where, session_where) -> tuple[list[str], list[str], int, int]:
++    """Удаляет анализы и чаты, подходящие под условия, вместе со ВСЕМИ зависимыми строками
++    (векторы, задачи анализа из чата, сообщения). Без коммита.
+ 
+-    Записи AnalysisResult (и чаты) удалились бы каскадом на уровне БД (ondelete="CASCADE"),
+-    но файлы изображений — загрузки и вложения чатов — так не подчистить, поэтому собираем пути заранее.
++    Возвращает (пути загрузок анализов, пути вложений чатов, число анализов, число чатов) —
++    файлы удаляет вызывающий, уже после коммита.
++
++    Всё делается явно, а не через ON DELETE CASCADE: связи User -> AnalysisResult / ChatSession
++    объявлены с ondelete="CASCADE" и passive_deletes=True, то есть ORM рассчитывает, что каскад
++    выполнит БД. SQLite же не проверяет внешние ключи, пока не включён PRAGMA foreign_keys (в
++    приложении он выключен), — и строки анализов и чатов оставались «сиротами» без владельца
++    (в панели админа у них пропадал ник, файлы на диске не чистились). Порядок удаления — от
++    дочерних таблиц к родительским, чтобы то же работало и с включёнными внешними ключами.
+     """
+     from . import chat_images  # локально: chat_images сам импортирует этот модуль
+ 
+-    paths = db.session.scalars(
+-        select(AnalysisResult.image_path).where(AnalysisResult.user_id == user.id)
+-    ).all()
+-    chat_paths = chat_images.user_paths(user.id)  # вложения чатов — собираем до удаления записей
++    analysis_ids = select(AnalysisResult.id).where(analysis_where)
++    session_ids = select(ChatSession.id).where(session_where)
++    opts = {"synchronize_session": False}
++
++    paths = [p for p in db.session.scalars(select(AnalysisResult.image_path).where(analysis_where)) if p]
++    chat_paths = chat_images.paths_of(
++        db.session.scalars(select(ChatMessage).where(ChatMessage.session_id.in_(session_ids))).all()
++    )  # вложения чатов — собираем до удаления записей
+ 
+     db.session.execute(
+-        delete(AnalysisEmbedding)
+-        .where(AnalysisEmbedding.analysis_id.in_(select(AnalysisResult.id).where(AnalysisResult.user_id == user.id)))
+-        .execution_options(synchronize_session=False)
++        delete(AnalysisEmbedding).where(AnalysisEmbedding.analysis_id.in_(analysis_ids)).execution_options(**opts)
+     )
+-    db.session.delete(user)
++    db.session.execute(
++        delete(ChatAnalysisJob)
++        .where(or_(ChatAnalysisJob.session_id.in_(session_ids), ChatAnalysisJob.analysis_id.in_(analysis_ids)))
++        .execution_options(**opts)
++    )
++    db.session.execute(delete(ChatMessage).where(ChatMessage.session_id.in_(session_ids)).execution_options(**opts))
++    chats = db.session.execute(delete(ChatSession).where(session_where).execution_options(**opts))
++    analyses = db.session.execute(delete(AnalysisResult).where(analysis_where).execution_options(**opts))
++    return paths, chat_paths, analyses.rowcount or 0, chats.rowcount or 0
++
++
++def delete_user_account(user: User) -> None:
++    """Удаляет пользователя целиком: все его анализы (любого статуса), чаты и сообщения вместе с
++    файлами изображений, а затем саму учётную запись.
++
++    Записей «от имени» удалённого пользователя не остаётся: в истории админа не бывает анализов
++    без указания, чей он.
++    """
++    from . import chat_images
++
++    user_id = user.id
++    paths, chat_paths, _, _ = _purge_owned(AnalysisResult.user_id == user_id, ChatSession.user_id == user_id)
++    db.session.execute(delete(User).where(User.id == user_id).execution_options(synchronize_session=False))
+     db.session.commit()
++    db.session.expire_all()
++
++    remove_image_files(paths)
++    chat_images.remove_files(chat_paths)
++
++
++def purge_orphans() -> dict[str, int]:
++    """Удаляет данные, чей владелец уже удалён (остались от версий, где каскад на SQLite не
++    срабатывал): анализы, чаты, сообщения и файлы. Возвращает {"analyses": N, "chats": M}.
++    Нужен app context."""
++    from . import chat_images
+ 
+-    remove_image_files([p for p in paths if p])
++    known_users = select(User.id)
++    paths, chat_paths, analyses, chats = _purge_owned(
++        ~AnalysisResult.user_id.in_(known_users), ~ChatSession.user_id.in_(known_users)
++    )
++    db.session.commit()
++    remove_image_files(paths)
+     chat_images.remove_files(chat_paths)
++    return {"analyses": analyses, "chats": chats}
+diff --git a/vision_app/image_dedup.py b/vision_app/image_dedup.py
+index 693c0bc..d2f716b 100644
+--- a/vision_app/image_dedup.py
++++ b/vision_app/image_dedup.py
+@@ -27,14 +27,12 @@ from pathlib import Path
+ from flask import current_app
+ from sqlalchemy import select, update
+ 
+-from .config import Config
++from .config import conf
+ from .extensions import db
+ from .models import AnalysisResult
+ 
+ log = logging.getLogger("vision_app.image_dedup")
+ 
+-_CHUNK = Config.FILE_HASH_CHUNK_BYTES
+-
+ 
+ def sha256_bytes(data: bytes) -> str:
+     return hashlib.sha256(data).hexdigest()
+@@ -42,16 +40,23 @@ def sha256_bytes(data: bytes) -> str:
+ 
+ def _hash_file(path: Path) -> str:
+     digest = hashlib.sha256()
++    chunk_size = int(conf("FILE_HASH_CHUNK_BYTES"))
+     with path.open("rb") as fh:
+-        while chunk := fh.read(_CHUNK):
++        while chunk := fh.read(chunk_size):
+             digest.update(chunk)
+     return digest.hexdigest()
+ 
+ 
+-def backfill_hashes(limit: int | None = Config.DEDUP_DEFAULT_BATCH) -> tuple[int, int]:
++_DEFAULT = object()
++_FALLBACK_PAUSE = 600  # сек; только если не удалось даже прочитать настройку
++
++
++def backfill_hashes(limit=_DEFAULT) -> tuple[int, int]:
+     """Считает image_hash для записей, где его ещё нет. Возвращает (посчитано, файл потерян).
+     Потерянные файлы получают пустую строку — чтобы не пытаться снова и не склеивать их между
+-    собой. Нужен app context."""
++    собой. Нужен app context. limit по умолчанию — DEDUP_DEFAULT_BATCH, None — без ограничения."""
++    if limit is _DEFAULT:
++        limit = conf("DEDUP_DEFAULT_BATCH")
+     root = Path(current_app.config["UPLOAD_FOLDER"])
+     stmt = (
+         select(AnalysisResult.id, AnalysisResult.image_path)
+@@ -95,11 +100,12 @@ def idle_backfill(app) -> None:
+         return
+     try:
+         with app.app_context():
+-            hashed, missing = backfill_hashes(limit=Config.DEDUP_IDLE_BATCH)
+-        _next_idle_run = 0.0 if (hashed or missing) else now + Config.DEDUP_IDLE_PAUSE
++            hashed, missing = backfill_hashes(limit=conf("DEDUP_IDLE_BATCH"))
++            pause = conf("DEDUP_IDLE_PAUSE")  # читаем внутри контекста — иначе не увидим настройку из БД
++        _next_idle_run = 0.0 if (hashed or missing) else now + pause
+     except Exception:  # noqa: BLE001
+         log.exception("image_dedup: сбой фонового подсчёта хешей")
+-        _next_idle_run = now + Config.DEDUP_IDLE_PAUSE
++        _next_idle_run = now + _FALLBACK_PAUSE
+     finally:
+         _idle_lock.release()
+ 
+diff --git a/vision_app/models.py b/vision_app/models.py
+index 9873877..34faeea 100644
+--- a/vision_app/models.py
++++ b/vision_app/models.py
+@@ -192,6 +192,15 @@ class AnalysisResult(db.Model):
+     # файла склеиваются в один снимок. NULL — ещё не посчитан, "" — файл на диске потерян.
+     image_hash = db.Column(db.String(64), nullable=True, index=True)
+ 
++    @property
++    def owner_label(self) -> str:
++        """Логин владельца для списков админ-панели. Запись без владельца (остались от аккаунтов,
++        удалённых до исправления каскада) подписываем явно, а не показываем пустую ячейку;
++        убрать такие записи можно командой `flask purge-orphans`."""
++        if self.user is not None:
++            return self.user.username
++        return f"удалённый пользователь (id {self.user_id})"
++
+     @property
+     def is_error(self) -> bool:
+         return bool(self.error)
+diff --git a/vision_app/queue_worker.py b/vision_app/queue_worker.py
+index f62c9a8..ede4824 100644
+--- a/vision_app/queue_worker.py
++++ b/vision_app/queue_worker.py
+@@ -31,7 +31,7 @@ from sqlalchemy import or_, select, update
+ 
+ from . import image_dedup, vector_search
+ from .categories_store import build_categories_payload
+-from .config import Config, conf
++from .config import conf
+ from .extensions import db
+ from .models import AnalysisResult, Status, utcnow
+ from .services import VisionApiError, analyze_image
+@@ -101,7 +101,7 @@ def _run_analysis(app, image_path: str, image_mime: str, caption: str = ""):
+ 
+     try:
+         outcome = analyze_image(
+-            data, mime, lang=Config.DEFAULT_LANG, backend=backend, model=model, caption=caption, categories=categories,
++            data, mime, backend=backend, model=model, caption=caption, categories=categories,
+         )
+         return outcome, ""
+     except VisionApiError as exc:
+@@ -229,7 +229,7 @@ class QueueWorker(threading.Thread):
+             except Exception:  # noqa: BLE001 — поток не должен умирать из-за одной ошибки
+                 log.exception("Очередь: обработчик #%d — ошибка цикла обработки", self.index)
+                 busy = False
+-                time.sleep(Config.QUEUE_ERROR_PAUSE_SECONDS)
++                time.sleep(conf("QUEUE_ERROR_PAUSE_SECONDS"))
+             if not busy:
+                 vector_search.idle_backfill(self.app)  # добирает векторы, пропущенные при анализе
+                 image_dedup.idle_backfill(self.app)  # считает хеши файлов у старых записей
+@@ -262,9 +262,9 @@ def worker_count(app) -> int:
+         try:
+             n = int(get_runtime_setting("QUEUE_WORKERS"))
+         except (TypeError, ValueError):
+-            n = Config.QUEUE_WORKERS_MIN
++            n = conf("QUEUE_WORKERS_MIN")
+     # разумный потолок, чтобы опечатка в настройке не завела 100 потоков
+-    return min(max(n, Config.QUEUE_WORKERS_MIN), Config.QUEUE_WORKERS_MAX)
++    return min(max(n, conf("QUEUE_WORKERS_MIN")), conf("QUEUE_WORKERS_MAX"))
+ 
+ 
+ # Приложения, для которых уже когда-либо выполнялся _bootstrap_once (возврат в очередь
+@@ -336,4 +336,4 @@ def stop_worker(app) -> None:
+     for worker in workers:
+         worker.shutdown()
+     for worker in workers:
+-        worker.join(timeout=Config.QUEUE_STOP_JOIN_TIMEOUT)
+\ No newline at end of file
++        worker.join(timeout=conf("QUEUE_STOP_JOIN_TIMEOUT"))
+\ No newline at end of file
+diff --git a/vision_app/services.py b/vision_app/services.py
+index 0da2582..e19064b 100644
+--- a/vision_app/services.py
++++ b/vision_app/services.py
+@@ -25,7 +25,7 @@ from urllib.parse import quote
+ 
+ import requests
+ 
+-from .config import Config, conf
++from .config import conf
+ 
+ 
+ # Бэкенды, которые понимает сервер (параметр ?backend=).
+@@ -89,7 +89,7 @@ def check_health() -> dict:
+ def analyze_image(
+     image_bytes: bytes,
+     mime_type: str,
+-    lang: str = Config.DEFAULT_LANG,
++    lang: str | None = None,  # None -> DEFAULT_LANG из настроек
+     backend: str = "",
+     model: str = "",
+     caption: str = "",
+@@ -115,6 +115,7 @@ def analyze_image(
+     туда просто не влезают уже на 4-5 включённых категориях.
+     """
+     url = f"{_base_url()}/analyze"
++    lang = lang or conf("DEFAULT_LANG")
+ 
+     if categories:
+         payload: dict = {
+@@ -357,7 +358,7 @@ def chat_with_model(
+     images: list[str] | None = None,
+     backend: str = "",
+     model: str = "",
+-    lang: str = Config.DEFAULT_LANG,
++    lang: str | None = None,  # None -> DEFAULT_LANG из настроек
+     system: str = "",
+ ) -> ChatOutcome:
+     """Отправляет одно сообщение на POST /chat (см. inference/chat.py) и
+@@ -369,6 +370,7 @@ def chat_with_model(
+     для мультимодального сообщения.
+     """
+     url = f"{_base_url()}/chat"
++    lang = lang or conf("DEFAULT_LANG")
+ 
+     payload: dict = {"message": message, "lang": lang}
+     if history:
+diff --git a/vision_app/settings_store.py b/vision_app/settings_store.py
+index 4ebbeef..65e3902 100644
+--- a/vision_app/settings_store.py
++++ b/vision_app/settings_store.py
+@@ -8,15 +8,24 @@
+ 
+ from __future__ import annotations
+ 
++import logging
++import math
++import threading
++import time
+ from dataclasses import dataclass
++from datetime import datetime, timedelta
++from zoneinfo import ZoneInfo
+ 
+ from flask import current_app
+ 
+-from .config import Config, conf
++from . import config as _config
++from .config import NO_OVERRIDE, conf
+ from .extensions import db
+ from .models import Setting
+ from .services import BACKENDS
+ 
++log = logging.getLogger("vision_app.settings_store")
++
+ KEY_BACKEND = "analysis_backend"
+ KEY_MODEL = "analysis_model"
+ 
+@@ -57,141 +66,513 @@ def clear_analysis_target() -> None:
+ # ----------------------------------------------------------------------------
+ # Настройки, изменяемые главным админом на странице /panel/settings/.
+ #
+-# Значение хранится в Setting (ключ "cfg:<ИМЯ>") и переопределяет одноимённую
+-# переменную окружения / вход в vision_app.config.Config. Без переопределения
+-# (запись в БД отсутствует) в ход идёт обычный app.config — то есть до первого
+-# сохранения в этой панели всё работает ровно как раньше, через .env.
+-# Изменения действуют СРАЗУ, без перезапуска: каждое место, где нужно текущее
+-# значение, читает его заново (см. вызовы get_runtime_setting ниже по коду).
++# Значение хранится в Setting (ключ "cfg:<ИМЯ>") и переопределяет одноимённую константу из
++# vision_app/config.py (или переменную окружения, из которой она берётся). Нет записи в БД —
++# действует обычное значение из config.py/.env, то есть до первого сохранения всё работает как
++# раньше.
++#
++# Изменения применяются СРАЗУ, без перезапуска: config.conf() при каждом чтении смотрит в
++# переопределения (они кэшируются на _CACHE_TTL секунд, чтобы не ходить в БД на каждое чтение;
++# после сохранения кэш процесса сбрасывается, остальные процессы подхватят за ≤ _CACHE_TTL с).
++# Ключи самого Flask (лимит запроса, сессия, cookie, CSRF) дополнительно переносятся в
++# app.config перед каждым запросом — см. sync_flask_config().
++#
++# В список НЕ входят настройки, которые нельзя или опасно менять на ходу: SECRET_KEY, строка
++# подключения к БД, пути и имена каталогов с файлами, логирование, параметры подключения SQLite.
+ # ----------------------------------------------------------------------------
+ _CFG_PREFIX = "cfg:"
++_CACHE_TTL = 2.0
+ 
+ 
+ @dataclass(frozen=True)
+ class RuntimeSetting:
+-    key: str            # то же имя, что у переменной окружения / ключа app.config
++    key: str             # то же имя, что у константы в config.py
+     label: str           # подпись в форме
+-    kind: str             # "bool" | "int" | "float" | "str"
++    kind: str            # "bool" | "int" | "float" | "str" | "choice" | "days" | "opt_int"
+     hint: str = ""
+     min: float | None = None
+     max: float | None = None
++    min_key: str | None = None   # границы, заданные другими настройками (QUEUE_WORKERS_MIN и т. п.)
++    max_key: str | None = None
++    scale: int = 1               # int в форме = значение / scale (например, МБ при scale=1024*1024)
++    choices: tuple[str, ...] = ()
++    validator: str = ""          # "url" | "timezone" | "strftime"
++
++
++def _s(key, label, kind="int", lo=None, hi=None, hint="", **kw) -> RuntimeSetting:
++    return RuntimeSetting(key, label, kind, hint, lo, hi, **kw)
++
++
++_MB = 1024 * 1024
++
++# (название группы, пояснение, настройки) — в том порядке, в каком показываем на странице.
++SETTING_GROUPS: list[tuple[str, str, list[RuntimeSetting]]] = [
++    ("Сервер анализа", "Клиент vision-сервера: адрес, таймауты, язык ответов.", [
++        _s("VISION_API_BASE_URL", "Адрес сервера анализа", "str", hint="Например http://127.0.0.1:6769", validator="url"),
++        _s("VISION_API_TIMEOUT", "Таймаут /analyze и /chat, сек", min_key="VISION_API_TIMEOUT_MIN", max_key="VISION_API_TIMEOUT_MAX"),
++        _s("VISION_API_HEALTH_TIMEOUT", "Таймаут /health и GET /embeddings, сек", lo=1, hi=300),
++        _s("VISION_API_CALL_TIMEOUT", "Таймаут вспомогательных запросов, сек", lo=1, hi=600,
++           hint="/models, /sampling, /categories и т. п."),
++        _s("VISION_API_EMBED_TIMEOUT", "Таймаут POST /embeddings, сек", lo=1, hi=600),
++        _s("VISION_API_ERROR_CHARS", "Длина текста ошибки сервера, симв.", lo=20, hi=5000,
++           hint="Сколько символов ответа-ошибки показывать пользователю."),
++        _s("VISION_API_RAW_TEXT_CHARS", "Усечение «сырого» ответа модели, симв.", lo=100, hi=100000,
++           hint="Для ответов без валидного JSON."),
++        _s("VISION_API_BACKEND_NAME_CHARS", "Длина названия бэкенда, симв.", lo=1, hi=32,
++           hint="Не больше 32 — столько влезает в колонку БД."),
++        _s("VISION_API_MODEL_NAME_CHARS", "Длина названия модели, симв.", lo=1, hi=120,
++           hint="Не больше 120 — столько влезает в колонку БД."),
++        _s("DEFAULT_LANG", "Язык ответов модели", "choice", choices=("ru", "en"),
++           hint="Передаётся серверу анализа как lang=..."),
++    ]),
++    ("Очередь анализов", "Фоновая обработка загруженных изображений.", [
++        _s("QUEUE_WORKER_ENABLED", "Обработка очереди включена", "bool",
++           hint="Если выключить, загруженные файлы будут копиться в очереди без обработки."),
++        _s("QUEUE_WORKERS", "Потоков-обработчиков", hint="Сколько анализов выполнять параллельно.",
++           min_key="QUEUE_WORKERS_MIN", max_key="QUEUE_WORKERS_MAX"),
++        _s("QUEUE_POLL_SECONDS", "Интервал опроса очереди, сек", "float",
++           hint="Как часто обработчик проверяет пустую очередь.",
++           min_key="QUEUE_POLL_SECONDS_MIN", max_key="QUEUE_POLL_SECONDS_MAX"),
++        _s("QUEUE_MAX_FILES_PER_UPLOAD", "Файлов за одну загрузку",
++           min_key="QUEUE_MAX_FILES_PER_UPLOAD_MIN", max_key="QUEUE_MAX_FILES_PER_UPLOAD_MAX"),
++        _s("QUEUE_MAX_PENDING_PER_USER", "Задач в очереди на пользователя",
++           min_key="QUEUE_MAX_PENDING_PER_USER_MIN", max_key="QUEUE_MAX_PENDING_PER_USER_MAX"),
++        _s("QUEUE_ERROR_PAUSE_SECONDS", "Пауза после ошибки цикла, сек", lo=0, hi=300),
++        _s("QUEUE_CLAIM_RETRIES", "Попыток захвата задачи при гонке", lo=1, hi=100),
++        _s("QUEUE_STOP_JOIN_TIMEOUT", "Ожидание остановки потока, сек", lo=0, hi=300),
++    ]),
++    ("Границы допустимых значений", "Пределы, в которых можно выбирать значения выше. Нижняя граница не может быть больше верхней.", [
++        _s("QUEUE_WORKERS_MIN", "Потоков-обработчиков: минимум", lo=1, hi=64),
++        _s("QUEUE_WORKERS_MAX", "Потоков-обработчиков: максимум", lo=1, hi=64,
++           hint="Потолок защищает от опечатки вроде 100 потоков."),
++        _s("QUEUE_POLL_SECONDS_MIN", "Интервал опроса: минимум, сек", lo=1, hi=3600),
++        _s("QUEUE_POLL_SECONDS_MAX", "Интервал опроса: максимум, сек", lo=1, hi=3600),
++        _s("QUEUE_MAX_FILES_PER_UPLOAD_MIN", "Файлов за загрузку: минимум", lo=1, hi=10000),
++        _s("QUEUE_MAX_FILES_PER_UPLOAD_MAX", "Файлов за загрузку: максимум", lo=1, hi=10000),
++        _s("QUEUE_MAX_PENDING_PER_USER_MIN", "Задач на пользователя: минимум", lo=1, hi=100000),
++        _s("QUEUE_MAX_PENDING_PER_USER_MAX", "Задач на пользователя: максимум", lo=1, hi=100000),
++        _s("VISION_API_TIMEOUT_MIN", "Таймаут /analyze: минимум, сек", lo=1, hi=86400),
++        _s("VISION_API_TIMEOUT_MAX", "Таймаут /analyze: максимум, сек", lo=1, hi=86400),
++        _s("SETTING_STR_MAX_LEN", "Максимальная длина строковой настройки", lo=10, hi=2000),
++    ]),
++    ("Поиск по смыслу", "Эмбеддинги и фоновая индексация описаний анализов.", [
++        _s("EMBEDDING_MIN_SIMILARITY", "Порог сходства (cosine)", "float", 0, 1,
++           hint="Ниже этого значения результат в выдачу не попадает. Если выдача шумная — поднимите."),
++        _s("EMBEDDING_RELATIVE_MARGIN", "Отступ от лучшего результата", "float", 0, 1,
++           hint="В выдачу идёт только то, что не ниже «лучший скор − отступ». 0 — выключить."),
++        _s("EMBEDDING_SCAN_LIMIT", "Сколько векторов сравнивать за запрос", lo=1, hi=1000000),
++        _s("EMBEDDING_BATCH_SIZE", "Размер батча для сервера", lo=1, hi=64, hint="Сервер принимает максимум 64 текста за запрос."),
++        _s("EMBEDDING_MAX_TEXT_CHARS", "Максимальная длина текста для эмбеддинга, симв.", lo=100, hi=8000,
++           hint="Серверный лимит — 8000."),
++        _s("EMBEDDING_MAX_MATCHED_IDS", "Сколько id выше порога держать для статистики", lo=1, hi=100000),
++        _s("EMBEDDING_IDLE_BATCHES", "Батчей за один холостой проход", lo=1, hi=1000),
++        _s("EMBEDDING_IDLE_PAUSE_UNAVAILABLE", "Пауза: эмбеддинги выключены/недоступны, сек", lo=1, hi=86400),
++        _s("EMBEDDING_IDLE_PAUSE_NOTHING", "Пауза: индексировать нечего, сек", lo=1, hi=86400),
++        _s("EMBEDDING_IDLE_PAUSE_RETRY", "Пауза: модель качается / сбой, сек", lo=1, hi=86400),
++    ]),
++    ("Чат", "Сообщения, история и изображения в чате с моделью.", [
++        _s("CHAT_MAX_MESSAGE_LEN", "Максимальная длина сообщения, симв.", lo=10, hi=200000),
++        _s("CHAT_MAX_HISTORY_MESSAGES", "Сообщений истории, уходящих модели", lo=1, hi=1000),
++        _s("CHAT_TITLE_LEN", "Длина автоназвания чата, симв.", lo=5, hi=200),
++        _s("CHAT_TURN_STALE_SECONDS", "«Протухание» ответа модели, сек", lo=30, hi=86400,
++           hint="Если сервер упал посреди ответа, чат снова примет сообщения через это время."),
++        _s("CHAT_MAX_TOOL_CALLS", "Обращений к инструментам за один ход", lo=1, hi=20),
++        _s("CHAT_CONTEXT_IMAGES", "Вложений, которые модель «видит» напрямую", lo=0, hi=50,
++           hint="Каждая картинка — порядка 1–1,5 тыс. токенов контекста."),
++        _s("CHAT_MAX_IMAGES_PER_MESSAGE", "Изображений в одном сообщении", lo=1, hi=50),
++        _s("CHAT_MAX_IMAGE_BYTES", "Максимальный размер одного изображения, МБ", lo=1, hi=500, scale=_MB,
++           hint="Общий лимит запроса — «Максимальный размер запроса»."),
++        _s("CHAT_ATTACHMENT_NAME_MAX", "Длина имени вложения, симв.", lo=10, hi=255),
++        _s("CHAT_ATTACHMENT_CACHE_SECONDS", "Кэш вложений в браузере, сек", lo=0, hi=31536000),
++        _s("CHAT_MODEL_MAX_SIDE", "Макс. сторона изображения для модели, px", lo=64, hi=8192),
++        _s("CHAT_MODEL_PASSTHROUGH_BYTES", "Файлы до этого размера уходят модели как есть, байт", lo=1000, hi=100000000),
++        _s("CHAT_MODEL_JPEG_QUALITY", "Качество JPEG для модели", lo=1, hi=100),
++    ]),
++    ("Инструменты чата", "Результаты анализа для модели и поиск по анализам и пользователям. Числа попадают в промпт модели.", [
++        _s("CHAT_JOB_FIELD_CHARS", "Результат анализа: длина поля, симв.", lo=50, hi=20000),
++        _s("CHAT_JOB_ANSWER_CHARS", "Результат анализа: длина ответа, симв.", lo=100, hi=100000),
++        _s("CHAT_JOB_CATEGORY_CHARS", "Результат анализа: длина категории, симв.", lo=10, hi=500),
++        _s("CHAT_JOB_DETAIL_CHARS", "Результат анализа: длина детали, симв.", lo=20, hi=5000),
++        _s("CHAT_JOB_MAX_SIGNALS", "Результат анализа: число сигналов", lo=1, hi=100),
++        _s("SEARCH_SCAN_LIMIT", "Поиск анализов: строк для разбора", lo=10, hi=100000),
++        _s("SEARCH_DEFAULT_LIMIT", "Поиск анализов: записей по умолчанию", lo=1, hi=100),
++        _s("SEARCH_MAX_LIMIT", "Поиск анализов: максимум записей", lo=1, hi=500),
++        _s("SEARCH_MAX_CARDS", "Поиск анализов: карточек под ответом", lo=0, hi=50),
++        _s("SEARCH_DESC_CHARS", "Поиск анализов: длина описания, симв.", lo=20, hi=2000),
++        _s("SEARCH_MAX_SINCE_DAYS", "Поиск анализов: глубина, дней", lo=1, hi=36500),
++        _s("SEARCH_MAX_QUERY_CHARS", "Поиск анализов: длина запроса, симв.", lo=20, hi=5000),
++        _s("SEARCH_MAX_KEYWORDS", "Поиск анализов: ключевых слов", lo=1, hi=50),
++        _s("USER_SEARCH_DEFAULT_LIMIT", "Поиск пользователей: записей по умолчанию", lo=1, hi=100),
++        _s("USER_SEARCH_MAX_LIMIT", "Поиск пользователей: максимум записей", lo=1, hi=500),
++        _s("USER_SEARCH_MAX_SINCE_DAYS", "Поиск пользователей: глубина, дней", lo=1, hi=36500),
++    ]),
++    ("Загрузка, файлы и миниатюры", "Размеры, кэш и фоновый подсчёт хешей файлов.", [
++        _s("MAX_CONTENT_LENGTH", "Максимальный размер запроса, МБ", lo=1, hi=2048, scale=_MB,
++           hint="Жёсткий лимит: файлы больше отклоняются (HTTP 413)."),
++        _s("CAPTION_MAX_CHARS", "Длина подписи к снимку, симв.", lo=10, hi=20000),
++        _s("THUMB_SIZE", "Размер миниатюры, px", lo=16, hi=1024,
++           hint="Уже созданные миниатюры остаются прежнего размера."),
++        _s("THUMB_QUALITY", "Качество JPEG миниатюр", lo=1, hi=100),
++        _s("THUMB_CACHE_SECONDS", "Кэш миниатюр в браузере, сек", lo=0, hi=31536000),
++        _s("FILE_HASH_CHUNK_BYTES", "Кусок при чтении файла для SHA-256, байт", lo=4096, hi=104857600),
++        _s("DEDUP_IDLE_BATCH", "Хеши: записей за холостой проход", lo=1, hi=100000),
++        _s("DEDUP_DEFAULT_BATCH", "Хеши: записей по умолчанию", lo=1, hi=100000),
++        _s("DEDUP_CLI_BATCH", "Хеши: записей за проход в CLI", lo=1, hi=100000),
++        _s("DEDUP_IDLE_PAUSE", "Хеши: пауза, когда считать нечего, сек", lo=1, hi=86400),
++    ]),
++    ("Списки и пагинация", "Сколько записей показывать на страницах.", [
++        _s("HISTORY_PER_PAGE", "«Моя история»: записей на странице", lo=1, hi=500),
++        _s("PANEL_PER_PAGE", "Админ-панель: записей на странице", lo=1, hi=500),
++        _s("DASHBOARD_RECENT_LIMIT", "Главная: последних анализов", lo=1, hi=100),
++        _s("USER_RECENT_ANALYSES_LIMIT", "Профиль и карточка пользователя: последних анализов", lo=1, hi=200),
++        _s("REJECTED_FILES_SHOWN", "Отклонённых файлов в сообщении", lo=1, hi=100),
++        _s("BULK_DELETE_MAX_IDS", "Записей за одно массовое удаление", lo=1, hi=100000),
++        _s("MODEL_NAME_MAX_LEN", "Длина названия модели в «Статусе сервера»", lo=1, hi=500),
++    ]),
++    ("Дата и время", "Часовой пояс и форматы дат (синтаксис strftime: %d.%m.%Y %H:%M).", [
++        _s("TIMEZONE", "Часовой пояс", "str", hint="Название из базы IANA, например Asia/Aqtobe.", validator="timezone"),
++        _s("DATETIME_FORMAT", "Дата и время", "str", validator="strftime"),
++        _s("DATETIME_SHORT_FORMAT", "Дата и время без года", "str", validator="strftime"),
++        _s("DATE_FORMAT", "Дата", "str", validator="strftime"),
++        _s("TIME_FORMAT", "Время", "str", validator="strftime"),
++        _s("DATETIME_CHAT_FORMAT", "Дата в списке чатов", "str", validator="strftime"),
++    ]),
++    ("Безопасность и сессии", "Пароли, сессии, cookie и CSRF.", [
++        _s("PASSWORD_MIN_LENGTH", "Минимальная длина пароля", lo=1, hi=128),
++        _s("PASSWORD_USERNAME_MIN_LEN", "Логины короче не сравниваются с паролем", lo=1, hi=50),
++        _s("PASSWORD_USERNAME_SIMILARITY", "Порог похожести пароля на логин", "float", 0, 1),
++        _s("PERMANENT_SESSION_LIFETIME", "Время жизни сессии, дней", "days", 0.01, 3650,
++           hint="Действует на сессии, которые будут продлены после изменения."),
++        _s("SESSION_COOKIE_HTTPONLY", "Cookie сессии недоступна для JavaScript (HttpOnly)", "bool"),
++        _s("SESSION_COOKIE_SAMESITE", "Cookie сессии: SameSite", "choice", choices=("Lax", "Strict", "None"),
++           hint="None работает только вместе с «Cookie только по HTTPS»."),
++        _s("SESSION_COOKIE_SECURE", "Cookie сессии только по HTTPS", "bool",
++           hint="Включайте, только если сайт открывается по HTTPS: иначе вход перестанет работать у всех, включая вас. "
++                "Вернуть можно командой `flask reset-settings SESSION_COOKIE_SECURE`."),
++        _s("WTF_CSRF_TIME_LIMIT", "Время жизни CSRF-токена, сек", "opt_int", 0, 31536000,
++           hint="0 — без ограничения (токен живёт столько же, сколько сессия)."),
++    ]),
++    ("База данных", "", [
++        _s("SQL_IN_CHUNK", "Размер пачки id в DELETE/IN", lo=10, hi=900,
++           hint="Лимит числа параметров SQL (в SQLite — 999)."),
++    ]),
++]
+ 
++RUNTIME_SETTINGS: list[RuntimeSetting] = [spec for _, _, specs in SETTING_GROUPS for spec in specs]
++RUNTIME_SETTINGS_BY_KEY = {s.key: s for s in RUNTIME_SETTINGS}
+ 
+-RUNTIME_SETTINGS: list[RuntimeSetting] = [
+-    RuntimeSetting(
+-        "QUEUE_WORKER_ENABLED", "Обработка очереди включена", "bool",
+-        "Если выключить, загруженные файлы будут копиться в очереди без обработки.",
+-    ),
+-    RuntimeSetting(
+-        "QUEUE_WORKERS", "Потоков-обработчиков", "int",
+-        "Сколько анализов выполнять параллельно.",
+-        min=Config.QUEUE_WORKERS_MIN, max=Config.QUEUE_WORKERS_MAX,
+-    ),
+-    RuntimeSetting(
+-        "QUEUE_POLL_SECONDS", "Интервал опроса очереди, сек", "float",
+-        "Как часто обработчик проверяет пустую очередь.",
+-        min=Config.QUEUE_POLL_SECONDS_MIN, max=Config.QUEUE_POLL_SECONDS_MAX,
+-    ),
+-    RuntimeSetting(
+-        "QUEUE_MAX_FILES_PER_UPLOAD", "Файлов за одну загрузку", "int",
+-        min=Config.QUEUE_MAX_FILES_PER_UPLOAD_MIN, max=Config.QUEUE_MAX_FILES_PER_UPLOAD_MAX,
+-    ),
+-    RuntimeSetting(
+-        "QUEUE_MAX_PENDING_PER_USER", "Задач в очереди на пользователя", "int",
+-        min=Config.QUEUE_MAX_PENDING_PER_USER_MIN, max=Config.QUEUE_MAX_PENDING_PER_USER_MAX,
+-    ),
+-    RuntimeSetting(
+-        "VISION_API_BASE_URL", "Адрес сервера анализа", "str",
+-        "Например http://127.0.0.1:6769",
+-    ),
+-    RuntimeSetting(
+-        "VISION_API_TIMEOUT", "Таймаут запроса к /analyze, сек", "int",
+-        min=Config.VISION_API_TIMEOUT_MIN, max=Config.VISION_API_TIMEOUT_MAX,
+-    ),
++# Пары «нижняя граница ≤ верхняя» среди самих настроек.
++BOUND_PAIRS = [
++    (s.min_key, s.max_key) for s in RUNTIME_SETTINGS if s.min_key and s.max_key
+ ]
+-RUNTIME_SETTINGS_BY_KEY = {s.key: s for s in RUNTIME_SETTINGS}
+ 
++# Ключи, которые читает сам Flask (а не наш conf()) — переносим их в app.config перед запросом.
++FLASK_KEYS = (
++    "MAX_CONTENT_LENGTH",
++    "PERMANENT_SESSION_LIFETIME",
++    "SESSION_COOKIE_HTTPONLY",
++    "SESSION_COOKIE_SAMESITE",
++    "SESSION_COOKIE_SECURE",
++    "WTF_CSRF_TIME_LIMIT",
++)
++
++
++# ---- разбор и форматирование значений -------------------------------------
++def _fmt_number(x: float) -> str:
++    return "%.10g" % x
++
++
++def _number(spec: RuntimeSetting, raw: str):
++    """Строка из формы -> число в единицах формы (МБ, дни, ...). ValueError — если не число."""
++    text = raw.strip().replace(",", ".")
++    if spec.kind in ("int", "opt_int"):
++        return int(text)
++    number = float(text)
++    if not math.isfinite(number):
++        raise ValueError
++    return number
++
++
++def _value(spec: RuntimeSetting, number):
++    """Число в единицах формы -> значение, которое получит конфигурация."""
++    if spec.kind == "days":
++        return timedelta(days=number)
++    if spec.kind == "opt_int":
++        return None if number == 0 else number
++    if spec.kind == "int":
++        return number * spec.scale
++    return number
++
++
++def _kind_hint(spec: RuntimeSetting) -> str:
++    return "целое число" if spec.kind in ("int", "opt_int") else "число"
+ 
+-def _cast(spec: RuntimeSetting, raw: str):
++
++def display_value(spec: RuntimeSetting, value) -> str | bool:
++    """Значение конфигурации -> то, что показываем в форме (и что сравниваем с data-default)."""
+     if spec.kind == "bool":
+-        return raw == "1"
++        return bool(value)
++    if spec.kind == "days":
++        return _fmt_number(value.total_seconds() / 86400)
++    if spec.kind == "opt_int":
++        return "0" if value is None else str(value)
+     if spec.kind == "int":
+-        return int(raw)
++        return str(int(value) // spec.scale) if spec.scale > 1 else str(int(value))
+     if spec.kind == "float":
+-        return float(raw)
+-    return raw
++        return _fmt_number(float(value))
++    return "" if value is None else str(value)
++
++
++def _check_string(spec: RuntimeSetting, value: str) -> None:
++    label = spec.label
++    if spec.kind == "choice":
++        if value not in spec.choices:
++            raise ValueError(f"«{label}»: допустимо одно из значений — {', '.join(spec.choices)}.")
++        return
++    if not value:
++        raise ValueError(f"«{label}»: значение не может быть пустым.")
++    if len(value) > conf("SETTING_STR_MAX_LEN"):
++        raise ValueError(f"«{label}»: слишком длинное значение.")
++    if spec.validator == "url":
++        if not value.lower().startswith(("http://", "https://")) or "://" not in value or not value.split("://", 1)[1]:
++            raise ValueError(f"«{label}»: адрес должен начинаться с http:// или https://.")
++    elif spec.validator == "timezone":
++        try:
++            ZoneInfo(value)
++        except Exception:  # noqa: BLE001 — ZoneInfoNotFoundError, ValueError, OSError
++            raise ValueError(f"«{label}»: неизвестный часовой пояс «{value}».") from None
++    elif spec.validator == "strftime":
++        try:
++            ok = bool(datetime(2000, 1, 2, 3, 4).strftime(value).strip())
++        except (ValueError, TypeError):
++            ok = False
++        if not ok:
++            raise ValueError(f"«{label}»: некорректный формат даты.")
++
++
++# ---- чтение переопределений (с коротким кэшем) -----------------------------
++_cache_lock = threading.Lock()
++_cache: dict = {"at": -1e9, "data": {}}
++
++
++def invalidate_cache() -> None:
++    with _cache_lock:
++        _cache["at"] = -1e9
++
++
++def _load_overrides() -> dict[str, str]:
++    """{ИМЯ: сырая строка} всех действующих переопределений. Отдельное соединение, чтобы не
++    трогать транзакцию вызывающего кода (conf() читают откуда угодно, в том числе посреди записи)."""
++    now = time.monotonic()
++    with _cache_lock:
++        if now - _cache["at"] < _CACHE_TTL:
++            return _cache["data"]
++    try:
++        with db.engine.connect() as conn:
++            rows = conn.execute(
++                db.select(Setting.key, Setting.value).where(Setting.key.like(_CFG_PREFIX + "%"))
++            ).all()
++        data = {key[len(_CFG_PREFIX):]: value for key, value in rows if value != ""}
++    except Exception:  # noqa: BLE001 — таблицы ещё нет (первый запуск) или БД недоступна
++        log.debug("settings_store: не удалось прочитать переопределения", exc_info=True)
++        with _cache_lock:
++            data = _cache["data"]
++    with _cache_lock:
++        _cache["at"] = now
++        _cache["data"] = data
++    return data
++
++
++def _provider(key: str):
++    spec = RUNTIME_SETTINGS_BY_KEY.get(key)
++    if spec is None:
++        return NO_OVERRIDE
++    raw = _load_overrides().get(key)
++    if raw is None:
++        return NO_OVERRIDE
++    try:
++        if spec.kind == "bool":
++            return raw == "1"
++        if spec.kind in ("str", "choice"):
++            return raw
++        return _value(spec, _number(spec, raw))
++    except ValueError:
++        return NO_OVERRIDE  # мусор в БД не должен ронять приложение
++
++
++_config.set_override_provider(_provider)
+ 
+ 
+ def get_runtime_setting(key: str):
+-    """Текущее действующее значение: из БД, если оно переопределено, иначе из app.config
+-    (то есть из переменной окружения или дефолта в Config/queue_worker.py)."""
+-    spec = RUNTIME_SETTINGS_BY_KEY[key]
+-    row = db.session.get(Setting, _CFG_PREFIX + key)
+-    if row is not None and row.value != "":
+-        return _cast(spec, row.value)
+-    return current_app.config.get(key)
++    """Текущее действующее значение (переопределение из БД или значение из config.py/.env)."""
++    return conf(key)
+ 
+ 
+ def is_runtime_setting_overridden(key: str) -> bool:
+-    row = db.session.get(Setting, _CFG_PREFIX + key)
+-    return row is not None and row.value != ""
++    return key in _load_overrides()
++
++
++def default_value(key: str):
++    """Значение «по умолчанию» — без переопределения из БД (то, что даёт config.py/.env)."""
++    if key in FLASK_KEYS:
++        base = current_app.extensions.get("vision_config_base")
++        if base is not None:
++            return base[key]
++    return current_app.config.get(key, getattr(_config.Config, key))
++
++
++def effective_bounds(spec: RuntimeSetting, candidates: dict | None = None) -> tuple[float | None, float | None]:
++    """(нижняя, верхняя) граница в единицах формы. Если границы сами меняются в этой же форме —
++    берём новые значения из candidates (ключ -> значение конфигурации)."""
++    def pick(key):
++        if candidates and key in candidates:
++            return candidates[key]
++        return conf(key)
+ 
++    lo = pick(spec.min_key) if spec.min_key else spec.min
++    hi = pick(spec.max_key) if spec.max_key else spec.max
++    return lo, hi
+ 
++
++# ---- сохранение -----------------------------------------------------------
+ def runtime_setting_unchanged(key: str, raw_value: str) -> bool:
+-    """True, если raw_value (как пришло из формы), приведённое к типу настройки,
+-    совпадает с текущим действующим значением. Нужно, чтобы сохранение формы не
+-    создавало переопределение для полей, которые пользователь не трогал — иначе
+-    каждое сохранение помечает ВСЕ настройки как «переопределено», а не только
+-    ту, что реально изменили."""
++    """True, если значение из формы совпадает с действующим. Нужно, чтобы сохранение формы не
++    создавало переопределение у полей, которые не трогали (иначе «переопределено» стало бы
++    всё сразу, а не только изменённое)."""
+     spec = RUNTIME_SETTINGS_BY_KEY[key]
+-    current = get_runtime_setting(key)
+-
++    current = conf(key)
+     if spec.kind == "bool":
+         return (raw_value == "1") == bool(current)
+-
+     raw = raw_value.strip()
+     try:
+-        if spec.kind in ("int", "float"):
+-            value = _cast(spec, raw.replace(",", "."))
+-        else:
+-            value = raw
++        if spec.kind in ("str", "choice"):
++            return raw == current
++        return _value(spec, _number(spec, raw)) == current
+     except ValueError:
+-        # Невалидное значение — не «unchanged», пусть set_runtime_setting
+-        # сообщит об ошибке валидации как обычно.
+-        return False
+-    return value == current
++        return False  # пусть валидация сообщит об ошибке
+ 
+ 
+-def set_runtime_setting(key: str, raw_value: str) -> None:
+-    """Валидирует и сохраняет переопределение. Бросает ValueError с русским сообщением."""
+-    spec = RUNTIME_SETTINGS_BY_KEY[key]
+-    raw = raw_value.strip()
++def _store(key: str, raw: str) -> None:
++    _set(_CFG_PREFIX + key, raw)
+ 
+-    if spec.kind == "bool":
+-        value_str = "1" if raw_value else "0"
+-    else:
+-        try:
+-            value = _cast(spec, raw.replace(",", "."))
+-        except ValueError:
+-            kind_hint = "целое число" if spec.kind == "int" else "число"
+-            raise ValueError(f"«{spec.label}»: введите {kind_hint}.") from None
+-        if spec.kind in ("int", "float"):
+-            if spec.min is not None and value < spec.min:
+-                raise ValueError(f"«{spec.label}»: значение не может быть меньше {spec.min:g}.")
+-            if spec.max is not None and value > spec.max:
+-                raise ValueError(f"«{spec.label}»: значение не может быть больше {spec.max:g}.")
+-        elif spec.kind == "str":
+-            if not value:
+-                raise ValueError(f"«{spec.label}»: значение не может быть пустым.")
+-            if len(value) > conf("SETTING_STR_MAX_LEN"):
+-                raise ValueError(f"«{spec.label}»: слишком длинное значение.")
+-        value_str = str(value)
+-
+-    _set(_CFG_PREFIX + key, value_str)
++
++def _reset_rows(keys) -> None:
++    for key in keys:
++        row = db.session.get(Setting, _CFG_PREFIX + key)
++        if row is not None:
++            db.session.delete(row)
+ 
+ 
+ def reset_runtime_setting(key: str) -> None:
+-    """Убирает переопределение — настройка возвращается к значению из .env/дефолта."""
+-    row = db.session.get(Setting, _CFG_PREFIX + key)
+-    if row is not None:
+-        db.session.delete(row)
+\ No newline at end of file
++    """Убирает переопределение — настройка возвращается к значению из config.py/.env."""
++    _reset_rows([key])
++    db.session.commit()
++    invalidate_cache()
++
++
++def reset_all_runtime_settings() -> int:
++    rows = db.session.scalars(db.select(Setting).where(Setting.key.like(_CFG_PREFIX + "%"))).all()
++    for row in rows:
++        db.session.delete(row)
++    db.session.commit()
++    invalidate_cache()
++    return len(rows)
++
++
++def save_runtime_settings(form) -> tuple[list[str], list[str]]:
++    """Сохраняет форму /panel/settings/ целиком или не сохраняет ничего.
++
++    Возвращает (ошибки, предупреждения). Если ошибки есть — в БД ничего не изменено.
++    """
++    errors: list[str] = []
++    resets: list[str] = []
++    changes: dict[str, str] = {}          # ключ -> строка для БД
++    candidates: dict[str, object] = {}    # ключ -> значение конфигурации после сохранения
++    numbers: dict[str, object] = {}       # ключ -> число в единицах формы (для проверки диапазона)
++
++    for spec in RUNTIME_SETTINGS:
++        key = spec.key
++        if form.get(f"reset_{key}"):
++            resets.append(key)
++            candidates[key] = default_value(key)
++            continue
++        # Невыбранный чекбокс браузер не отправляет вовсе — это и значит «выключено».
++        raw = form.get(key, "")
++        if runtime_setting_unchanged(key, raw):
++            continue
++        try:
++            if spec.kind == "bool":
++                candidates[key] = raw == "1"
++                changes[key] = "1" if raw == "1" else "0"
++            elif spec.kind in ("str", "choice"):
++                value = raw.strip()
++                _check_string(spec, value)
++                candidates[key] = value
++                changes[key] = value
++            else:
++                number = _number(spec, raw)
++                numbers[key] = number
++                candidates[key] = _value(spec, number)
++                changes[key] = _fmt_number(number) if spec.kind != "int" and spec.kind != "opt_int" else str(number)
++        except ValueError as exc:
++            message = str(exc)
++            errors.append(message if message.startswith("«") else f"«{spec.label}»: введите {_kind_hint(spec)}.")
++
++    # Диапазоны — после разбора всех полей: границы могли поменяться в этой же форме.
++    for key, number in numbers.items():
++        spec = RUNTIME_SETTINGS_BY_KEY[key]
++        lo, hi = effective_bounds(spec, candidates)
++        shown_lo = None if lo is None else (lo / spec.scale if spec.kind == "int" and spec.min_key else lo)
++        shown_hi = None if hi is None else (hi / spec.scale if spec.kind == "int" and spec.max_key else hi)
++        if shown_lo is not None and number < shown_lo:
++            errors.append(f"«{spec.label}»: значение не может быть меньше {_fmt_number(shown_lo)}.")
++        if shown_hi is not None and number > shown_hi:
++            errors.append(f"«{spec.label}»: значение не может быть больше {_fmt_number(shown_hi)}.")
++
++    for lo_key, hi_key in BOUND_PAIRS:
++        if lo_key in candidates or hi_key in candidates:
++            lo = candidates.get(lo_key, conf(lo_key))
++            hi = candidates.get(hi_key, conf(hi_key))
++            if lo > hi:
++                errors.append(
++                    f"«{RUNTIME_SETTINGS_BY_KEY[lo_key].label}» не может быть больше, чем "
++                    f"«{RUNTIME_SETTINGS_BY_KEY[hi_key].label}»."
++                )
++
++    if errors:
++        return errors, []
++
++    _reset_rows(resets)
++    for key, raw in changes.items():
++        _store(key, raw)
++    db.session.commit()
++    invalidate_cache()
++
++    # Если сдвинули границы, а само значение осталось снаружи — скажем об этом, а не промолчим.
++    warnings = []
++    for spec in RUNTIME_SETTINGS:
++        if spec.min_key or spec.max_key:
++            lo, hi = effective_bounds(spec)
++            current = conf(spec.key)
++            if (lo is not None and current < lo) or (hi is not None and current > hi):
++                warnings.append(f"«{spec.label}»: текущее значение {display_value(spec, current)} вне новых границ.")
++    return [], warnings
++
++
++# ---- перенос ключей Flask в app.config -------------------------------------
++def install(app) -> None:
++    """Запоминает исходные значения ключей Flask (после create_app(config=...)) — к ним
++    возвращаемся при сбросе переопределения."""
++    app.extensions["vision_config_base"] = {key: app.config.get(key) for key in FLASK_KEYS}
++
++
++def sync_flask_config(app) -> None:
++    """Перед каждым запросом переносит переопределения в app.config: эти ключи читает сам Flask
++    (лимит запроса, сессия, cookie, CSRF), а не conf(). Дёшево — значения в кэше."""
++    base = app.extensions.get("vision_config_base")
++    if base is None:
++        return
++    with app.app_context():
++        for key in FLASK_KEYS:
++            override = _provider(key)
++            app.config[key] = base[key] if override is NO_OVERRIDE else override
+diff --git a/vision_app/static/css/queue.css b/vision_app/static/css/queue.css
+index 2827ed1..ccb3000 100644
+--- a/vision_app/static/css/queue.css
++++ b/vision_app/static/css/queue.css
+@@ -146,4 +146,16 @@
+ 
+ @media (max-width: 640px) {
+     .settings-row { grid-template-columns: 1fr; }
+-}
+\ No newline at end of file
++}
++/* Номер анализа (№42) — тот же id, по которому анализ находит и нейросеть в чате. */
++.id-tag { font-family: var(--font-mono); font-size: 0.78rem; color: var(--text-dim); margin-right: 4px; white-space: nowrap; }
++.id-tag-lg { font-size: 0.9rem; font-weight: 400; vertical-align: middle; }
++.col-id { width: 56px; font-family: var(--font-mono); color: var(--text-dim); white-space: nowrap; }
++
++/* Страница настроек: группы, панель поиска, имя константы под подписью */
++.settings-toolbar { display: flex; gap: 12px; align-items: center; position: sticky; top: 8px; z-index: 5; }
++.settings-toolbar .input { flex: 1; }
++.settings-group[hidden], .settings-row[hidden] { display: none; }
++.settings-key { display: block; font-size: 0.75rem; color: var(--text-dim); margin-top: 2px; }
++.settings-footer { display: flex; gap: 12px; align-items: center; }
++.settings-group .settings-row { margin-top: 16px; }
+diff --git a/vision_app/static/js/queue.js b/vision_app/static/js/queue.js
+index 622a410..e62bd0e 100644
+--- a/vision_app/static/js/queue.js
++++ b/vision_app/static/js/queue.js
+@@ -207,8 +207,10 @@
+     li.dataset.id = item.id;
+     var icon = el("span", "queue-icon");
+     icon.setAttribute("aria-hidden", "true");
+-    var name = el("span", "queue-name", truncate(item.name, 30));
++    var name = el("span", "queue-name");
+     name.title = item.name;
++    name.appendChild(el("span", "id-tag", "№" + item.id));
++    name.appendChild(document.createTextNode(" " + truncate(item.name, 30)));
+     li.appendChild(icon);
+     li.appendChild(name);
+     li.appendChild(el("span", "queue-status", statusText(item)));
+@@ -244,6 +246,7 @@
+       a.appendChild(img);
+     }
+     a.appendChild(el("span", "risk-dot risk-" + item.risk_level));
++    a.appendChild(el("span", "id-tag", "№" + item.id));
+     a.appendChild(el("span", "mini-list-name", truncate(item.name, 28)));
+     if (item.is_new) {
+       var badge = el("span", "tag tag-new", "новое");
+diff --git a/vision_app/templates/accounts/profile.html b/vision_app/templates/accounts/profile.html
+index 4337ac0..07aac8e 100644
+--- a/vision_app/templates/accounts/profile.html
++++ b/vision_app/templates/accounts/profile.html
+@@ -51,6 +51,7 @@
+                 <a href="{{ url_for('analyzer.result_detail', pk=item.id) }}" class="mini-list-row">
+                     <img class="row-thumb" src="{{ url_for('analyzer.thumb', filename=item.image_path) }}" alt="" loading="lazy" width="36" height="36" onerror="this.style.visibility='hidden'">
+                     <span class="risk-dot risk-{{ item.risk_level }}"></span>
++                    <span class="id-tag">№{{ item.id }}</span>
+                     <span class="mini-list-name">{{ (item.original_name or 'без имени')|trunc(28) }}</span>
+                     <span class="mini-list-date">{{ item.created_at|localdt('short') }}</span>
+                 </a>
+diff --git a/vision_app/templates/analyzer/_history_results.html b/vision_app/templates/analyzer/_history_results.html
+index a8aa652..7381967 100644
+--- a/vision_app/templates/analyzer/_history_results.html
++++ b/vision_app/templates/analyzer/_history_results.html
+@@ -9,6 +9,7 @@
+         <thead>
+             <tr>
+                 {% if can_delete %}<th class="col-check"><input type="checkbox" data-select-all aria-label="Выбрать все на странице"></th>{% endif %}
++                <th class="col-id">№</th>
+                 <th>Файл</th>
+                 <th>Риск</th>
+                 <th>Проверка человеком</th>
+@@ -20,6 +21,7 @@
+             {% for item in page.items %}
+             <tr class="row-clickable" data-href="{{ url_for('analyzer.result_detail', pk=item.id) }}">
+                 {% if can_delete %}<td class="col-check" onclick="event.stopPropagation()"><input type="checkbox" name="ids" value="{{ item.id }}" aria-label="Выбрать запись {{ item.id }}"></td>{% endif %}
++                <td class="col-id">{{ item.id }}</td>
+                 <td><span class="cell-file"><img class="row-thumb" src="{{ url_for('analyzer.thumb', filename=item.image_path) }}" alt="" loading="lazy" width="44" height="44" onerror="this.style.visibility='hidden'"><span class="cell-file-name">{{ (item.original_name or '—')|trunc(40) }}{% if item.is_new %} <span class="tag tag-new">новое</span>{% endif %}</span></span></td>
+                 <td><span class="risk-pill risk-pill-{{ item.risk_level }}">{{ item.risk_level_display }}</span>{% if item.is_error %} <span class="tag tag-warn">ошибка</span>{% endif %}</td>
+                 <td>{% if item.needs_human_review %}<span class="tag tag-warn">да</span>{% else %}<span class="tag">нет</span>{% endif %}</td>
+diff --git a/vision_app/templates/analyzer/dashboard.html b/vision_app/templates/analyzer/dashboard.html
+index b0f3a1e..c6d59f9 100644
+--- a/vision_app/templates/analyzer/dashboard.html
++++ b/vision_app/templates/analyzer/dashboard.html
+@@ -5,7 +5,7 @@
+ {% macro queue_row(item) %}
+ <li class="queue-item queue-item--{{ item.status }}" data-id="{{ item.id }}">
+     <span class="queue-icon" aria-hidden="true"></span>
+-    <span class="queue-name" title="{{ item.name }}">{{ item.name|trunc(30) }}</span>
++    <span class="queue-name" title="{{ item.name }}"><span class="id-tag">№{{ item.id }}</span> {{ item.name|trunc(30) }}</span>
+     <span class="queue-status">
+         {% if item.status == 'processing' %}Обрабатывается · {{ '%d:%02d' % (item.elapsed // 60, item.elapsed % 60) }}
+         {% elif item.ahead > 0 %}В очереди · перед вами: {{ item.ahead }}
+@@ -34,7 +34,7 @@
+                 {% if target_backend %}Анализ на: <strong>{{ target_backend }}</strong> · модель: <strong>{{ target_model or 'авто' }}</strong>
+                 {% else %}Анализ на бэкенде и модели по умолчанию.{% endif %}
+             </p>
+-            <form method="post" enctype="multipart/form-data" class="form" id="upload-form" data-caption-max="{{ config.CAPTION_MAX_CHARS }}" novalidate>
++            <form method="post" enctype="multipart/form-data" class="form" id="upload-form" data-caption-max="{{ conf("CAPTION_MAX_CHARS") }}" novalidate>
+                 {{ form.hidden_tag() }}
+                 <div class="dropzone" id="dropzone">
+                     <input type="file" name="image" id="id_image" accept="image/*" multiple required>
+@@ -72,6 +72,7 @@
+                 <a href="{{ item.url }}" class="mini-list-row">
+                     {% if item.thumb_url %}<img class="row-thumb" src="{{ item.thumb_url }}" alt="" loading="lazy" width="36" height="36" onerror="this.style.visibility='hidden'">{% endif %}
+                     <span class="risk-dot risk-{{ item.risk_level }}"></span>
++                    <span class="id-tag">№{{ item.id }}</span>
+                     <span class="mini-list-name">{{ item.name|trunc(28) }}</span>{% if item.is_new %} <span class="tag tag-new">новое</span>{% endif %}
+                     <span class="mini-list-date">{{ item.date }}</span>
+                 </a>
+diff --git a/vision_app/templates/analyzer/health.html b/vision_app/templates/analyzer/health.html
+index c838d0b..15d9fe4 100644
+--- a/vision_app/templates/analyzer/health.html
++++ b/vision_app/templates/analyzer/health.html
+@@ -86,7 +86,7 @@
+                     {% endfor %}
+                 </select>
+                 {% else %}
+-                <input type="text" name="model" class="input input-grow" maxlength="{{ config.MODEL_NAME_MAX_LEN }}"
++                <input type="text" name="model" class="input input-grow" maxlength="{{ conf("MODEL_NAME_MAX_LEN") }}"
+                        value="{{ card.active_model }}" placeholder="ID модели (пусто — авто)" aria-label="Модель {{ card.name }}">
+                 {% endif %}
+                 <button type="submit" class="btn btn-primary">Использовать для анализа</button>
+diff --git a/vision_app/templates/analyzer/history.html b/vision_app/templates/analyzer/history.html
+index 205c964..91461bb 100644
+--- a/vision_app/templates/analyzer/history.html
++++ b/vision_app/templates/analyzer/history.html
+@@ -16,7 +16,7 @@
+ {% endif %}
+ 
+ <form method="get" class="filter-bar" data-filter-form onsubmit="return false;">
+-    <input type="search" name="q" class="input" placeholder="Поиск по имени файла…" value="{{ q }}" autocomplete="off" data-filter-field>
++    <input type="search" name="q" class="input" placeholder="Поиск по имени файла или номеру…" value="{{ q }}" autocomplete="off" data-filter-field>
+ </form>
+ 
+ <div id="history-results"
+diff --git a/vision_app/templates/analyzer/result_detail.html b/vision_app/templates/analyzer/result_detail.html
+index 187bd15..0d9cb72 100644
+--- a/vision_app/templates/analyzer/result_detail.html
++++ b/vision_app/templates/analyzer/result_detail.html
+@@ -3,8 +3,8 @@
+ {% block head_extra %}{% if result.is_pending %}<meta http-equiv="refresh" content="4">{% endif %}{% endblock %}
+ {% block content %}
+ <div class="page-header">
+-    <h1>{{ result.original_name or "Результат анализа" }}</h1>
+-    <p class="page-sub">Загружено {{ result.created_at|localdt }}{% if result.user_id != current_user.id %} · пользователь {{ result.user.username }}{% endif %}</p>
++    <h1>{{ result.original_name or "Результат анализа" }} <span class="id-tag id-tag-lg" title="Номер анализа — по нему можно найти запись в истории и в чате">№{{ result.id }}</span></h1>
++    <p class="page-sub">Загружено {{ result.created_at|localdt }}{% if result.user_id != current_user.id %} · пользователь {{ result.owner_label }}{% endif %}</p>
+ </div>
+ 
+ <div class="result-layout">
+diff --git a/vision_app/templates/chat/chat.html b/vision_app/templates/chat/chat.html
+index 10ae13d..f37c013 100644
+--- a/vision_app/templates/chat/chat.html
++++ b/vision_app/templates/chat/chat.html
+@@ -85,7 +85,7 @@
+             <button type="button" class="btn btn-secondary chat-attach-btn" id="chat-attach-btn"
+                     title="Прикрепить изображение (до {{ max_images }} шт., до {{ max_image_mb }} МБ каждое)"
+                     aria-label="Прикрепить изображение">📎</button>
+-            <textarea id="chat-input" class="chat-input" rows="1" maxlength="{{ config.CHAT_MAX_MESSAGE_LEN }}"
++            <textarea id="chat-input" class="chat-input" rows="1" maxlength="{{ conf("CHAT_MAX_MESSAGE_LEN") }}"
+                       placeholder="Сообщение…" autofocus></textarea>
+             <button type="submit" class="btn btn-primary" id="chat-send-btn">Отправить</button>
+         </form>
+diff --git a/vision_app/templates/panel/_analyses_results.html b/vision_app/templates/panel/_analyses_results.html
+index 838c28e..a656ca6 100644
+--- a/vision_app/templates/panel/_analyses_results.html
++++ b/vision_app/templates/panel/_analyses_results.html
+@@ -6,6 +6,7 @@
+         <thead>
+             <tr>
+                 <th class="col-check"><input type="checkbox" data-select-all aria-label="Выбрать все на странице"></th>
++                <th class="col-id">№</th>
+                 <th>Файл</th>
+                 <th>Пользователь</th>
+                 <th>Риск</th>
+@@ -17,14 +18,15 @@
+             {% for item in page.items %}
+             <tr class="row-clickable" data-href="{{ url_for('analyzer.result_detail', pk=item.id) }}">
+                 <td class="col-check" onclick="event.stopPropagation()"><input type="checkbox" name="ids" value="{{ item.id }}" aria-label="Выбрать запись {{ item.id }}"></td>
++                <td class="col-id">{{ item.id }}</td>
+                 <td><span class="cell-file"><img class="row-thumb" src="{{ url_for('analyzer.thumb', filename=item.image_path) }}" alt="" loading="lazy" width="44" height="44" onerror="this.style.visibility='hidden'"><span class="cell-file-name">{{ (item.original_name or '—')|trunc(36) }}</span></span></td>
+-                <td>{{ item.user.username }}</td>
++                <td>{% if item.user %}{{ item.user.username }}{% else %}<span class="tag tag-warn" title="Аккаунт удалён, запись осталась от старой версии — `flask purge-orphans` удалит такие записи">{{ item.owner_label }}</span>{% endif %}</td>
+                 <td><span class="risk-pill risk-pill-{{ item.risk_level }}">{{ item.risk_level_display }}</span></td>
+                 <td>{% if item.needs_human_review %}<span class="tag tag-warn">да</span>{% else %}<span class="tag">нет</span>{% endif %}</td>
+                 <td>{{ item.created_at|localdt }}</td>
+             </tr>
+             {% else %}
+-            <tr><td colspan="6" class="empty-hint">Ничего не найдено.</td></tr>
++            <tr><td colspan="7" class="empty-hint">Ничего не найдено.</td></tr>
+             {% endfor %}
+         </tbody>
+     </table>
+diff --git a/vision_app/templates/panel/analyses.html b/vision_app/templates/panel/analyses.html
+index 06d29b8..0b363d1 100644
+--- a/vision_app/templates/panel/analyses.html
++++ b/vision_app/templates/panel/analyses.html
+@@ -7,7 +7,7 @@
+ </div>
+ 
+ <form method="get" class="filter-bar" data-filter-form onsubmit="return false;">
+-    <input type="search" name="q" class="input" placeholder="Поиск по имени файла…" value="{{ query }}" autocomplete="off" data-filter-field>
++    <input type="search" name="q" class="input" placeholder="Поиск по имени файла или номеру…" value="{{ query }}" autocomplete="off" data-filter-field>
+     <input type="search" name="user" class="input" placeholder="Поиск по пользователю…" value="{{ user_query }}" autocomplete="off" data-filter-field>
+     <select name="risk" class="input" data-filter-field>
+         <option value="">Любой риск</option>
+diff --git a/vision_app/templates/panel/settings.html b/vision_app/templates/panel/settings.html
+index ef87de9..b40db12 100644
+--- a/vision_app/templates/panel/settings.html
++++ b/vision_app/templates/panel/settings.html
+@@ -3,66 +3,88 @@
+ {% block content %}
+ <div class="page-header">
+     <h1>Настройки</h1>
+-    <p class="page-sub">Очередь анализов и клиент сервера анализа — действуют сразу, без перезапуска. Тема, шрифты и размеры интерфейса настраиваются в разделе <a href="{{ url_for('accounts.appearance') }}">«Оформление»</a> — он доступен всем пользователям.</p>
++    <p class="page-sub">Все параметры из <code>config.py</code>, которые безопасно менять на ходу, — действуют сразу после сохранения, без перезапуска. Значение «по умолчанию» берётся из <code>config.py</code> и переменных окружения. Тема, шрифты и размеры интерфейса настраиваются в разделе <a href="{{ url_for('accounts.appearance') }}">«Оформление»</a> — он доступен всем пользователям.</p>
+ </div>
+ 
+-<form method="post" class="card settings-form" novalidate>
++<form method="post" class="settings-form" novalidate id="settings-form">
+     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+ 
+-    {% for row in rows %}
+-    {% set spec = row.spec %}
+-    <div class="settings-row">
+-        <div class="settings-row-label">
+-            <label for="field-{{ spec.key }}">{{ spec.label }}</label>
+-            <span class="default-value-indicator" id="indicator-{{ spec.key }}">
+-                {% if row.overridden %}
+-                    <button
+-                        type="button"
+-                        class="tag tag-accent tag-reset-btn"
+-                        data-reset-for="{{ spec.key }}"
+-                        data-kind="{{ spec.kind }}"
+-                        data-default="{{ (row.default | int) if spec.kind == 'bool' else row.default }}"
+-                    >сбросить</button>
++    <div class="card settings-toolbar">
++        <input type="search" id="settings-filter" class="input" placeholder="Найти настройку по названию или имени…" autocomplete="off">
++        <button type="submit" class="btn btn-primary">Сохранить</button>
++    </div>
++
++    {% for group in groups %}
++    <div class="card settings-group" data-settings-group>
++        <h2 class="card-title">{{ group.title }}</h2>
++        {% if group.description %}<p class="field-hint">{{ group.description }}</p>{% endif %}
++
++        {% for row in group.rows %}
++        {% set spec = row.spec %}
++        <div class="settings-row" data-settings-row data-search="{{ (spec.label ~ ' ' ~ spec.key ~ ' ' ~ spec.hint)|lower }}">
++            <div class="settings-row-label">
++                <label for="field-{{ spec.key }}">{{ spec.label }}</label>
++                <code class="settings-key">{{ spec.key }}</code>
++                <span class="default-value-indicator" id="indicator-{{ spec.key }}">
++                    {% if row.overridden %}
++                        <button
++                            type="button"
++                            class="tag tag-accent tag-reset-btn"
++                            data-reset-for="{{ spec.key }}"
++                            data-kind="{{ 'bool' if spec.kind == 'bool' else 'text' }}"
++                            data-default="{{ (row.default | int) if spec.kind == 'bool' else row.default }}"
++                        >сбросить</button>
++                    {% else %}
++                        <span class="tag">значение по умолчанию</span>
++                    {% endif %}
++                </span>
++                {% if spec.hint %}<p class="field-hint">{{ spec.hint }}</p>{% endif %}
++            </div>
++
++            <div class="settings-row-control">
++                {% if spec.kind == "bool" %}
++                <label class="checkbox-label">
++                    <input type="checkbox" id="field-{{ spec.key }}" name="{{ spec.key }}" value="1" {% if row.value %}checked{% endif %} data-default="{{ (row.default | int) }}">
++                    включено
++                </label>
++                {% elif spec.kind == "choice" %}
++                <select id="field-{{ spec.key }}" name="{{ spec.key }}" class="input" data-default="{{ row.default }}">
++                    {% for choice in spec.choices %}
++                    <option value="{{ choice }}" {% if choice == row.value %}selected{% endif %}>{{ choice }}</option>
++                    {% endfor %}
++                </select>
+                 {% else %}
+-                    <span class="tag">значение по умолчанию</span>
++                <input
++                    type="text"
++                    inputmode="{{ 'text' if spec.kind == 'str' else 'decimal' }}"
++                    id="field-{{ spec.key }}"
++                    name="{{ spec.key }}"
++                    value="{{ row.value }}"
++                    class="input"
++                    data-default="{{ row.default }}"
++                >
++                {% if row.lo is not none or row.hi is not none %}
++                <span class="field-hint">
++                    Допустимо: {% if row.lo is not none %}от {{ row.lo }}{% endif %}{% if row.hi is not none %} до {{ row.hi }}{% endif %}
++                </span>
++                {% endif %}
+                 {% endif %}
+-            </span>
+-            {% if spec.hint %}<p class="field-hint">{{ spec.hint }}</p>{% endif %}
+-        </div>
+ 
+-        <div class="settings-row-control">
+-            {% if spec.kind == "bool" %}
+-            <label class="checkbox-label">
+-                <input type="checkbox" id="field-{{ spec.key }}" name="{{ spec.key }}" value="1" {% if row.value %}checked{% endif %} data-default="{{ (row.default | int) }}">
+-                включено
+-            </label>
+-            {% else %}
+-            <input
+-                type="text"
+-                inputmode="{{ 'decimal' if spec.kind in ('int', 'float') else 'text' }}"
+-                id="field-{{ spec.key }}"
+-                name="{{ spec.key }}"
+-                value="{{ row.value }}"
+-                class="input"
+-                data-default="{{ row.default }}"
+-                {% if spec.min is not none %}data-min="{{ spec.min }}"{% endif %}
+-                {% if spec.max is not none %}data-max="{{ spec.max }}"{% endif %}
+-            >
+-            {% if spec.min is not none or spec.max is not none %}
+-            <span class="field-hint">
+-                Допустимо: {% if spec.min is not none %}от {{ spec.min }}{% endif %}{% if spec.max is not none %} до {{ spec.max }}{% endif %}
+-            </span>
+-            {% endif %}
+-            {% endif %}
+-
+-            {% if row.overridden %}
+-            <input type="hidden" id="reset-{{ spec.key }}" name="reset_{{ spec.key }}" value="">
+-            {% endif %}
++                {% if row.overridden %}
++                <input type="hidden" id="reset-{{ spec.key }}" name="reset_{{ spec.key }}" value="">
++                {% endif %}
++            </div>
+         </div>
++        {% endfor %}
+     </div>
+     {% endfor %}
+ 
+-    <button type="submit" class="btn btn-primary">Сохранить</button>
++    <p class="empty-hint" id="settings-empty" hidden>Ничего не найдено.</p>
++
++    <div class="card settings-footer">
++        <button type="submit" class="btn btn-primary">Сохранить</button>
++        <span class="field-hint">Форма сохраняется целиком: если хотя бы одно значение неверно, не изменится ничего.</span>
++    </div>
+ </form>
+ 
+ {% endblock %}
+@@ -149,7 +171,7 @@ document.addEventListener("DOMContentLoaded", () => {
+     };
+ 
+     // Инициализация для каждого поля
+-    const allInputs = document.querySelectorAll(".settings-row-control input[data-default]");
++    const allInputs = document.querySelectorAll(".settings-row-control [data-default]");
+     allInputs.forEach((field) => {
+         const key = field.id.replace("field-", "");
+         const kind = field.type === "checkbox" ? "bool" : "text";
+@@ -171,6 +193,26 @@ document.addEventListener("DOMContentLoaded", () => {
+         field.addEventListener("change", handleChange);
+     });
+ 
++    // Быстрый поиск по настройкам
++    const filter = document.getElementById("settings-filter");
++    if (filter) {
++        filter.addEventListener("input", () => {
++            const q = filter.value.trim().toLowerCase();
++            let shown = 0;
++            document.querySelectorAll("[data-settings-group]").forEach((group) => {
++                let any = false;
++                group.querySelectorAll("[data-settings-row]").forEach((row) => {
++                    const hit = !q || row.dataset.search.includes(q);
++                    row.hidden = !hit;
++                    any = any || hit;
++                });
++                group.hidden = !any;
++                if (any) shown++;
++            });
++            document.getElementById("settings-empty").hidden = shown > 0;
++        });
++    }
++
+     // Инициализация существующих кнопок сброса
+     document.querySelectorAll(".tag-reset-btn").forEach((btn) => {
+         attachResetButtonListener(btn, btn.dataset.resetFor, btn.dataset.kind, btn.dataset.default);
+diff --git a/vision_app/templates/panel/user_detail.html b/vision_app/templates/panel/user_detail.html
+index 96ab94f..4065d0a 100644
+--- a/vision_app/templates/panel/user_detail.html
++++ b/vision_app/templates/panel/user_detail.html
+@@ -86,6 +86,7 @@
+                 <a href="{{ url_for('analyzer.result_detail', pk=item.id) }}" class="mini-list-row">
+                     <img class="row-thumb" src="{{ url_for('analyzer.thumb', filename=item.image_path) }}" alt="" loading="lazy" width="36" height="36" onerror="this.style.visibility='hidden'">
+                     <span class="risk-dot risk-{{ item.risk_level }}"></span>
++                    <span class="id-tag">№{{ item.id }}</span>
+                     <span class="mini-list-name">{{ (item.original_name or 'без имени')|trunc(28) }}</span>
+                     <span class="mini-list-date">{{ item.created_at|localdt('short') }}</span>
+                 </a>
+diff --git a/vision_app/templates/panel/user_history.html b/vision_app/templates/panel/user_history.html
+index 755300e..eeaaf93 100644
+--- a/vision_app/templates/panel/user_history.html
++++ b/vision_app/templates/panel/user_history.html
+@@ -11,6 +11,7 @@
+     <table class="data-table">
+         <thead>
+             <tr>
++                <th class="col-id">№</th>
+                 <th>Файл</th>
+                 <th>Риск</th>
+                 <th>Проверка</th>
+@@ -21,6 +22,7 @@
+         <tbody>
+             {% for item in page.items %}
+             <tr class="row-clickable" data-href="{{ url_for('analyzer.result_detail', pk=item.id) }}">
++                <td class="col-id">{{ item.id }}</td>
+                 <td><span class="cell-file"><img class="row-thumb" src="{{ url_for('analyzer.thumb', filename=item.image_path) }}" alt="" loading="lazy" width="44" height="44" onerror="this.style.visibility='hidden'"><span class="cell-file-name">{{ (item.original_name or '—')|trunc(40) }}</span></span></td>
+                 <td><span class="risk-pill risk-pill-{{ item.risk_level }}">{{ item.risk_level_display }}</span>{% if item.is_error %} <span class="tag tag-warn">ошибка</span>{% endif %}</td>
+                 <td>{% if item.needs_human_review %}<span class="tag tag-warn">да</span>{% else %}<span class="tag">нет</span>{% endif %}</td>
+diff --git a/vision_app/thumbs.py b/vision_app/thumbs.py
+index 4e9c8c9..0f513db 100644
+--- a/vision_app/thumbs.py
++++ b/vision_app/thumbs.py
+@@ -13,12 +13,12 @@ from pathlib import Path
+ 
+ from PIL import Image, ImageOps
+ 
+-from .config import Config
++from .config import Config, conf
+ 
+ log = logging.getLogger("vision_app.thumbs")
+ 
+-THUMB_SIZE = Config.THUMB_SIZE
+-THUMB_QUALITY = Config.THUMB_QUALITY
++# Имя каталога — константа (менять его на ходу нельзя: в БД хранятся готовые пути). Размер и качество
++# миниатюр читаем через conf() в момент создания — их можно менять в /panel/settings/.
+ THUMBS_DIR = Config.THUMBS_DIR
+ 
+ 
+@@ -41,11 +41,12 @@ def ensure_thumb(root: Path, image_rel: str) -> Path | None:
+     if not src.is_file():
+         return None
+ 
++    size = int(conf("THUMB_SIZE"))
+     tmp = dst.with_name(f"{dst.stem}.{uuid.uuid4().hex}.tmp")
+     try:
+         dst.parent.mkdir(parents=True, exist_ok=True)
+         with Image.open(src) as im:
+-            im.draft("RGB", (THUMB_SIZE * 2, THUMB_SIZE * 2))  # для JPEG декодируем сразу уменьшенным
++            im.draft("RGB", (size * 2, size * 2))  # для JPEG декодируем сразу уменьшенным
+             im = ImageOps.exif_transpose(im)
+             if im.mode in ("P", "LA", "PA") or "transparency" in im.info:
+                 im = im.convert("RGBA")
+@@ -53,8 +54,8 @@ def ensure_thumb(root: Path, image_rel: str) -> Path | None:
+                 bg = Image.new("RGB", im.size, (255, 255, 255))
+                 bg.paste(im, mask=im.getchannel("A"))
+                 im = bg
+-            im = ImageOps.fit(im.convert("RGB"), (THUMB_SIZE, THUMB_SIZE), Image.Resampling.LANCZOS)
+-            im.save(tmp, "JPEG", quality=THUMB_QUALITY, optimize=True)
++            im = ImageOps.fit(im.convert("RGB"), (size, size), Image.Resampling.LANCZOS)
++            im.save(tmp, "JPEG", quality=int(conf("THUMB_QUALITY")), optimize=True)
+         os.replace(tmp, dst)  # атомарно: параллельный запрос не увидит недописанный файл
+         return dst
+     except (OSError, ValueError, Image.DecompressionBombError) as exc:
+diff --git a/vision_app/utils.py b/vision_app/utils.py
+index 41738b1..998a7b3 100644
+--- a/vision_app/utils.py
++++ b/vision_app/utils.py
+@@ -25,6 +25,15 @@ def page_url(page_number: int) -> str:
+     return url_for(request.endpoint, **{**(request.view_args or {}), **args})
+ 
+ 
++def query_to_id(query: str | None) -> int | None:
++    """«42», «#42» или «№42» -> 42; всё остальное -> None. Нужен, чтобы в поиске по истории
++    можно было набрать номер анализа — тот самый, который пользователь видит в интерфейсе."""
++    text = (query or "").strip().lstrip("#№").strip()
++    if text.isdigit() and len(text) <= 9:
++        return int(text)
++    return None
++
++
+ def is_safe_next(target: str | None) -> bool:
+     """Разрешаем редирект только на относительные пути внутри сайта."""
+     return bool(
+diff --git a/vision_app/vector_search.py b/vision_app/vector_search.py
+index 0ec1f90..68eefa0 100644
+--- a/vision_app/vector_search.py
++++ b/vision_app/vector_search.py
+@@ -32,17 +32,16 @@ from sqlalchemy import delete, func, or_, select
+ from sqlalchemy.exc import IntegrityError
+ 
+ from . import services
+-from .config import Config
++from .config import conf
+ from .extensions import db
+ from .models import AnalysisEmbedding, AnalysisResult, Status, utcnow
+ from .services import EmbeddingNotReady, VisionApiError
+ 
+ log = logging.getLogger("vision_app.vector_search")
+ 
+-# Размеры батча/текста/выдачи и паузы фоновой индексации — в config.py (EMBEDDING_*).
+-_BATCH = Config.EMBEDDING_BATCH_SIZE
+-_MAX_TEXT_CHARS = Config.EMBEDDING_MAX_TEXT_CHARS
+-_MAX_MATCHED_IDS = Config.EMBEDDING_MAX_MATCHED_IDS
++# Размеры батча/текста/выдачи и паузы фоновой индексации — в config.py (EMBEDDING_*); читаются через
++# conf() в момент использования, чтобы правки в /panel/settings/ действовали без перезапуска.
++_FALLBACK_PAUSE = 60  # сек; только если не удалось даже прочитать настройку
+ 
+ 
+ # ----------------------------------------------------------------------------
+@@ -51,7 +50,7 @@ _MAX_MATCHED_IDS = Config.EMBEDDING_MAX_MATCHED_IDS
+ def embedding_text(description: str | None, caption: str | None) -> str:
+     """Что именно эмбеддим. Пустая строка — эмбеддить нечего."""
+     parts = [(description or "").strip(), (caption or "").strip()]
+-    return "\n".join(p for p in parts if p)[:_MAX_TEXT_CHARS]
++    return "\n".join(p for p in parts if p)[:int(conf("EMBEDDING_MAX_TEXT_CHARS"))]
+ 
+ 
+ def _text_hash(text: str) -> str:
+@@ -153,7 +152,7 @@ def _delete_orphans() -> int:
+ 
+ def backfill(*, everything: bool = False, max_batches: int | None = None) -> BackfillResult:
+     """Индексирует анализы без вектора или с вектором другой модели (everything=True —
+-    пересчитывает вообще все). Идёт батчами по _BATCH по возрастанию id (keyset), поэтому
++    пересчитывает вообще все). Идёт батчами по EMBEDDING_BATCH_SIZE по возрастанию id (keyset), поэтому
+     не зацикливается на строках, которые не удалось обработать. Нужен app context."""
+     try:
+         status = services.get_embedding_status()
+@@ -177,7 +176,7 @@ def backfill(*, everything: bool = False, max_batches: int | None = None) -> Bac
+                 AnalysisResult.description != "",
+             )
+             .order_by(AnalysisResult.id)
+-            .limit(_BATCH)
++            .limit(int(conf("EMBEDDING_BATCH_SIZE")))
+         )
+         if not everything:
+             stmt = stmt.where(
+@@ -222,21 +221,25 @@ def idle_backfill(app) -> None:
+         return
+     try:
+         with app.app_context():
+-            result = backfill(max_batches=Config.EMBEDDING_IDLE_BATCHES)
++            result = backfill(max_batches=int(conf("EMBEDDING_IDLE_BATCHES")))
++            # паузы читаем внутри контекста — иначе не увидим настройки из БД
++            pause_unavailable = conf("EMBEDDING_IDLE_PAUSE_UNAVAILABLE")
++            pause_retry = conf("EMBEDDING_IDLE_PAUSE_RETRY")
++            pause_nothing = conf("EMBEDDING_IDLE_PAUSE_NOTHING")
+         if result.reason:
+             # модель качается/сервер лежит/эмбеддинги выключены — не долбим сервер каждые 5 с
+             _next_idle_run = now + (
+-                Config.EMBEDDING_IDLE_PAUSE_UNAVAILABLE
++                pause_unavailable
+                 if result.reason.startswith(("state=disabled", "state=unavailable"))
+-                else Config.EMBEDDING_IDLE_PAUSE_RETRY
++                else pause_retry
+             )
+         elif result.indexed:
+             _next_idle_run = 0.0  # могло остаться ещё — продолжим на следующем холостом цикле
+         else:
+-            _next_idle_run = now + Config.EMBEDDING_IDLE_PAUSE_NOTHING
++            _next_idle_run = now + pause_nothing
+     except Exception:  # noqa: BLE001
+         log.exception("vector_search: сбой фоновой индексации")
+-        _next_idle_run = now + Config.EMBEDDING_IDLE_PAUSE_RETRY
++        _next_idle_run = now + _FALLBACK_PAUSE
+     finally:
+         _idle_lock.release()
+ 
+@@ -259,7 +262,7 @@ def embed_query(text: str) -> tuple[np.ndarray, str]:
+ @dataclass
+ class SemanticResult:
+     hits: list[tuple[int, float]] = field(default_factory=list)  # (analysis_id, similarity), лучшие первыми
+-    ranked: list[tuple[int, float]] = field(default_factory=list)  # ВСЕ выше порога, лучшие первыми (до _MAX_MATCHED_IDS)
++    ranked: list[tuple[int, float]] = field(default_factory=list)  # ВСЕ выше порога, лучшие первыми (до EMBEDDING_MAX_MATCHED_IDS)
+     matched: int = 0  # сколько всего выше порога
+     scanned: int = 0  # сколько векторов сравнили
+     best_score: float | None = None  # лучший скор, даже если он ниже порога
+@@ -339,7 +342,7 @@ def semantic_search(
+         ", ".join(f"#{ids[i]}={scores[i]:.2f}" for i in top),
+     )
+     result.matched = int(idx.size)
+-    result.ranked = [(ids[i], float(scores[i])) for i in idx[:_MAX_MATCHED_IDS]]
++    result.ranked = [(ids[i], float(scores[i])) for i in idx[:int(conf("EMBEDDING_MAX_MATCHED_IDS"))]]
+     result.hits = [(ids[i], float(scores[i])) for i in idx[:limit]]
+     return result
+ 
+-- 
+2.43.0
+
