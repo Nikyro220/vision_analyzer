@@ -20,12 +20,29 @@
 python -m venv .venv && source .venv/bin/activate      # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 
-export FLASK_SECRET_KEY="длинная-случайная-строка"
-# мастер-ключ шифрования API-ключей провайдеров (нужен, только если используете Gemini):
-export VISION_CREDENTIALS_KEY="$(python -c 'from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())')"
+cp .env.example .env && chmod 600 .env      # затем впишите значения (см. ниже)
 
 python run.py
 ```
+
+Настройки читаются из файла `.env` в корне проекта (рядом с `run.py`) — для любой точки входа:
+`python run.py`, `gunicorn wsgi:app`, `flask db ...`. Переменные, уже заданные в окружении
+(`export`, systemd, Docker), приоритетнее файла. `.env` в `.gitignore`; шаблон — `.env.example`.
+
+```bash
+# .env
+FLASK_SECRET_KEY=длинная-случайная-строка
+# мастер-ключ шифрования API-ключей провайдеров (нужен, только если используете Gemini):
+VISION_CREDENTIALS_KEY=<результат команды ниже>
+```
+
+```bash
+python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+```
+
+Не оставляйте `FLASK_SECRET_KEY=` пустым: пустое значение отключает дефолт и ломает сессии —
+лучше закомментируйте строку, пока нет значения. Мастер-ключ `run.py` не передаёт серверу анализа
+(`inference/` ему не нужен — ключи приходят в заголовках запросов).
 
 `run.py` поднимает Flask-панель и рядом, отдельным подпроцессом, запускает
 `inference/server.py` (у него свой event loop на aiohttp, поэтому он живёт не
@@ -206,6 +223,8 @@ curl -H "X-Api-Key-Gemini: AIza..." "http://127.0.0.1:6769/models?backend=gemini
     считается устаревшей.
 
 ### Переменные окружения (`vision_app/`)
+
+Можно задавать как обычные переменные окружения, так и в файле `.env` (см. «Быстрый старт»).
 
 | Переменная | По умолчанию | Назначение |
 |---|---|---|

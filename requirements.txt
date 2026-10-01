@@ -10,4 +10,5 @@ Flask-Migrate
 requests
 email-validator
 tzdata
+python-dotenv  # vision_app: чтение переменных окружения из файла .env (config.py)
 cryptography  # vision_app: шифрование API-ключей провайдеров в БД (credentials.py)
