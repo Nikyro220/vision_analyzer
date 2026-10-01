@@ -12,7 +12,8 @@ This text — the list of commands and usage examples.
 ========================================================
 GET /health
 ========================================================
-vLLM and Ollama status: availability + auto-detected model.
+Backend status (vLLM, Ollama, and Gemini — shown only when an API key is
+set or it is the default backend): availability + model.
 
   curl http://xxx.xxx.xxx.xxx:6769/health
 
@@ -25,7 +26,7 @@ Request body is one of two forms:
   (a) a raw image in the request body, Content-Type: image/*
   (b) multipart/form-data with fields:
         images     — one or more images (required)
-        backend    — 'vllm' | 'ollama' (optional, overrides BACKEND)
+        backend    — 'vllm' | 'ollama' | 'gemini' (optional, overrides BACKEND)
         model      — model name/id (optional, otherwise auto-detected)
         lang       — 'ru' | 'en' (optional, language for this request
                      only — does not change the global default)
@@ -87,14 +88,30 @@ Accepts 'lang' three ways — query, JSON body, or form field:
 
 
 ========================================================
-GET/POST /config — view/change backend, ollama_host, vllm_url
+GET/POST /config — view/change backend, ollama_host, vllm_url, gemini_model, gemini_api_key
 ========================================================
-GET returns the current values. POST accepts 'backend',
-'ollama_host' and/or 'vllm_url' (any subset, at least one) — via
-query, JSON body or form field, same as /lang. Takes effect
-immediately, no server restart needed. Startup values can also be
-set via the VISION_ANALYZER_BACKEND / _OLLAMA_HOST / _VLLM_URL
-environment variables.
+GET returns the current values (plus gemini_configured — whether a
+Gemini API key is set; the key itself is never returned). POST accepts
+'backend', 'ollama_host', 'vllm_url', 'gemini_model' and/or
+'gemini_api_key' (any subset, at least one) — via query, JSON body or
+form field, same as /lang. Takes effect immediately, no server restart
+needed. Startup values can also be set via the VISION_ANALYZER_BACKEND /
+_OLLAMA_HOST / _VLLM_URL / _GEMINI_API_KEY / _GEMINI_MODEL environment
+variables.
+
+'gemini_api_key' is accepted ONLY in the request body (JSON or form),
+never in the query — URLs end up in logs. The key lives in process
+memory: after a server restart it must be set again (or provided via
+the environment variable). If the key is already in the environment,
+no POST is needed.
+
+Gemini (backend=gemini) is a cloud backend: images are sent to Google.
+For that reason the server NEVER falls back to it automatically from
+other backends, and when it is unreachable the server does not switch
+to a local backend. The default model is gemini-2.5-flash (gemini_model,
+or model=... in the request itself). If Gemini rejects an image with its
+safety filters the request returns a 400 with the reason; the filter
+threshold can be set with VISION_ANALYZER_GEMINI_SAFETY (e.g. BLOCK_NONE).
 
   curl http://xxx.xxx.xxx.xxx:6769/config
 
@@ -102,6 +119,11 @@ environment variables.
 
   curl -X POST -H "Content-Type: application/json" \
     -d '{"backend": "ollama", "ollama_host": "http://192.168.1.10:11434"}' \
+    http://xxx.xxx.xxx.xxx:6769/config
+
+  # Gemini: set the key (in the body!) and make it the default backend
+  curl -X POST -H "Content-Type: application/json" \
+    -d '{"gemini_api_key": "...", "backend": "gemini"}' \
     http://xxx.xxx.xxx.xxx:6769/config
 
 
@@ -116,7 +138,7 @@ the VISION_ANALYZER_TEMPERATURE / _TOP_P / _TOP_K / _SEED / _NUM_CTX / _NUM_PRED
 environment variables.
 
 num_ctx is the context window size, relevant only for backend=ollama
-(vLLM's context size is fixed at server startup and is not a
+(Gemini has a large fixed window and ignores it too; vLLM's context size is fixed at server startup and is not a
 per-request parameter). By default it is NOT overridden (null) —
 Ollama uses the model's own default from its Modelfile, same as
 before /sampling existed. IMPORTANT: raise it deliberately — a large
@@ -158,6 +180,12 @@ reasoning text may end up inside the answer itself.
   curl -X POST "http://xxx.xxx.xxx.xxx:6769/sampling?think=false"
   curl -X POST "http://xxx.xxx.xxx.xxx:6769/sampling?think=high"
 
+Gemini: think=false turns thinking off (thinkingBudget=0), low/medium/
+high set the budget (1024/8192/24576 tokens), true is the model's dynamic
+mode; on gemini-3.x models (thinking can't be turned off) false = low.
+For Gemini, num_predict includes thinking tokens: a value that is too
+small with think enabled gives an empty or truncated answer.
+
 vllm_context_window (in the GET response) — read-only, the context
 size actually reported by vLLM (GET /v1/models -> max_model_len), or
 null if the backend is unreachable or that particular build doesn't
@@ -169,8 +197,8 @@ that size — the truncation is logged on the server (WARNING).
 ========================================================
 GET /models — list all models the backend currently reports
 ========================================================
-With no parameter — scans both vllm and ollama. ?backend=vllm|ollama —
-just one. Unlike /health (which only shows the auto-detected first
+With no parameter — scans all configured backends (Gemini only when an
+API key is set). ?backend=vllm|ollama|gemini — just one. Unlike /health (which only shows the auto-detected first
 model), this returns the full list.
 
   curl http://xxx.xxx.xxx.xxx:6769/models
@@ -358,7 +386,7 @@ Request body is one of two forms:
                      included)
         history    — optional conversation history (same format as
                      POST /analyze — conversation history above)
-        backend    — 'vllm' | 'ollama' (optional, overrides BACKEND)
+        backend    — 'vllm' | 'ollama' | 'gemini' (optional, overrides BACKEND)
         model      — model name/id (optional, otherwise auto-detected)
         lang       — 'ru' | 'en' (optional, language for this request
                      only — does not change the global default)
@@ -385,7 +413,8 @@ or, in query/multipart, a JSON string — same as /analyze).
 
 If backend isn't passed explicitly and the default backend is
 unreachable, the server automatically tries the other backend once
-(vllm <-> ollama) before returning an error.
+(vllm <-> ollama) before returning an error. gemini has no automatic
+fallback.
 
 For backend=vllm, if the real max_model_len could be determined (see
 GET /sampling -> vllm_context_window above), history is truncated

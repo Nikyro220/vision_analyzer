@@ -65,7 +65,7 @@ VISION_ANALYZER_PYTHON = Path(
         "VISION_ANALYZER_PYTHON",
         found_python if found_python else sys.executable,
     )
-).resolve()
+).absolute()
 
 _vision_analyzer_proc: subprocess.Popen | None = None
 

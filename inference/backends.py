@@ -1,15 +1,12 @@
 """
-backends.py — всё, что говорит с моделью напрямую для /analyze
-(риск-анализ по строгой JSON-схеме, без истории — см. chat_backends.py,
-если нужен свободный диалог с историей):
-  - автоопределение и сканирование моделей (Ollama/vLLM)
-  - обнаружение реального контекстного окна vLLM
-  - health-пинг бэкенда
-  - низкоуровневая отправка ОДНОГО chat-запроса с картинкой (Ollama
-    /api/chat, vLLM /v1/chat/completions) — _analyze_ollama/_analyze_vllm
-    ничего не знают про схему ответа, просто шлют system+user+картинку
-    и возвращают сырой текст; какой именно system/user-промпт подставить
-    решает вызывающая сторона (см. prompt.py)
+backends.py — конвейер /analyze поверх провайдеров (см. providers/):
+риск-анализ по строгой JSON-схеме, без истории — см. chat_backends.py,
+если нужен свободный диалог с историей.
+
+Сам разговор с моделью (HTTP к Ollama/vLLM/Gemini, автоопределение модели,
+health-пинг, контекстное окно) живёт в providers/ — по одному модулю на
+бэкенд, общий интерфейс providers.base.Provider. Здесь только то, что от
+бэкенда не зависит:
   - двухпроходный анализ одного изображения (_analyze_image):
       pass 1 (_select_categories) — дешёвая предклассификация, до
         _CLASSIFY_MAX_ATTEMPTS попыток; если модель так и не вернула
@@ -18,154 +15,32 @@ backends.py — всё, что говорит с моделью напрямую
         сокращённом виде — см. prompt.get_system_prompt(compact=True))
       pass 2 (полный анализ) — то же, что раньше делал одиночный вызов,
         но с промптом, отфильтрованным по результату pass 1
-  - общий wrapper с фолбэком между бэкендами (vllm <-> ollama)
+    какой именно system/user-промпт подставить, решает этот модуль
+    (см. prompt.py), провайдер лишь шлёт system+user+картинку и
+    возвращает сырой текст
+  - фолбэк на другой бэкенд при недоступности (Provider.fallback)
+  - разбор разовых категорий запроса (_parse_categories_json)
+  - постобработка отчёта (_finalize_report)
 
 Ничего из этого не хранит состояние диалога — каждый вызов /analyze
 разовый, без контекста прошлых сообщений (история диалога — только у
-/chat, см. chat_backends.py; она использует _discover_model/
-_get_vllm_context_window/_strip_data_url/_ensure_data_url отсюда, но не
-двухпроходный пайплайн ниже).
+/chat, см. chat_backends.py).
 """
 
-import asyncio
 import json
 import logging
 import re
+
 import aiohttp
-import uuid
+
 import categories
 import config
+import providers
 
 
 # ---------------------------------------------------------------------------
-# Автоопределение модели
+# Разовые категории запроса
 # ---------------------------------------------------------------------------
-
-_model_cache: dict[str, str] = {}
-
-
-async def _list_models(backend: str) -> list[str]:
-    """Возвращает список всех моделей, которые сейчас отдаёт бэкенд.
-
-    Не трогает _model_cache — это просто "сырое" сканирование, использует
-    его и _discover_model (для авто-выбора первой модели), и /models
-    (чтобы показать пользователю всё, что доступно).
-    """
-    async with aiohttp.ClientSession(timeout=config.DISCOVERY_TIMEOUT) as session:
-        if backend == "vllm":
-            async with session.get(f"{config.VLLM_URL}/models") as resp:
-                resp.raise_for_status()
-                data = await resp.json()
-            return [m["id"] for m in data.get("data", [])]
-        elif backend == "ollama":
-            async with session.get(f"{config.OLLAMA_HOST}/api/tags") as resp:
-                resp.raise_for_status()
-                data = await resp.json()
-            return [m["name"] for m in data.get("models", [])]
-        else:
-            raise ValueError(config._t("error.unknown_backend", backend=backend))
-
-
-async def _discover_model(backend: str) -> str:
-    """Возвращает первую доступную модель у бэкенда, кэширует результат.
-
-    Явно заданная в запросе модель (параметр model=...) этот кэш не трогает
-    и не использует — discovery нужен только когда модель не указана.
-    """
-    if backend in _model_cache:
-        return _model_cache[backend]
-
-    models = await _list_models(backend)
-
-    if not models:
-        raise RuntimeError(config._t("error.no_models_returned", backend=backend))
-
-    _model_cache[backend] = models[0]
-    logging.info("Автоопределена модель для backend=%s: %s", backend, models[0])
-    return models[0]
-
-
-_vllm_context_cache: dict[str, int] = {}
-
-
-async def _get_vllm_context_window(model: str | None = None) -> int | None:
-    """Спрашивает у vLLM реальный размер контекстного окна модели.
-
-    Некоторые сборки vLLM отдают 'max_model_len' прямо в GET /v1/models
-    (в отличие от Ollama, где это per-request параметр, у vLLM это то,
-    с чем сервер был запущен — --max-model-len). Кэшируется по имени
-    модели; кэш сбрасывается вместе с _model_cache в /config, если
-    поменялся vllm_url.
-
-    Возвращает None, если бэкенд недоступен, модель не нашлась в ответе,
-    или конкретная сборка vLLM просто не отдаёт это поле — в таком случае
-    вызывающий код должен считать контекст неизвестным и не обрезать
-    историю "вслепую".
-    """
-    try:
-        resolved_model = model or await _discover_model("vllm")
-        if resolved_model in _vllm_context_cache:
-            return _vllm_context_cache[resolved_model]
-
-        async with aiohttp.ClientSession(timeout=config.DISCOVERY_TIMEOUT) as session:
-            async with session.get(f"{config.VLLM_URL}/models") as resp:
-                resp.raise_for_status()
-                data = await resp.json()
-
-        for m in data.get("data", []):
-            if m.get("id") == resolved_model:
-                max_len = m.get("max_model_len")
-                if isinstance(max_len, int):
-                    _vllm_context_cache[resolved_model] = max_len
-                    return max_len
-        return None
-    except Exception as e:
-        logging.debug("vLLM: не удалось узнать max_model_len (%s)", e)
-        return None
-
-
-async def _ping_backend(backend: str) -> dict:
-    """Проверяет доступность бэкенда и возвращает статус для /health.
-
-    Никогда не бросает исключение наружу — любая ошибка превращается
-    в {"ok": False, "error": ...}, чтобы падение одного бэкенда не мешало
-    проверить остальные.
-    """
-    endpoint = config.VLLM_URL if backend == "vllm" else config.OLLAMA_HOST
-    try:
-        model = await _discover_model(backend)
-        return {"ok": True, "endpoint": endpoint, "model": model}
-    except aiohttp.ClientConnectorError:
-        return {"ok": False, "endpoint": endpoint, "error": config._t("error.backend_conn_refused")}
-    except asyncio.TimeoutError:
-        return {"ok": False, "endpoint": endpoint, "error": config._t("error.backend_timeout")}
-    except Exception as e:
-        return {"ok": False, "endpoint": endpoint, "error": str(e)}
-
-
-# ---------------------------------------------------------------------------
-# История диалога
-# ---------------------------------------------------------------------------
-
-def _strip_data_url(img: str) -> str:
-    """Убирает 'data:...;base64,' префикс, если есть — Ollama ждёт чистый base64.
-
-    Общая утилита, используется и здесь (/analyze), и в chat_backends.py
-    (/chat) — поэтому осталась в backends.py, а не переехала вместе с
-    остальным chat-специфичным кодом.
-    """
-    if img.startswith("data:") and ";base64," in img:
-        return img.split(";base64,", 1)[1]
-    return img
-
-
-def _ensure_data_url(img: str, default_mime: str = "image/png") -> str:
-    """Добавляет 'data:...;base64,' префикс, если его нет — нужен для vLLM
-    image_url. Как и _strip_data_url — общая утилита для /analyze и /chat."""
-    if img.startswith("data:"):
-        return img
-    return f"data:{default_mime};base64,{img}"
-
 
 def _parse_categories_json(raw) -> list | None:
     """Парсит 'categories' — разовые категории для этого вызова /analyze
@@ -214,136 +89,6 @@ def _parse_categories_json(raw) -> list | None:
             raise ValueError("each categories item must be an object or a list of objects")
 
     return result or None
-
-
-# ---------------------------------------------------------------------------
-# Низкоуровневая отправка одного chat-запроса с картинкой.
-#
-# Ничего не знают о том, что за system_prompt/user_prompt им передали —
-# это может быть промпт первого (классифицирующего) прохода или второго
-# (полного анализа): решает вызывающая сторона (_select_categories /
-# _analyze_image), собирая текст через prompt.py. Это единственный слой,
-# который реально говорит с бэкендом, поэтому оба прохода идут через
-# него, а не дублируют HTTP/streaming-логику.
-# ---------------------------------------------------------------------------
-
-async def _analyze_ollama(
-    image_b64: str, model: str, system_prompt: str, user_prompt: str,
-) -> str:
-    messages = [
-        {"role": "system", "content": system_prompt},
-        {"role": "user", "content": user_prompt, "images": [image_b64]},
-    ]
-
-    options = {
-        "temperature": config.SAMPLING_DEFAULTS["temperature"],
-        "top_p": config.SAMPLING_DEFAULTS["top_p"],
-        "top_k": config.SAMPLING_DEFAULTS["top_k"],
-        "seed": config.SAMPLING_DEFAULTS["seed"],
-    }
-    if config.SAMPLING_DEFAULTS["num_ctx"] is not None:
-        options["num_ctx"] = config.SAMPLING_DEFAULTS["num_ctx"]
-    if config.SAMPLING_DEFAULTS["num_predict"] is not None:
-        options["num_predict"] = config.SAMPLING_DEFAULTS["num_predict"]
-
-    # stream=True — чтобы видеть 'thinking' модели в реальном времени в
-    # консоли сервера, а не ждать молча всю генерацию (может занимать
-    # много минут при включённом think). ВНИМАНИЕ: если /analyze гонит
-    # несколько картинок параллельно (asyncio.gather), вывод нескольких
-    # запросов будет перемежаться в одной консоли — тег [xxxxxx] перед
-    # каждым куском (первые 6 символов image_b64) нужен, чтобы отличить,
-    # какой поток что печатает.
-    payload = {
-        "model": model,
-        "stream": True,
-        "format": "json",
-        "messages": messages,
-        "options": options,
-        "think": config.SAMPLING_DEFAULTS["think"],
-    }
-
-    tag = uuid.uuid4().hex[:6]
-    content_parts: list[str] = []
-    thinking_open = False
-    final: dict = {}
-
-    async with aiohttp.ClientSession(timeout=config.REQUEST_TIMEOUT) as session:
-        async with session.post(f"{config.OLLAMA_HOST}/api/chat", json=payload) as resp:
-            resp.raise_for_status()
-            async for raw_line in resp.content:
-                line = raw_line.strip()
-                if not line:
-                    continue
-                chunk = json.loads(line)
-
-                msg = chunk.get("message", {})
-                thinking = msg.get("thinking")
-                if thinking:
-                    if not thinking_open:
-                        print(f"\n[{tag}] --- think ---", flush=True)
-                        thinking_open = True
-                    print(thinking, end="", flush=True)
-
-                piece = msg.get("content")
-                if piece:
-                    content_parts.append(piece)
-
-                if chunk.get("done"):
-                    final = chunk
-
-    if thinking_open:
-        print(f"\n[{tag}] --- /think ---", flush=True)
-
-    content = "".join(content_parts).strip()
-    logging.info(
-        "Ollama: prompt_tokens=%s gen_tokens=%s done_reason=%s content_chars=%d load=%.1fs total=%.1fs",
-        final.get("prompt_eval_count"), final.get("eval_count"), final.get("done_reason"),
-        len(content), final.get("load_duration", 0) / 1e9, final.get("total_duration", 0) / 1e9,
-    )
-    return content
-
-
-async def _analyze_vllm(
-    image_b64: str, image_mime: str, model: str, system_prompt: str, user_prompt: str,
-) -> str:
-    messages = [
-        {"role": "system", "content": system_prompt},
-        {
-            "role": "user",
-            "content": [
-                {"type": "text", "text": user_prompt},
-                {
-                    "type": "image_url",
-                    "image_url": {"url": f"data:{image_mime};base64,{image_b64}"},
-                },
-            ],
-        },
-    ]
-
-    base_payload = {
-        "model": model,
-        "temperature": config.SAMPLING_DEFAULTS["temperature"],
-        "top_p": config.SAMPLING_DEFAULTS["top_p"],
-        "seed": config.SAMPLING_DEFAULTS["seed"],
-        "messages": messages,
-    }
-
-    async with aiohttp.ClientSession(timeout=config.REQUEST_TIMEOUT) as session:
-        # Пытаемся получить строгий JSON через response_format (guided decoding).
-        payload = {**base_payload, "response_format": {"type": "json_object"}}
-        async with session.post(f"{config.VLLM_URL}/chat/completions", json=payload) as resp:
-            if resp.status == 400:
-                # Некоторые сборки vLLM без guided-decoding backend отвергают
-                # response_format — повторяем запрос без него.
-                logging.warning("vLLM отклонил response_format, повторяю запрос без него")
-                async with session.post(f"{config.VLLM_URL}/chat/completions", json=base_payload) as resp2:
-                    resp2.raise_for_status()
-                    data = await resp2.json()
-            else:
-                resp.raise_for_status()
-                data = await resp.json()
-
-    return data["choices"][0]["message"]["content"].strip()
 
 
 _RU_TO_EN = {"низкий": "low", "средний": "medium", "высокий": "high"}
@@ -462,12 +207,10 @@ async def _select_categories(
     """
     system_prompt = config.prompt.get_classify_system_prompt(overlay)
     user_prompt = config.prompt.get_classify_user_prompt(caption)
+    provider = providers.get(backend)
 
     for attempt in range(1, _CLASSIFY_MAX_ATTEMPTS + 1):
-        if backend == "vllm":
-            content = await _analyze_vllm(image_b64, image_mime, model, system_prompt, user_prompt)
-        else:
-            content = await _analyze_ollama(image_b64, model, system_prompt, user_prompt)
+        content = await provider.analyze(image_b64, image_mime, model, system_prompt, user_prompt)
 
         candidates = _parse_candidate_categories(content, overlay)
         if candidates is not None:
@@ -506,7 +249,8 @@ async def _analyze_image(
     overlay: "categories.CategoryOverlay | None" = None,
 ) -> tuple[dict, str]:
     try:
-        resolved_model = model or await _discover_model(backend)
+        provider = providers.get(backend)  # ValueError для неизвестного бэкенда
+        resolved_model = model or await provider.discover_model()
         resolved_lang = lang or config._current_lang()
 
         selected = await _select_categories(
@@ -519,16 +263,11 @@ async def _analyze_image(
         )
         user_prompt = config.prompt.get_user_prompt(resolved_lang, caption)
 
-        if backend == "vllm":
-            content = await _analyze_vllm(image_b64, image_mime, resolved_model, system_prompt, user_prompt)
-        elif backend == "ollama":
-            content = await _analyze_ollama(image_b64, resolved_model, system_prompt, user_prompt)
-        else:
-            raise ValueError(config._t("error.unknown_backend", backend=backend, lang=lang))
+        content = await provider.analyze(image_b64, image_mime, resolved_model, system_prompt, user_prompt)
     except aiohttp.ClientConnectorError:
-        if not allow_fallback:
+        fallback_backend = providers.get(backend).fallback
+        if not allow_fallback or not fallback_backend:
             raise
-        fallback_backend = "ollama" if backend == "vllm" else "vllm"
         logging.warning(
             "Бэкенд %r недоступен по подключению, пробую фолбэк на %r",
             backend, fallback_backend,

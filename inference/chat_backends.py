@@ -5,18 +5,12 @@ chat_backends.py — модельный слой POST /chat: свободный 
 разовый, без истории).
 
 Отсюда:
-  - разбор/валидация 'history' (_parse_history_json)
-  - конвертация истории в формат конкретного бэкенда
-    (_history_to_ollama_messages/_history_to_vllm_messages)
-  - защитная обрезка истории под реальный контекст vLLM
-    (_truncate_history_for_vllm), как раньше делал backends.py для /analyze
-  - низкоуровневая отправка одного chat-запроса без format=json/
-    response_format (_chat_ollama/_chat_vllm) и обёртка с фолбэком между
-    бэкендами (chat())
+  - разбор/валидация 'history' (_parse_history_json) — формат бэкенд-агностичный
+  - обёртка chat() с фолбэком между бэкендами (Provider.fallback)
 
-Автоопределение модели и реальный max_model_len vLLM не дублируются —
-берутся из backends.py (backends._discover_model/_get_vllm_context_window),
-как и общие утилиты data-url (backends._strip_data_url/_ensure_data_url).
+Всё, что зависит от конкретного бэкенда — конвертация истории в его формат,
+защитная обрезка под контекст vLLM, сам HTTP-запрос без format=json/
+response_format — живёт в providers/ (Provider.chat).
 
 Как и backends.py, сам ничего не хранит: история приходит целиком от
 клиента на каждый запрос (см. chat.py: handle_chat) — сервер её нигде
@@ -27,43 +21,16 @@ from __future__ import annotations
 
 import json
 import logging
-import uuid
 
 import aiohttp
 
-import backends
 import config
+import providers
 
 
 # ---------------------------------------------------------------------------
-# История: разбор входа + конвертация в формат бэкенда
+# История: разбор и валидация входа
 # ---------------------------------------------------------------------------
-
-def _history_to_ollama_messages(history: list) -> list[dict]:
-    """История прошлых сообщений диалога → формат сообщений Ollama."""
-    messages = []
-    for turn in history:
-        entry = {"role": turn["role"], "content": turn.get("content", "")}
-        images = turn.get("images")
-        if images:
-            entry["images"] = [backends._strip_data_url(img) for img in images]
-        messages.append(entry)
-    return messages
-
-
-def _history_to_vllm_messages(history: list) -> list[dict]:
-    """История прошлых сообщений диалога → формат сообщений vLLM (OpenAI-style)."""
-    messages = []
-    for turn in history:
-        blocks = []
-        text = turn.get("content")
-        if text:
-            blocks.append({"type": "text", "text": text})
-        for img in turn.get("images") or []:
-            blocks.append({"type": "image_url", "image_url": {"url": backends._ensure_data_url(img)}})
-        messages.append({"role": turn["role"], "content": blocks or ""})
-    return messages
-
 
 def _parse_history_json(raw) -> list:
     """Парсит и валидирует 'history' — список прошлых сообщений диалога.
@@ -78,7 +45,7 @@ def _parse_history_json(raw) -> list:
 
     'content' и 'images' необязательны, но должны быть строкой/списком,
     если присутствуют. 'images' — data URL (или просто base64 — тоже
-    примется, см. backends._strip_data_url/_ensure_data_url).
+    примется, см. providers.strip_data_url/ensure_data_url).
 
     raw может быть уже списком (если пришло в JSON-теле запроса) либо
     JSON-строкой (если пришло через query-параметр или multipart-поле).
@@ -106,176 +73,6 @@ def _parse_history_json(raw) -> list:
     return raw
 
 
-# Грубая оценка размера токенов для истории, отправляемой в vLLM — точного
-# токенайзера конкретной модели у нас тут нет, поэтому это защитный запас,
-# а не честный расчёт. Используется только для решения "обрезать ли
-# историю", когда реальный max_model_len удалось узнать через
-# backends._get_vllm_context_window; сама vLLM всё равно провалидирует
-# запрос и кинет ошибку, если промпт всё же не влез.
-_VLLM_EST_CHARS_PER_TOKEN = 4
-_VLLM_EST_TOKENS_PER_IMAGE = 1500
-_VLLM_CONTEXT_SAFETY_MARGIN = 0.9  # оставляем запас под system/ответ модели
-
-
-def _estimate_tokens(text: str) -> int:
-    return max(1, len(text or "") // _VLLM_EST_CHARS_PER_TOKEN)
-
-
-def _truncate_history_for_vllm(
-    history: list, system_prompt: str, current_text: str, current_image_count: int, max_model_len: int,
-) -> list:
-    """Отбрасывает старые сообщения истории, если оценочно не влезаем
-    в контекст vLLM. Идёт с конца истории (свежие сообщения важнее),
-    оставляет максимум, что влезает в safety-margin от max_model_len."""
-    budget = int(max_model_len * _VLLM_CONTEXT_SAFETY_MARGIN)
-    fixed_tokens = (
-        _estimate_tokens(system_prompt)
-        + _estimate_tokens(current_text)
-        + _VLLM_EST_TOKENS_PER_IMAGE * current_image_count  # картинки текущего сообщения
-    )
-
-    def turn_tokens(turn: dict) -> int:
-        return _estimate_tokens(turn.get("content")) + _VLLM_EST_TOKENS_PER_IMAGE * len(turn.get("images") or [])
-
-    kept = []
-    total = fixed_tokens
-    for turn in reversed(history):
-        t = turn_tokens(turn)
-        if total + t > budget:
-            break
-        kept.insert(0, turn)
-        total += t
-
-    dropped = len(history) - len(kept)
-    if dropped:
-        logging.warning(
-            "chat/vLLM: history (%d сообщений) оценочно не влезает в контекст "
-            "max_model_len=%d — отброшено %d старых сообщений, оставлено %d "
-            "(оценочно ~%d/%d токенов, safety_margin=%.0f%%)",
-            len(history), max_model_len, dropped, len(kept),
-            total, max_model_len, _VLLM_CONTEXT_SAFETY_MARGIN * 100,
-        )
-
-    return kept
-
-
-# ---------------------------------------------------------------------------
-# Низкоуровневая отправка одного chat-запроса — БЕЗ format=json/
-# response_format: /chat не парсит ответ модели, просто отдаёт как есть.
-# ---------------------------------------------------------------------------
-
-async def _chat_ollama(
-    model: str, system: str | None, history: list, message: str, images: list[str],
-) -> str:
-    messages = []
-    if system:
-        messages.append({"role": "system", "content": system})
-    messages.extend(_history_to_ollama_messages(history))
-    user_entry = {"role": "user", "content": message}
-    if images:
-        user_entry["images"] = [backends._strip_data_url(img) for img in images]
-    messages.append(user_entry)
-
-    options = {
-        "temperature": config.SAMPLING_DEFAULTS["temperature"],
-        "top_p": config.SAMPLING_DEFAULTS["top_p"],
-        "top_k": config.SAMPLING_DEFAULTS["top_k"],
-        "seed": config.SAMPLING_DEFAULTS["seed"],
-    }
-    if config.SAMPLING_DEFAULTS["num_ctx"] is not None:
-        options["num_ctx"] = config.SAMPLING_DEFAULTS["num_ctx"]
-    if config.SAMPLING_DEFAULTS["num_predict"] is not None:
-        options["num_predict"] = config.SAMPLING_DEFAULTS["num_predict"]
-
-    # stream=True — та же причина, что в backends._analyze_ollama: видно
-    # 'thinking' модели в реальном времени в консоли сервера.
-    payload = {
-        "model": model,
-        "stream": True,
-        "messages": messages,
-        "options": options,
-        "think": config.SAMPLING_DEFAULTS["think"],
-    }
-
-    tag = uuid.uuid4().hex[:6]
-    content_parts: list[str] = []
-    thinking_open = False
-    final: dict = {}
-
-    async with aiohttp.ClientSession(timeout=config.REQUEST_TIMEOUT) as session:
-        async with session.post(f"{config.OLLAMA_HOST}/api/chat", json=payload) as resp:
-            resp.raise_for_status()
-            async for raw_line in resp.content:
-                line = raw_line.strip()
-                if not line:
-                    continue
-                chunk = json.loads(line)
-
-                msg = chunk.get("message", {})
-                thinking = msg.get("thinking")
-                if thinking:
-                    if not thinking_open:
-                        print(f"\n[chat:{tag}] --- think ---", flush=True)
-                        thinking_open = True
-                    print(thinking, end="", flush=True)
-
-                piece = msg.get("content")
-                if piece:
-                    content_parts.append(piece)
-
-                if chunk.get("done"):
-                    final = chunk
-
-    if thinking_open:
-        print(f"\n[chat:{tag}] --- /think ---", flush=True)
-
-    content = "".join(content_parts).strip()
-    logging.info(
-        "chat/Ollama: prompt_tokens=%s gen_tokens=%s done_reason=%s content_chars=%d load=%.1fs total=%.1fs",
-        final.get("prompt_eval_count"), final.get("eval_count"), final.get("done_reason"),
-        len(content), final.get("load_duration", 0) / 1e9, final.get("total_duration", 0) / 1e9,
-    )
-    return content
-
-
-async def _chat_vllm(
-    model: str, system: str | None, history: list, message: str, images: list[str],
-) -> str:
-    # Как и в backends._analyze_vllm: если удалось узнать реальный
-    # max_model_len — обрезаем историю под него; если нет — шлём как
-    # есть, vLLM сама вернёт ошибку, если промпт не влезет.
-    max_model_len = await backends._get_vllm_context_window(model)
-    if max_model_len:
-        history = _truncate_history_for_vllm(
-            history, system or "", message, len(images), max_model_len,
-        )
-
-    messages = []
-    if system:
-        messages.append({"role": "system", "content": system})
-    messages.extend(_history_to_vllm_messages(history))
-
-    blocks = [{"type": "text", "text": message}] if message else []
-    for img in images:
-        blocks.append({"type": "image_url", "image_url": {"url": backends._ensure_data_url(img)}})
-    messages.append({"role": "user", "content": blocks})
-
-    payload = {
-        "model": model,
-        "temperature": config.SAMPLING_DEFAULTS["temperature"],
-        "top_p": config.SAMPLING_DEFAULTS["top_p"],
-        "seed": config.SAMPLING_DEFAULTS["seed"],
-        "messages": messages,
-    }
-
-    async with aiohttp.ClientSession(timeout=config.REQUEST_TIMEOUT) as session:
-        async with session.post(f"{config.VLLM_URL}/chat/completions", json=payload) as resp:
-            resp.raise_for_status()
-            data = await resp.json()
-
-    return data["choices"][0]["message"]["content"].strip()
-
-
 async def chat(
     message: str,
     images: list[str] | None = None,
@@ -295,19 +92,14 @@ async def chat(
     history = history or []
 
     try:
-        resolved_model = model or await backends._discover_model(backend)
-
-        if backend == "vllm":
-            content = await _chat_vllm(resolved_model, system, history, message, images)
-        elif backend == "ollama":
-            content = await _chat_ollama(resolved_model, system, history, message, images)
-        else:
-            raise ValueError(config._t("error.unknown_backend", backend=backend))
+        provider = providers.get(backend)  # ValueError для неизвестного бэкенда
+        resolved_model = model or await provider.discover_model()
+        content = await provider.chat(resolved_model, system, history, message, images)
     except aiohttp.ClientConnectorError as e:
-        if not allow_fallback:
+        fallback_backend = providers.get(backend).fallback
+        if not allow_fallback or not fallback_backend:
             e.chat_backend = backend
             raise
-        fallback_backend = "ollama" if backend == "vllm" else "vllm"
         logging.warning(
             "chat: бэкенд %r недоступен по подключению, пробую фолбэк на %r",
             backend, fallback_backend,

@@ -24,6 +24,7 @@ from PIL import Image
 import backends
 import categories
 import config
+import providers
 from config import image_upscaler, locales
 
 # ---------------------------------------------------------------------------
@@ -144,7 +145,7 @@ async def _parse_json_body(request: web.Request, overrides: dict) -> tuple[list,
             img, item_caption = item, overrides["caption"]
 
         try:
-            data = base64.b64decode(backends._strip_data_url(img))
+            data = base64.b64decode(providers.strip_data_url(img))
         except Exception:
             raise _BodyError(_json({"error": config._t("error.not_image", lang=overrides["lang"])}, status=400))
 
@@ -272,7 +273,7 @@ async def handle_analyze(request: web.Request) -> web.Response:
             )
 
     backend = (overrides["backend"] or config.BACKEND).strip().lower()
-    if backend not in ("vllm", "ollama"):
+    if not providers.is_known(backend):
         return _json(
             {"error": config._t("error.unknown_backend", backend=backend, lang=resolved_lang)}, status=400,
         )
@@ -308,7 +309,7 @@ async def handle_analyze(request: web.Request) -> web.Response:
             for (img_b64, img_mime), cap in zip(tasks, captions)
         ])
     except aiohttp.ClientConnectorError:
-        endpoint = config.VLLM_URL if backend == "vllm" else config.OLLAMA_HOST
+        endpoint = providers.get(backend).endpoint
         logging.error("Не удалось подключиться к бэкенду %s (%s)", backend, endpoint)
         return _json(
             {"error": config._t("error.backend_unavailable", backend=backend, endpoint=endpoint, lang=resolved_lang)},

@@ -1,6 +1,6 @@
 # Vision Analyzer
 
-Локальный риск-триаж изображений: vision-модель (vLLM или Ollama) смотрит на
+Локальный риск-триаж изображений: vision-модель (vLLM, Ollama или Gemini) смотрит на
 картинку и возвращает структурированный отчёт — уровень риска, сигналы,
 рекомендацию. В репозитории два компонента:
 
@@ -45,7 +45,8 @@ cd inference && python server.py
 | Файл | Назначение |
 |---|---|
 | `server.py` | HTTP-эндпоинты (aiohttp): `/`, `/health`, `/analyze`, `/chat`, `/lang`, `/config`, `/sampling`, `/models`, `/categories` |
-| `backends.py` | Обращение к vLLM (`/v1/chat/completions`) и Ollama (`/api/chat`) для `/analyze` |
+| `providers/` | Бэкенды модели, по модулю на каждый: `vllm.py` (`/v1/chat/completions`), `ollama.py` (`/api/chat`), `gemini.py` (Google `generateContent`); общий интерфейс — `base.py`, реестр — `__init__.py` |
+| `backends.py` | Конвейер `/analyze` поверх провайдеров: двухпроходный анализ, фолбэк, постобработка отчёта |
 | `chat.py`, `chat_backends.py` | То же самое, но для `/chat` — свободный диалог с историей, без JSON-схемы риск-отчёта |
 | `config.py` | Константы, параметры сэмплинга, логирование, бутстрап `locales`/`prompt`/`image_upscaler` |
 | `prompt.py` | Системный промпт `/analyze` (двухпроходный, по категориям) и дефолтная системная "личность" `/chat` |
@@ -55,7 +56,7 @@ cd inference && python server.py
 ### Эндпоинты
 
 - `GET /` — список команд и примеров (то же, что ниже, простым текстом).
-- `GET /health` — статус vLLM и Ollama: доступность и автоопределённая модель.
+- `GET /health` — статус бэкендов (vLLM, Ollama; Gemini — если задан ключ или он выбран по умолчанию): доступность и модель.
 - `POST /analyze` — анализ одного или нескольких изображений. Тело запроса —
   любое из трёх: сырые байты картинки (`Content-Type: image/*`),
   `multipart/form-data` (`images`, plus `backend`/`model`/`lang`/`history`)
@@ -71,16 +72,21 @@ cd inference && python server.py
   риск-анализатор, и не выносит вердиктов по риск-сигналам вместо
   `/analyze`; переданный `system` добавляется к этому промпту, а не
   заменяет его. Если выбранный бэкенд недоступен, а `backend` не был
-  передан явно, сервер один раз автоматически пробует второй бэкенд.
+  передан явно, сервер один раз автоматически пробует второй бэкенд
+  (vllm ↔ ollama; на Gemini и с Gemini автофолбэка нет — картинки не
+  должны уходить в облако без явного выбора).
 - `POST /lang` — сменить язык ответов по умолчанию (`ru`/`en`).
 - `GET/POST /config` — посмотреть/поменять `backend`, `ollama_host`,
-  `vllm_url` без перезапуска.
+  `vllm_url`, `gemini_model`, `gemini_api_key` без перезапуска. Ключ
+  принимается только в теле запроса и никогда не отдаётся обратно
+  (`gemini_configured` — только флаг).
 - `GET/POST /sampling` — посмотреть/поменять `temperature`, `top_p`,
   `top_k`, `seed`, `num_ctx`, `num_predict`, `think` (`true`/`false` или
-  `low`/`medium`/`high`). Общие для всего сервера и для обоих бэкендов.
-  `num_ctx` действует только для Ollama.
+  `low`/`medium`/`high`). Общие для всего сервера и для всех бэкендов.
+  `num_ctx` действует только для Ollama; у Gemini `think` переводится в
+  `thinkingBudget` / `thinkingLevel`, а `num_predict` включает токены размышлений.
 - `GET /models` — полный список моделей, которые прямо сейчас отдаёт бэкенд
-  (`?backend=vllm|ollama`, без параметра — оба).
+  (`?backend=vllm|ollama|gemini`, без параметра — все настроенные).
 
 Примеры curl — в тексте `GET /`.
 
@@ -88,9 +94,13 @@ cd inference && python server.py
 
 | Переменная | По умолчанию | Назначение |
 |---|---|---|
-| `VISION_ANALYZER_BACKEND` | `vllm` | Бэкенд по умолчанию (`vllm` / `ollama`) |
+| `VISION_ANALYZER_BACKEND` | `vllm` | Бэкенд по умолчанию (`vllm` / `ollama` / `gemini`) |
 | `VISION_ANALYZER_OLLAMA_HOST` | `http://127.0.0.1:11434` | Адрес Ollama |
 | `VISION_ANALYZER_VLLM_URL` | `http://host.docker.internal:8000/v1` | Адрес vLLM (OpenAI-совместимый) |
+| `VISION_ANALYZER_GEMINI_API_KEY` (или `GEMINI_API_KEY` / `GOOGLE_API_KEY`) | — | Ключ API Gemini; без него провайдер не настроен (можно задать и через `POST /config`) |
+| `VISION_ANALYZER_GEMINI_MODEL` | `gemini-2.5-flash` | Модель Gemini по умолчанию |
+| `VISION_ANALYZER_GEMINI_SAFETY` | — (значения API) | Порог фильтров безопасности Gemini (`BLOCK_NONE`, `BLOCK_ONLY_HIGH`, …) |
+| `VISION_ANALYZER_GEMINI_API_BASE` | `https://generativelanguage.googleapis.com/v1beta` | Базовый URL API (например, свой прокси) |
 | `VISION_ANALYZER_TEMPERATURE` / `_TOP_P` / `_TOP_K` / `_SEED` | `0` / `1.0` / `1` / `42` | Параметры сэмплинга по умолчанию |
 | `VISION_ANALYZER_NUM_CTX` | — (не переопределяется) | Размер контекста (только Ollama) |
 | `VISION_ANALYZER_NUM_PREDICT` | — (не переопределяется) | Лимит длины ответа |
@@ -194,7 +204,8 @@ flask --app vision_app set-role <логин> <роль>    # blocked | user | ad
 
 - Python 3.11+
 - vLLM (OpenAI-совместимый эндпоинт) и/или локально запущенный Ollama с
-  vision-моделью
+  vision-моделью, и/или ключ API Gemini (`providers/gemini.py`, без
+  дополнительных зависимостей — запросы идут через aiohttp)
 - `requirements.txt` — общий для `inference/` и `vision_app/` (aiohttp/torch/
   Pillow для сервера анализа, Flask-стек для панели)
 

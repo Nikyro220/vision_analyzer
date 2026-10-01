@@ -25,9 +25,9 @@ from typing import Any
 import aiohttp
 from aiohttp import web
 
-import backends
 import chat_backends
 import config
+import providers
 from analyze import _BodyError, _json, _prepare_image
 from config import locales, prompt
 
@@ -50,7 +50,7 @@ async def _image_from_b64(raw: str, source_name: str, lang: str | None) -> str:
     апскейл при необходимости — тот же _prepare_image, что и у /analyze).
     Бросает _BodyError(400), если это не изображение."""
     try:
-        data = base64.b64decode(backends._strip_data_url(raw))
+        data = base64.b64decode(providers.strip_data_url(raw))
     except Exception:
         raise _BodyError(_json({"error": config._t("error.not_image", lang=lang)}, status=400))
 
@@ -59,7 +59,7 @@ async def _image_from_b64(raw: str, source_name: str, lang: str | None) -> str:
         raise _BodyError(_json({"error": config._t("error.not_image", lang=lang)}, status=400))
 
     img_b64, mime = prepared
-    return backends._ensure_data_url(img_b64, default_mime=mime)
+    return providers.ensure_data_url(img_b64, default_mime=mime)
 
 
 async def _parse_json_body(request: web.Request, overrides: dict) -> tuple[str, list[str]]:
@@ -114,7 +114,7 @@ async def _parse_multipart_body(request: web.Request, overrides: dict) -> tuple[
             logging.warning("chat: пропускаю не-изображение: %s", part.filename)
             continue
         img_b64, mime = prepared
-        images.append(backends._ensure_data_url(img_b64, default_mime=mime))
+        images.append(providers.ensure_data_url(img_b64, default_mime=mime))
 
     message = (overrides.get("message") or "").strip()
     if not message:
@@ -162,7 +162,7 @@ async def handle_chat(request: web.Request) -> web.Response:
             )
 
     backend = (overrides["backend"] or config.BACKEND).strip().lower()
-    if backend not in ("vllm", "ollama"):
+    if not providers.is_known(backend):
         return _json(
             {"error": config._t("error.unknown_backend", backend=backend, lang=resolved_lang)}, status=400,
         )
@@ -205,7 +205,7 @@ async def handle_chat(request: web.Request) -> web.Response:
         # помечает это на самом исключении (chat_backend), чтобы здесь
         # не соврать про то, какой бэкенд/эндпоинт на самом деле недоступен.
         failed_backend = getattr(e, "chat_backend", backend)
-        endpoint = config.VLLM_URL if failed_backend == "vllm" else config.OLLAMA_HOST
+        endpoint = providers.get(failed_backend).endpoint
         if failed_backend != backend:
             logging.error(
                 "chat: не удалось подключиться ни к одному бэкенду — %s (исходный) и %s (фолбэк) недоступны",

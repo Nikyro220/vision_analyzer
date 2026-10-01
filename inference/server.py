@@ -3,16 +3,18 @@ server.py — HTTP-слой vision_analyzer_server: простые хендле�
 /health, /lang, /config, /sampling, /models), сборка приложения aiohttp
 и entrypoint. Сам /analyze — самый сложный путь — вынесен в analyze.py:
 подготовка изображений и разбор трёх форматов тела запроса там.
-Собственно общением с моделью (Ollama/vLLM) занимается backends.py.
+Собственно общением с моделью (Ollama/vLLM/Gemini) занимаются провайдеры
+в providers/ (по модулю на бэкенд), конвейер /analyze — backends.py.
 Хендлеры /categories (только чтение дефолтов) — в categories_api.py,
 бизнес-логика — в categories.py. Разовые категории на один вызов
 передаются прямо в POST /analyze (см. analyze.py, поле "categories").
 POST /chat — свободный диалог с моделью (текст + картинки, с историей),
 без риск-JSON-схемы /analyze — вынесен в chat.py/chat_backends.py.
 
-Поддерживает два бэкенда:
+Поддерживает три бэкенда (см. providers/):
   - vllm   — OpenAI-совместимый API (/v1/chat/completions), напр. gvllm2.service
   - ollama — /api/chat с картинкой в base64 и принудительным JSON-выводом
+  - gemini — Google Gemini (generateContent), по умолчанию gemini-2.5-flash
 
 Запуск:
     python server.py
@@ -34,11 +36,11 @@ import logging
 import aiohttp
 from aiohttp import web
 
-import backends
 import categories_api
 import chat
 import config
 import embeddings
+import providers
 from analyze import _json, handle_analyze
 from config import locales
 
@@ -50,24 +52,30 @@ async def handle_index(request: web.Request) -> web.Response:
     )
 
 
-async def handle_health(request: web.Request) -> web.Response:
-    vllm_status, ollama_status = await asyncio.gather(
-        backends._ping_backend("vllm"),
-        backends._ping_backend("ollama"),
-    )
+def _visible_providers() -> list[providers.Provider]:
+    """Провайдеры, которые показываем в /health и /models без явного ?backend=.
 
-    overall_ok = vllm_status["ok"] or ollama_status["ok"]
-    default_ok = {"vllm": vllm_status, "ollama": ollama_status}[config.BACKEND]["ok"]
+    Не настроенный провайдер (сейчас — Gemini без ключа API) скрыт, пока он
+    не выбран бэкендом по умолчанию: иначе у тех, кто Gemini не использует,
+    в статусе вечно висел бы «недоступный» бэкенд.
+    """
+    return [p for p in providers.all_providers() if p.is_configured() or p.name == config.BACKEND]
+
+
+async def handle_health(request: web.Request) -> web.Response:
+    shown = _visible_providers()
+    statuses = await asyncio.gather(*(p.ping() for p in shown))
+    backends_status = {p.name: st for p, st in zip(shown, statuses)}
+
+    overall_ok = any(st["ok"] for st in backends_status.values())
+    default_ok = bool((backends_status.get(config.BACKEND) or {}).get("ok"))
 
     return _json(
         {
             "ok": overall_ok,
             "default_backend": config.BACKEND,
             "default_backend_ok": default_ok,
-            "backends": {
-                "vllm": vllm_status,
-                "ollama": ollama_status,
-            },
+            "backends": backends_status,
             # Эмбеддинги — вспомогательная возможность (см. embeddings.py), а не
             # основная функция сервера, поэтому её статус НЕ влияет на "ok"
             # выше: если модель эмбеддингов недоступна, риск-анализ и чат
@@ -111,59 +119,87 @@ async def handle_lang(request: web.Request) -> web.Response:
     return _json({"ok": True, "default_lang": lang, "available": available})
 
 
-async def handle_config(request: web.Request) -> web.Response:
-    """GET — вернуть текущий backend/ollama_host/vllm_url.
+_CONFIG_FIELDS = ("backend", "ollama_host", "vllm_url", "gemini_model")
 
-    POST — изменить один или несколько из них "на лету", без перезапуска.
-    Принимает поля тремя способами — query, JSON-тело или form-поле,
-    как и /lang: backend, ollama_host, vllm_url (все необязательные,
-    но хотя бы одно должно быть передано).
+
+def _config_snapshot() -> dict:
+    # Ключ API Gemini наружу НЕ отдаём — только факт, что он задан.
+    return {
+        "backend": config.BACKEND,
+        "available_backends": list(providers.names()),
+        "ollama_host": config.OLLAMA_HOST,
+        "vllm_url": config.VLLM_URL,
+        "gemini_model": config.GEMINI_MODEL,
+        "gemini_configured": bool(config.GEMINI_API_KEY),
+    }
+
+
+async def handle_config(request: web.Request) -> web.Response:
+    """GET — вернуть текущие backend/ollama_host/vllm_url/gemini_model
+    (+ gemini_configured — задан ли ключ API Gemini; сам ключ не отдаётся).
+
+    POST — изменить одно или несколько полей "на лету", без перезапуска.
+    Принимает backend, ollama_host, vllm_url, gemini_model (query, JSON-тело
+    или form-поле, как и /lang) и gemini_api_key — последний ТОЛЬКО в теле
+    запроса, не в query: URL попадает в логи, секрет там быть не должен.
+    Хотя бы одно поле должно быть передано.
     """
     if request.method == "GET":
-        return _json({"backend": config.BACKEND, "ollama_host": config.OLLAMA_HOST, "vllm_url": config.VLLM_URL})
+        return _json(_config_snapshot())
 
-    new_backend = request.query.get("backend")
-    new_ollama_host = request.query.get("ollama_host")
-    new_vllm_url = request.query.get("vllm_url")
+    if "gemini_api_key" in request.query:
+        return _json({"error": config._t("error.gemini_key_in_query")}, status=400)
 
-    # Как и в /lang: сначала query-параметры, и только если среди них нет
-    # ни одного — пробуем распарсить тело (JSON или form-data).
-    if new_backend is None and new_ollama_host is None and new_vllm_url is None:
+    try:
         if request.content_type == "application/json":
             body = await request.json() or {}
         else:
             body = await request.post()
-        new_backend = body.get("backend")
-        new_ollama_host = body.get("ollama_host")
-        new_vllm_url = body.get("vllm_url")
+    except Exception:
+        body = {}
+    if not hasattr(body, "get"):
+        body = {}
 
-    if not any([new_backend, new_ollama_host, new_vllm_url]):
+    # Как и в /lang: query-параметры в приоритете над телом.
+    values = {
+        key: request.query.get(key) if request.query.get(key) is not None else body.get(key)
+        for key in _CONFIG_FIELDS
+    }
+    new_api_key = body.get("gemini_api_key")
+
+    if not any(values.values()) and not new_api_key:
         return _json({"error": config._t("error.config_missing_fields")}, status=400)
 
+    new_backend = values["backend"]
     if new_backend:
         new_backend = new_backend.strip().lower()
-        if new_backend not in ("vllm", "ollama"):
+        if not providers.is_known(new_backend):
             return _json({"error": config._t("error.unknown_backend", backend=new_backend)}, status=400)
         config.BACKEND = new_backend
 
-    if new_ollama_host:
-        config.OLLAMA_HOST = new_ollama_host.strip()
+    if values["ollama_host"]:
+        config.OLLAMA_HOST = values["ollama_host"].strip()
 
-    if new_vllm_url:
-        config.VLLM_URL = new_vllm_url.strip()
+    if values["vllm_url"]:
+        config.VLLM_URL = values["vllm_url"].strip()
+
+    if values["gemini_model"]:
+        config.GEMINI_MODEL = values["gemini_model"].strip()
+
+    if new_api_key:
+        config.GEMINI_API_KEY = str(new_api_key).strip()
 
     # Кэш автоопределённых моделей (и обнаруженного контекста vLLM) мог
     # указывать на прежний хост/URL — сбрасываем, чтобы следующий запрос
-    # заново определил всё там, куда сейчас реально указывают
-    # OLLAMA_HOST/VLLM_URL.
-    backends._model_cache.clear()
-    backends._vllm_context_cache.clear()
+    # заново определил всё там, куда сейчас реально указывают настройки.
+    providers.reset_all_caches()
 
     logging.info(
-        "Конфигурация обновлена извне: backend=%s ollama_host=%s vllm_url=%s",
-        config.BACKEND, config.OLLAMA_HOST, config.VLLM_URL,
+        "Конфигурация обновлена извне: backend=%s ollama_host=%s vllm_url=%s gemini_model=%s gemini_api_key=%s",
+        config.BACKEND, config.OLLAMA_HOST, config.VLLM_URL, config.GEMINI_MODEL,
+        "<задан>" if config.GEMINI_API_KEY else "<не задан>",
     )
-    return _json({"ok": True, "backend": config.BACKEND, "ollama_host": config.OLLAMA_HOST, "vllm_url": config.VLLM_URL})
+    return _json({"ok": True, **_config_snapshot()})
 
 
 _SAMPLING_KEYS = ("temperature", "top_p", "top_k", "seed", "num_ctx", "num_predict", "think")
@@ -229,7 +265,7 @@ async def handle_sampling(request: web.Request) -> web.Response:
     недоступен или конкретная сборка это поле не отдаёт.
     """
     if request.method == "GET":
-        vllm_context_window = await backends._get_vllm_context_window()
+        vllm_context_window = await providers.get("vllm").context_window()
         return _json({**config.SAMPLING_DEFAULTS, "vllm_context_window": vllm_context_window})
 
     raw_values = {}
@@ -267,27 +303,31 @@ async def handle_sampling(request: web.Request) -> web.Response:
 async def handle_models(request: web.Request) -> web.Response:
     """Сканирует бэкенд(ы) и возвращает список всех доступных там моделей.
 
-    ?backend=vllm|ollama — только один бэкенд; без параметра — оба сразу.
+    ?backend=<имя> — только один бэкенд (vllm | ollama | gemini); без
+    параметра — все настроенные (см. _visible_providers).
     Не путать с /health: там только уже автоопределённая (первая) модель,
     здесь — полный список, чтобы было видно, из чего вообще выбирать.
     """
     backend_param = request.query.get("backend")
-    backend_list = [backend_param.strip().lower()] if backend_param else ["vllm", "ollama"]
+    if backend_param:
+        name = backend_param.strip().lower()
+        if not providers.is_known(name):
+            return _json({"error": config._t("error.unknown_backend", backend=name)}, status=400)
+        selected = [providers.get(name)]
+    else:
+        selected = _visible_providers()
 
     result = {}
-    for b in backend_list:
-        if b not in ("vllm", "ollama"):
-            return _json({"error": config._t("error.unknown_backend", backend=b)}, status=400)
-        endpoint = config.VLLM_URL if b == "vllm" else config.OLLAMA_HOST
+    for p in selected:
         try:
-            models = await backends._list_models(b)
-            result[b] = {"ok": True, "endpoint": endpoint, "models": models}
+            models = await p.list_models()
+            result[p.name] = {"ok": True, "endpoint": p.endpoint, "models": models}
         except aiohttp.ClientConnectorError:
-            result[b] = {"ok": False, "endpoint": endpoint, "error": config._t("error.backend_conn_refused")}
+            result[p.name] = {"ok": False, "endpoint": p.endpoint, "error": config._t("error.backend_conn_refused")}
         except asyncio.TimeoutError:
-            result[b] = {"ok": False, "endpoint": endpoint, "error": config._t("error.backend_timeout")}
+            result[p.name] = {"ok": False, "endpoint": p.endpoint, "error": config._t("error.backend_timeout")}
         except Exception as e:
-            result[b] = {"ok": False, "endpoint": endpoint, "error": str(e)}
+            result[p.name] = {"ok": False, "endpoint": p.endpoint, "error": str(e)}
 
     return _json(result)
 
