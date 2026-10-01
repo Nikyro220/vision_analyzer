@@ -22,7 +22,7 @@ from sqlalchemy import delete, func, or_, select, update
 
 from ..config import Config, conf
 from ..decorators import staff_required
-from .. import image_dedup
+from .. import credentials, image_dedup
 from ..extensions import db
 from ..forms import ImageUploadForm, sampling_form_class
 from ..history import delete_finished, remove_image_files
@@ -35,7 +35,9 @@ from ..services import (
     get_models,
     get_providers,
     get_sampling,
-    set_provider_settings,
+    invalidate_models_cache,
+    invalidate_providers,
+    models_cached_at,
     set_sampling,
 )
 from ..settings_store import clear_analysis_target, get_analysis_target, set_analysis_target
@@ -480,7 +482,10 @@ def _render_health(bound_forms: dict | None = None, status_code: int = 200):
                 "info": info,
                 "available": available,
                 "configured": provider.configured,
-                "settings": provider.settings if can_configure else (),
+                # Ключ API: форма только для админов; значение наружу не отдаётся — лишь «задан / последние 4».
+                "credential": provider.credential if can_configure else None,
+                "credential_status": credentials.status(name) if can_configure and provider.credential else None,
+                "credentials_available": credentials.is_available(),
                 "configurable": can_configure and available,
                 "is_active": name == effective_backend,
                 "via_fallback": via_fallback and name == effective_backend,
@@ -488,11 +493,15 @@ def _render_health(bound_forms: dict | None = None, status_code: int = 200):
                 "sampling_keys": provider.sampling_keys,
                 "models": [],
                 "models_error": None,
+                "models_cached_at": None,
                 "form": None,
             }
             if card["configurable"]:
+                # Страница не должна ждать Google: берём список из кэша БД (для облачных
+                # провайдеров), а обновляется он кнопкой «Обновить список» (refresh_models).
                 try:
-                    card["models"] = get_models(name)
+                    card["models"] = get_models(name, cached_only=True)
+                    card["models_cached_at"] = models_cached_at(name)
                 except VisionApiError as exc:
                     card["models_error"] = str(exc)
                 # сохранённой модели может уже не быть в списке — не теряем её из виду
@@ -571,7 +580,9 @@ def save_model(name: str):
 
     if model:
         try:
-            known = get_models(name)
+            known = get_models(name, cached_only=True)  # из кэша — без обращения к Google
+            if known and model not in known:
+                known = get_models(name, force=True)  # в кэше нет: перед отказом сверяемся с живым списком
         except VisionApiError:
             known = []  # список недоступен — не блокируем, сервер сам отклонит неизвестную модель
         if known and model not in known:
@@ -623,53 +634,68 @@ def save_sampling(name: str):
     return redirect(url_for("analyzer.health"))
 
 
-# Ограничение на длину значения поля настроек провайдера (ключи API — десятки символов).
-_PROVIDER_SETTING_MAX_LEN = 512
-
-
 @bp.route("/health/backend/<name>/settings", methods=["POST"])
 @staff_required
 def save_provider_settings(name: str):
-    """Изменить настройки подключения провайдера (например, ввести API-ключ Gemini).
+    """Сохранить или удалить API-ключ провайдера (например, Gemini).
 
-    Какие поля есть, определяет сам провайдер (GET /providers → settings). Значение секрета
-    нигде не показывается и не пишется во флеш/лог: пустое поле = «не менять», удалить можно
-    только явным чекбоксом. Сервер анализа хранит значение в памяти (до перезапуска)."""
+    Ключ шифруется и кладётся в БД приложения (credentials.py); сервер анализа его не хранит и
+    получает в каждом запросе. Значение нигде не показывается и не пишется во флеш/лог: пустое
+    поле = «не менять», удалить можно только явным чекбоксом.
+    """
     provider = _require_backend(name)
+    if provider.credential is None:
+        abort(404)  # у этого провайдера нет ключа
 
-    values: dict[str, str] = {}
-    clear: list[str] = []
-    for f in provider.settings:
-        if f.secret and request.form.get(f"clear_{f.name}"):
-            clear.append(f.name)
-            continue
-        raw = request.form.get(f"setting_{f.name}", "").strip()
-        if len(raw) > _PROVIDER_SETTING_MAX_LEN:
-            flash(f"Слишком длинное значение поля «{f.label}».", "error")
-            return redirect(url_for("analyzer.health"))
-        if raw:
-            values[f.name] = raw
+    if request.form.get("clear_credential"):
+        removed = credentials.clear_key(name)
+        invalidate_models_cache(name)
+        invalidate_providers()
+        flash(f"Ключ «{provider.title}» удалён." if removed else "Ключ и так не был задан.", "success" if removed else "info")
+        return redirect(url_for("analyzer.health"))
 
-    if not values and not clear:
-        flash("Нечего сохранять: поля пустые (пустое поле означает «не менять»).", "info")
+    raw = request.form.get("credential", "")
+    if not raw.strip():
+        flash("Нечего сохранять: поле пустое (пустое поле означает «не менять»).", "info")
         return redirect(url_for("analyzer.health"))
 
     try:
-        result = set_provider_settings(name, values, clear)
-    except VisionApiError as exc:
+        credentials.set_key(name, raw, user_id=current_user.id)
+    except credentials.CredentialsError as exc:
         flash(str(exc), "error")
         return redirect(url_for("analyzer.health"))
+    finally:
+        raw = ""  # не держим значение дольше нужного
 
-    labels = {f.name: f.label for f in provider.settings}
-    changed = ", ".join(labels.get(n, n) for n in (result.get("changed") or [*values, *clear]))
-    probe = result.get("status") if isinstance(result.get("status"), dict) else {}
+    invalidate_models_cache(name)  # кэш относился к прежнему ключу
+    invalidate_providers()
 
-    if clear and not values:
-        flash(f"Настройки «{provider.title}» сброшены: {changed}.", "success")
-    elif probe.get("ok"):
-        flash(f"Настройки «{provider.title}» сохранены ({changed}) — бэкенд отвечает.", "success")
+    # Проверяем ключ реальным запросом (/health теперь шлёт его в заголовке).
+    try:
+        probe = (check_health().get("backends") or {}).get(name) or {}
+    except VisionApiError as exc:
+        flash(f"Ключ «{provider.title}» сохранён, но проверить его не удалось: {exc}", "error")
+        return redirect(url_for("analyzer.health"))
+
+    if probe.get("ok"):
+        flash(f"Ключ «{provider.title}» сохранён — бэкенд отвечает. Список моделей можно загрузить кнопкой «Обновить список».", "success")
     else:
         reason = probe.get("error") or "нет ответа"
-        flash(f"Настройки «{provider.title}» сохранены ({changed}), но бэкенд не отвечает: {reason}", "error")
+        flash(f"Ключ «{provider.title}» сохранён, но бэкенд не отвечает: {reason}", "error")
     return redirect(url_for("analyzer.health"))
 
+
+@bp.route("/health/backend/<name>/models/refresh", methods=["POST"])
+@staff_required
+def refresh_models(name: str):
+    """Обновить кэш списка моделей провайдера (живой запрос — может занять время)."""
+    provider = _require_backend(name)
+    if not _backend_is_available(name):
+        return redirect(url_for("analyzer.health"))
+    try:
+        models = get_models(name, force=True)
+    except VisionApiError as exc:
+        flash(f"Не удалось получить список моделей «{provider.title}»: {exc}", "error")
+        return redirect(url_for("analyzer.health"))
+    flash(f"Список моделей «{provider.title}» обновлён: {len(models)}.", "success")
+    return redirect(url_for("analyzer.health"))

@@ -391,6 +391,45 @@ class Setting(db.Model):
 
 
 # ----------------------------------------------------------------------------
+# API-ключи провайдеров (Gemini и т. п.)
+# ----------------------------------------------------------------------------
+class ProviderCredential(db.Model):
+    """API-ключ облачного провайдера. Сервер анализа (inference) ключей НЕ хранит — их хранит
+    только приложение и присылает серверу в каждом запросе (см. services.py, credentials.py).
+
+    Ключ нужно отправлять в Google как есть, поэтому хешировать его, как пароль, нельзя (хеш
+    необратим). Вместо этого он хранится ЗАШИФРОВАННЫМ (Fernet: AES-128-CBC + HMAC-SHA256);
+    мастер-ключ шифрования лежит вне БД — в переменной окружения VISION_CREDENTIALS_KEY.
+    Дамп БД без неё ключ не раскрывает.
+    """
+
+    __tablename__ = "provider_credentials"
+
+    provider = db.Column(db.String(32), primary_key=True)
+    ciphertext = db.Column(db.Text, nullable=False)
+    updated_at = db.Column(db.DateTime, nullable=False, default=utcnow)
+    updated_by = db.Column(db.Integer, nullable=True)  # id пользователя (без FK: запись переживает удаление)
+
+    def __repr__(self) -> str:
+        return f"<ProviderCredential {self.provider}>"  # шифртекст в repr не выводим
+
+
+class ProviderModelsCache(db.Model):
+    """Кэш списка моделей облачного провайдера: запрос списка у Google медленный, а сам список
+    меняется редко. Одна запись на провайдера; `fingerprint` — HMAC ключа, для которого список
+    получен: при смене ключа кэш автоматически считается устаревшим (у другого проекта/ключа
+    набор моделей может отличаться). Сам ключ здесь не хранится.
+    """
+
+    __tablename__ = "provider_models_cache"
+
+    provider = db.Column(db.String(32), primary_key=True)
+    fingerprint = db.Column(db.String(64), nullable=False)
+    models = db.Column(db.JSON, nullable=False, default=list)
+    fetched_at = db.Column(db.DateTime, nullable=False, default=utcnow)
+
+
+# ----------------------------------------------------------------------------
 # Категории оценивания (сигналов), которые распознаёт нейросеть на изображении
 # ----------------------------------------------------------------------------
 

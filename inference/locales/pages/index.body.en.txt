@@ -12,29 +12,29 @@ This text — the list of commands and usage examples.
 ========================================================
 GET /health
 ========================================================
-Backend status (vLLM, Ollama, and Gemini — shown only when an API key is
-set or it is the default backend): availability + model.
+Backend status (vLLM, Ollama, and Gemini — shown only when the request carries
+an API key (X-Api-Key-Gemini header) or it is the default backend):
+availability + model.
 
   curl http://xxx.xxx.xxx.xxx:6769/health
 
 
 ========================================================
-GET /providers, POST /providers/<name>/settings
+GET /providers
 ========================================================
 GET /providers describes ALL registered backends (also not configured ones):
-label, fallback, whether it is configured, which /sampling parameters it uses,
-and which settings can be changed on the fly. Secret values are never returned,
-only a "set" flag. A client (e.g. the web panel) builds its UI from this reply,
-so a new backend needs no client changes.
+label, fallback, whether it is configured (i.e. whether a key arrived with THIS
+request), which /sampling parameters it uses, and which secret (credential) it
+needs. A client (e.g. the web panel) builds its UI from this reply, so a new
+backend needs no client changes.
 
-POST /providers/<name>/settings changes those settings without a restart. JSON
-body only (never the URL query — secrets would end up in logs); an empty value
-means "leave unchanged", "clear" lists fields to reset. The reply includes a
-connection check with the new settings.
+The server does NOT store API keys — not in files, not in environment variables,
+not in memory. The client sends the key with EVERY request in the
+X-Api-Key-<Backend> header (X-Api-Key-Gemini for Gemini; the exact name is
+credential.header). This applies to /analyze, /chat, /models, /health and
+/providers. A header, not the query: URLs end up in logs.
 
-  curl http://xxx.xxx.xxx.xxx:6769/providers
-  curl -X POST -H "Content-Type: application/json" \
-       -d '{"api_key": "AIza..."}' http://xxx.xxx.xxx.xxx:6769/providers/gemini/settings
+  curl -H "X-Api-Key-Gemini: AIza..." http://xxx.xxx.xxx.xxx:6769/providers
 
 
 ========================================================
@@ -107,22 +107,17 @@ Accepts 'lang' three ways — query, JSON body, or form field:
 
 
 ========================================================
-GET/POST /config — view/change backend, ollama_host, vllm_url, gemini_model, gemini_api_key
+GET/POST /config — view/change backend, ollama_host, vllm_url, gemini_model
 ========================================================
-GET returns the current values (plus gemini_configured — whether a
-Gemini API key is set; the key itself is never returned). POST accepts
-'backend', 'ollama_host', 'vllm_url', 'gemini_model' and/or
-'gemini_api_key' (any subset, at least one) — via query, JSON body or
-form field, same as /lang. Takes effect immediately, no server restart
-needed. Startup values can also be set via the VISION_ANALYZER_BACKEND /
-_OLLAMA_HOST / _VLLM_URL / _GEMINI_API_KEY / _GEMINI_MODEL environment
-variables.
+GET returns the current values. POST accepts 'backend', 'ollama_host',
+'vllm_url' and/or 'gemini_model' (any subset, at least one) — via query,
+JSON body or form field, same as /lang. Takes effect immediately, no server
+restart needed. Startup values can also be set via the
+VISION_ANALYZER_BACKEND / _OLLAMA_HOST / _VLLM_URL / _GEMINI_MODEL
+environment variables.
 
-'gemini_api_key' is accepted ONLY in the request body (JSON or form),
-never in the query — URLs end up in logs. The key lives in process
-memory: after a server restart it must be set again (or provided via
-the environment variable). If the key is already in the environment,
-no POST is needed.
+The Gemini key is not accepted here: the server stores no keys, the client
+sends them with every request in the X-Api-Key-Gemini header (see GET /providers).
 
 Gemini (backend=gemini) is a cloud backend: images are sent to Google.
 For that reason the server NEVER falls back to it automatically from
@@ -140,10 +135,8 @@ threshold can be set with VISION_ANALYZER_GEMINI_SAFETY (e.g. BLOCK_NONE).
     -d '{"backend": "ollama", "ollama_host": "http://192.168.1.10:11434"}' \
     http://xxx.xxx.xxx.xxx:6769/config
 
-  # Gemini: set the key (in the body!) and make it the default backend
-  curl -X POST -H "Content-Type: application/json" \
-    -d '{"gemini_api_key": "...", "backend": "gemini"}' \
-    http://xxx.xxx.xxx.xxx:6769/config
+  # Gemini: the key goes in a header on every request, not through /config
+  curl -H "X-Api-Key-Gemini: AIza..." "http://xxx.xxx.xxx.xxx:6769/models?backend=gemini"
 
 
 ========================================================
@@ -216,8 +209,8 @@ that size — the truncation is logged on the server (WARNING).
 ========================================================
 GET /models — list all models the backend currently reports
 ========================================================
-With no parameter — scans all configured backends (Gemini only when an
-API key is set). ?backend=vllm|ollama|gemini — just one. Unlike /health (which only shows the auto-detected first
+With no parameter — scans all configured backends (Gemini only when the
+X-Api-Key-Gemini header is present). ?backend=vllm|ollama|gemini — just one. Unlike /health (which only shows the auto-detected first
 model), this returns the full list.
 
   curl http://xxx.xxx.xxx.xxx:6769/models

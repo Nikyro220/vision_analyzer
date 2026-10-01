@@ -10,3 +10,4 @@ Flask-Migrate
 requests
 email-validator
 tzdata
+cryptography  # vision_app: шифрование API-ключей провайдеров в БД (credentials.py)

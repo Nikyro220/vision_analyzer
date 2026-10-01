@@ -6,8 +6,9 @@ providers/gemini.py — Google Gemini через REST API (generateContent).
 (gemini_model) или на один запрос параметром model=...). Дополнительных
 зависимостей нет — как и остальные провайдеры, ходит через aiohttp.
 
-Ключ API (config.GEMINI_API_KEY) уходит только в заголовке x-goog-api-key —
-не в URL, чтобы он не попадал в логи прокси и тексты исключений.
+Ключ API сервер НЕ хранит: клиент присылает его в каждом запросе заголовком
+X-Api-Key-Gemini (см. providers/base.py), отсюда он уходит в Google только в заголовке
+x-goog-api-key — не в URL, чтобы не попадать в логи прокси и тексты исключений.
 
 Особенности относительно локальных бэкендов:
   - Ollama/vLLM сами решают, что делать с картинкой; Gemini может ОТКЛОНИТЬ
@@ -22,13 +23,14 @@ providers/gemini.py — Google Gemini через REST API (generateContent).
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from urllib.parse import quote
 
 import aiohttp
 
 import config
-from .base import Provider, SettingField, split_data_url
+from .base import Credential, Provider, split_data_url
 
 
 # Размышления: SAMPLING_DEFAULTS["think"] — True / False / "low" / "medium" / "high".
@@ -74,30 +76,43 @@ class GeminiProvider(Provider):
     # num_ctx не используется; think -> thinkingBudget / thinkingLevel (см. _thinking_config)
     # (sampling_keys — по умолчанию из базового класса: без num_ctx)
 
-    # Ключ можно ввести в веб-панели (страница статуса): уходит в POST /providers/gemini/settings,
-    # хранится только в памяти сервера и наружу не отдаётся — клиенту видно лишь «задан / не задан».
-    settings_fields = (
-        SettingField(
-            name="api_key",
-            label="API-ключ Google AI",
-            config_attr="GEMINI_API_KEY",
-            secret=True,
-            hint="Ключ хранится в памяти сервера анализа и пропадает при его перезапуске; "
-                 "для постоянного — VISION_ANALYZER_GEMINI_API_KEY.",
-        ),
+    # Ключ хранит клиент (vision_app, в БД, зашифрованным) и присылает его в каждом запросе
+    # заголовком X-Api-Key-Gemini. Здесь он нигде не сохраняется, в том числе в памяти.
+    credential = Credential(
+        label="API-ключ Google AI",
+        hint="Хранится в БД веб-приложения в зашифрованном виде и передаётся серверу анализа "
+             "в каждом запросе; сам сервер анализа ключ не сохраняет.",
     )
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._session: aiohttp.ClientSession | None = None
+        self._session_loop: asyncio.AbstractEventLoop | None = None
+
+    def _get_session(self) -> aiohttp.ClientSession:
+        """Одна сессия на все запросы к Google: keep-alive избавляет от нового TLS-рукопожатия
+        на каждый вызов (раньше сессия создавалась заново в list_models и _generate).
+        Заголовки с ключом задаются на каждый запрос отдельно — в самой сессии ключа нет."""
+        loop = asyncio.get_running_loop()
+        if self._session is None or self._session.closed or self._session_loop is not loop:
+            self._session = aiohttp.ClientSession()
+            self._session_loop = loop
+        return self._session
+
+    async def aclose(self) -> None:
+        if self._session is not None and not self._session.closed:
+            await self._session.close()
+        self._session = None
 
     @property
     def endpoint(self) -> str:
         return config.GEMINI_API_BASE
 
-    def is_configured(self) -> bool:
-        return bool(config.GEMINI_API_KEY)
-
     def _headers(self) -> dict:
-        if not config.GEMINI_API_KEY:
+        key = self.api_key
+        if not key:
             raise RuntimeError(config._t("error.gemini_no_key"))
-        return {"x-goog-api-key": config.GEMINI_API_KEY}
+        return {"x-goog-api-key": key}
 
     @staticmethod
     async def _check(resp: aiohttp.ClientResponse) -> None:
@@ -122,18 +137,23 @@ class GeminiProvider(Provider):
         """Модели, поддерживающие generateContent (эмбеддинги, TTS и т.п. отфильтрованы)."""
         names: list[str] = []
         params: dict = {"pageSize": 1000}
-        async with aiohttp.ClientSession(timeout=config.DISCOVERY_TIMEOUT, headers=self._headers()) as session:
-            while True:
-                async with session.get(f"{config.GEMINI_API_BASE}/models", params=params) as resp:
-                    await self._check(resp)
-                    data = await resp.json()
-                for m in data.get("models", []):
-                    if "generateContent" in (m.get("supportedGenerationMethods") or []):
-                        names.append(_normalize_model(m["name"]))
-                token = data.get("nextPageToken")
-                if not token:
-                    break
-                params = {"pageSize": 1000, "pageToken": token}
+        session = self._get_session()
+        headers = self._headers()
+        while True:
+            # Таймаут — на каждую страницу отдельно (раньше один общий на весь цикл пагинации).
+            async with session.get(
+                f"{config.GEMINI_API_BASE}/models", params=params, headers=headers,
+                timeout=config.DISCOVERY_TIMEOUT,
+            ) as resp:
+                await self._check(resp)
+                data = await resp.json()
+            for m in data.get("models", []):
+                if "generateContent" in (m.get("supportedGenerationMethods") or []):
+                    names.append(_normalize_model(m["name"]))
+            token = data.get("nextPageToken")
+            if not token:
+                break
+            params = {"pageSize": 1000, "pageToken": token}
         return names
 
     async def discover_model(self) -> str:
@@ -142,9 +162,14 @@ class GeminiProvider(Provider):
         return config.GEMINI_MODEL
 
     async def _probe(self) -> str:
-        # Для /health: проверяем и ключ, и связь одним списком моделей,
-        # но показываем ту модель, которая реально будет использоваться.
-        await self.list_models()
+        # Для /health: достаточно ОДНОГО маленького запроса (pageSize=1) — он проверяет и ключ,
+        # и связь. Раньше здесь скачивался весь список моделей, а страница статуса потом
+        # запрашивала его ещё раз. Показываем ту модель, которая реально будет использоваться.
+        async with self._get_session().get(
+            f"{config.GEMINI_API_BASE}/models", params={"pageSize": 1}, headers=self._headers(),
+            timeout=config.DISCOVERY_TIMEOUT,
+        ) as resp:
+            await self._check(resp)
         return config.GEMINI_MODEL
 
     async def ping(self) -> dict:
@@ -184,10 +209,11 @@ class GeminiProvider(Provider):
             ]
 
         url = f"{config.GEMINI_API_BASE}/models/{quote(model, safe='')}:generateContent"
-        async with aiohttp.ClientSession(timeout=config.REQUEST_TIMEOUT, headers=self._headers()) as session:
-            async with session.post(url, json=body) as resp:
-                await self._check(resp)
-                data = await resp.json()
+        async with self._get_session().post(
+            url, json=body, headers=self._headers(), timeout=config.REQUEST_TIMEOUT,
+        ) as resp:
+            await self._check(resp)
+            data = await resp.json()
 
         return self._extract_text(data, model)
 

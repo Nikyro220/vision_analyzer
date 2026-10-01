@@ -13,14 +13,17 @@ providers — бэкенды модели (vLLM, Ollama, Gemini), по одно�
 GET /providers. Для этого у класса провайдера задаются:
   label           — название для UI;
   sampling_keys   — какие параметры /sampling он использует;
-  settings_fields — поля, меняемые через POST /providers/<name>/settings
-                    (SettingField(..., secret=True) — секрет, наружу не отдаётся).
+  credential      — секрет (API-ключ), который клиент присылает в КАЖДОМ запросе заголовком
+                    X-Api-Key-<Имя>; сервер ключ нигде не хранит (см. providers/base.py).
 """
 
 from __future__ import annotations
 
 import config
-from .base import ALL_SAMPLING_KEYS, Provider, SettingField, ensure_data_url, strip_data_url
+from .base import (
+    ALL_SAMPLING_KEYS, CREDENTIAL_HEADER_PREFIX, Credential, Provider,
+    ensure_data_url, request_credentials, strip_data_url,
+)
 from .gemini import GeminiProvider
 from .ollama import OllamaProvider
 from .vllm import VllmProvider
@@ -59,7 +62,7 @@ def reset_all_caches() -> None:
 
 
 __all__ = [
-    "Provider", "SettingField", "ALL_SAMPLING_KEYS",
+    "Provider", "Credential", "ALL_SAMPLING_KEYS", "CREDENTIAL_HEADER_PREFIX", "request_credentials",
     "GeminiProvider", "OllamaProvider", "VllmProvider",
     "names", "is_known", "get", "all_providers", "reset_all_caches",
     "strip_data_url", "ensure_data_url",

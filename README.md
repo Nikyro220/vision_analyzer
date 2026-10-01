@@ -21,6 +21,8 @@ python -m venv .venv && source .venv/bin/activate      # Windows: .venv\Scripts\
 pip install -r requirements.txt
 
 export FLASK_SECRET_KEY="длинная-случайная-строка"
+# мастер-ключ шифрования API-ключей провайдеров (нужен, только если используете Gemini):
+export VISION_CREDENTIALS_KEY="$(python -c 'from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())')"
 
 python run.py
 ```
@@ -77,9 +79,8 @@ cd inference && python server.py
   должны уходить в облако без явного выбора).
 - `POST /lang` — сменить язык ответов по умолчанию (`ru`/`en`).
 - `GET/POST /config` — посмотреть/поменять `backend`, `ollama_host`,
-  `vllm_url`, `gemini_model`, `gemini_api_key` без перезапуска. Ключ
-  принимается только в теле запроса и никогда не отдаётся обратно
-  (`gemini_configured` — только флаг).
+  `vllm_url`, `gemini_model` без перезапуска. Ключей API здесь нет: сервер их не хранит
+  (см. ниже).
 - `GET/POST /sampling` — посмотреть/поменять `temperature`, `top_p`,
   `top_k`, `seed`, `num_ctx`, `num_predict`, `think` (`true`/`false` или
   `low`/`medium`/`high`). Общие для всего сервера и для всех бэкендов.
@@ -90,22 +91,27 @@ cd inference && python server.py
 
 - `GET /providers` — описание **всех** зарегистрированных провайдеров (в отличие от
   `/health`, где не настроенные скрыты): `name`, `label`, `fallback`, `configured`,
-  `endpoint`, `sampling_keys` (какие параметры `/sampling` он использует) и `settings`
-  (поля, которые можно менять на лету). Секретные значения не отдаются — только флаг `set`.
-  По этому ответу веб-панель строит страницу статуса, поэтому новый провайдер не требует
-  правок в `vision_app/`.
-- `POST /providers/<имя>/settings` — изменить настройки провайдера без перезапуска
-  (например, `{"api_key": "AIza..."}` для Gemini). Только JSON-тело — не query (секреты
-  попадают в логи); пустое значение — «не менять», `{"clear": ["api_key"]}` — сбросить.
-  В ответе — проверка подключения с новыми настройками. Значения живут в памяти сервера и
-  пропадают при его перезапуске; для постоянного ключа используйте переменную окружения.
+  `endpoint`, `sampling_keys` (какие параметры `/sampling` он использует) и `credential`
+  (какой секрет нужен провайдеру и в каком заголовке его присылать). По этому ответу
+  веб-панель строит страницу статуса, поэтому новый провайдер не требует правок в `vision_app/`.
+
+**API-ключи сервер анализа не хранит** — ни в файлах, ни в переменных окружения, ни в памяти.
+Клиент присылает ключ в **каждом** запросе заголовком `X-Api-Key-<Провайдер>`
+(для Gemini — `X-Api-Key-Gemini`) на `/analyze`, `/chat`, `/models`, `/health` и `/providers`.
+Это заголовок, а не query: URL попадают в логи. `configured` в `/providers` и видимость Gemini в
+`/health` / `/models` означают «ключ пришёл в этом запросе».
+
+```bash
+curl -H "X-Api-Key-Gemini: AIza..." "http://127.0.0.1:6769/models?backend=gemini"
+```
 
 Примеры curl — в тексте `GET /`.
 
 ### Как добавить нового провайдера
 
 1. Создать `inference/providers/<имя>.py` с наследником `Provider` и задать `name`, `label`,
-   `fallback`, `sampling_keys` и (если нужно) `settings_fields=(SettingField(...),)`.
+   `fallback`, `sampling_keys` и (если нужен ключ) `credential=Credential(label=..., hint=...)`;
+   ключ в коде провайдера читается как `self.api_key` (берётся из заголовка текущего запроса).
 2. Добавить его в `_PROVIDERS` в `providers/__init__.py` и его настройки — в `config.py`.
 
 Всё. Ни `/health`, ни `/models`, ни валидация `?backend=`, ни веб-панель (карточка на
@@ -119,7 +125,6 @@ cd inference && python server.py
 | `VISION_ANALYZER_BACKEND` | `vllm` | Бэкенд по умолчанию (`vllm` / `ollama` / `gemini`) |
 | `VISION_ANALYZER_OLLAMA_HOST` | `http://127.0.0.1:11434` | Адрес Ollama |
 | `VISION_ANALYZER_VLLM_URL` | `http://host.docker.internal:8000/v1` | Адрес vLLM (OpenAI-совместимый) |
-| `VISION_ANALYZER_GEMINI_API_KEY` (или `GEMINI_API_KEY` / `GOOGLE_API_KEY`) | — | Ключ API Gemini; без него провайдер не настроен (можно задать и через `POST /config`) |
 | `VISION_ANALYZER_GEMINI_MODEL` | `gemini-2.5-flash` | Модель Gemini по умолчанию |
 | `VISION_ANALYZER_GEMINI_SAFETY` | — (значения API) | Порог фильтров безопасности Gemini (`BLOCK_NONE`, `BLOCK_ONLY_HIGH`, …) |
 | `VISION_ANALYZER_GEMINI_API_BASE` | `https://generativelanguage.googleapis.com/v1beta` | Базовый URL API (например, свой прокси) |
@@ -205,6 +210,7 @@ cd inference && python server.py
 | Переменная | По умолчанию | Назначение |
 |---|---|---|
 | `FLASK_SECRET_KEY` | `dev-insecure-change-me` | Секретный ключ (сессии, CSRF) — обязательно задайте в проде |
+| `VISION_CREDENTIALS_KEY` | — | Мастер-ключ Fernet, которым шифруются API-ключи провайдеров в БД (см. ниже). Без него ключ сохранить нельзя |
 | `DATABASE_URL` | `sqlite:///db.sqlite3` | Строка подключения SQLAlchemy |
 | `UPLOAD_FOLDER` | `./media` | Куда сохраняются загруженные изображения |
 | `MAX_CONTENT_LENGTH` | 50 МБ (в коде) | Максимальный размер запроса |
@@ -220,6 +226,28 @@ cd inference && python server.py
 | `VISION_ANALYZER_DIR` | `<корень проекта>/inference` | Где искать `server.py` для авто-запуска из `run.py` |
 | `VISION_ANALYZER_PYTHON` | venv рядом с `inference/`, иначе текущий интерпретатор | Каким python запускать `inference/server.py` |
 | `FLASK_RUN_HOST` / `FLASK_RUN_PORT` / `FLASK_DEBUG` | `127.0.0.1` / `6967` / `0` | Параметры `python run.py` |
+
+### API-ключи провайдеров (Gemini)
+
+Главный админ / админ вводит ключ на странице «Статус сервера». Приложение:
+
+- хранит его в таблице `provider_credentials` **зашифрованным** (Fernet), а не хешированным:
+  ключ нужно отправлять в Google, а из хеша его не восстановить. Мастер-ключ шифрования лежит
+  вне БД — в `VISION_CREDENTIALS_KEY` (отдельно от `FLASK_SECRET_KEY`, чтобы смена секрета Flask
+  не обнуляла ключи). Дамп БД без этой переменной ключ не раскрывает;
+- присылает его серверу анализа в каждом запросе (`X-Api-Key-Gemini`);
+- никогда не показывает: в интерфейсе только «задан» и последние 4 символа;
+- кэширует список моделей Gemini в БД (`provider_models_cache`, TTL `MODELS_CACHE_TTL`, по
+  умолчанию 6 часов). Страница статуса ради списка в Google не ходит — он обновляется кнопкой
+  «Обновить список» (таймаут — `VISION_API_MODELS_TIMEOUT`, отдельно от общего).
+
+Ротация мастер-ключа: задайте `VISION_CREDENTIALS_KEY="новый,старый"` — шифруется первым,
+читается любым; затем пересохраните ключи на странице статуса и уберите старый. Если мастер-ключ
+потерян или заменён без ротации, сохранённые ключи не расшифруются — страница статуса попросит
+ввести их заново.
+
+Новые таблицы создаются автоматически (`AUTO_CREATE_DB=1`); при работе через Flask-Migrate нужна
+миграция для `provider_credentials` и `provider_models_cache`.
 
 ### Команды
 

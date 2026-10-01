@@ -5,8 +5,9 @@ server.py — HTTP-слой vision_analyzer_server: простые хендле�
 подготовка изображений и разбор трёх форматов тела запроса там.
 Собственно общением с моделью (Ollama/vLLM/Gemini) занимаются провайдеры
 в providers/ (по модулю на бэкенд), конвейер /analyze — backends.py.
-/providers и /providers/<name>/settings — самоописание провайдеров и их
-настройка «на лету» (ключ API и т.п.), чтобы клиенты не зашивали список бэкендов.
+/providers — самоописание провайдеров (в т.ч. какой ключ API им нужен), чтобы клиенты не
+зашивали список бэкендов. Ключи API сервер НЕ хранит: клиент присылает ключ в каждом запросе
+заголовком X-Api-Key-<Провайдер> (см. credentials_middleware ниже).
 Хендлеры /categories (только чтение дефолтов) — в categories_api.py,
 бизнес-логика — в categories.py. Разовые категории на один вызов
 передаются прямо в POST /analyze (см. analyze.py, поле "categories").
@@ -45,6 +46,30 @@ import embeddings
 import providers
 from analyze import _json, handle_analyze
 from config import locales
+
+
+@web.middleware
+async def credentials_middleware(request: web.Request, handler):
+    """Раскладывает заголовки X-Api-Key-<Провайдер> в providers.request_credentials — только на
+    время этого запроса. Ключи нигде не сохраняются и не логируются; ContextVar гарантирует,
+    что параллельные запросы не видят ключи друг друга."""
+    prefix = providers.CREDENTIAL_HEADER_PREFIX.lower()
+    creds = {
+        name[len(prefix):].lower(): value.strip()
+        for name, value in request.headers.items()
+        if name.lower().startswith(prefix) and value.strip()
+    }
+    token = providers.request_credentials.set(creds)
+    try:
+        return await handler(request)
+    finally:
+        providers.request_credentials.reset(token)
+
+
+async def _close_providers(app: web.Application) -> None:
+    """on_cleanup: закрывает HTTP-сессии провайдеров (иначе «Unclosed client session» при остановке)."""
+    for p in providers.all_providers():
+        await p.aclose()
 
 
 async def handle_index(request: web.Request) -> web.Response:
@@ -125,32 +150,31 @@ _CONFIG_FIELDS = ("backend", "ollama_host", "vllm_url", "gemini_model")
 
 
 def _config_snapshot() -> dict:
-    # Ключ API Gemini наружу НЕ отдаём — только факт, что он задан.
+    # Ключей API сервер не хранит (их присылает клиент в каждом запросе), поэтому и в снимке их нет.
     return {
         "backend": config.BACKEND,
         "available_backends": list(providers.names()),
         "ollama_host": config.OLLAMA_HOST,
         "vllm_url": config.VLLM_URL,
         "gemini_model": config.GEMINI_MODEL,
-        "gemini_configured": bool(config.GEMINI_API_KEY),
     }
 
 
 async def handle_config(request: web.Request) -> web.Response:
-    """GET — вернуть текущие backend/ollama_host/vllm_url/gemini_model
-    (+ gemini_configured — задан ли ключ API Gemini; сам ключ не отдаётся).
+    """GET — вернуть текущие backend/ollama_host/vllm_url/gemini_model.
 
     POST — изменить одно или несколько полей "на лету", без перезапуска.
     Принимает backend, ollama_host, vllm_url, gemini_model (query, JSON-тело
-    или form-поле, как и /lang) и gemini_api_key — последний ТОЛЬКО в теле
-    запроса, не в query: URL попадает в логи, секрет там быть не должен.
-    Хотя бы одно поле должно быть передано.
+    или form-поле, как и /lang). Хотя бы одно поле должно быть передано.
+
+    Ключи API здесь НЕ принимаются и нигде не хранятся: клиент присылает ключ провайдера
+    в каждом запросе заголовком X-Api-Key-<Имя> (см. providers/base.py).
     """
     if request.method == "GET":
         return _json(_config_snapshot())
 
-    if "gemini_api_key" in request.query:
-        return _json({"error": config._t("error.gemini_key_in_query")}, status=400)
+    if "gemini_api_key" in request.query or "gemini_api_key" in request.headers:
+        return _json({"error": config._t("error.gemini_key_not_stored")}, status=400)
 
     try:
         if request.content_type == "application/json":
@@ -167,9 +191,10 @@ async def handle_config(request: web.Request) -> web.Response:
         key: request.query.get(key) if request.query.get(key) is not None else body.get(key)
         for key in _CONFIG_FIELDS
     }
-    new_api_key = body.get("gemini_api_key")
+    if body.get("gemini_api_key"):
+        return _json({"error": config._t("error.gemini_key_not_stored")}, status=400)
 
-    if not any(values.values()) and not new_api_key:
+    if not any(values.values()):
         return _json({"error": config._t("error.config_missing_fields")}, status=400)
 
     new_backend = values["backend"]
@@ -188,18 +213,14 @@ async def handle_config(request: web.Request) -> web.Response:
     if values["gemini_model"]:
         config.GEMINI_MODEL = values["gemini_model"].strip()
 
-    if new_api_key:
-        config.GEMINI_API_KEY = str(new_api_key).strip()
-
     # Кэш автоопределённых моделей (и обнаруженного контекста vLLM) мог
     # указывать на прежний хост/URL — сбрасываем, чтобы следующий запрос
     # заново определил всё там, куда сейчас реально указывают настройки.
     providers.reset_all_caches()
 
     logging.info(
-        "Конфигурация обновлена извне: backend=%s ollama_host=%s vllm_url=%s gemini_model=%s gemini_api_key=%s",
+        "Конфигурация обновлена извне: backend=%s ollama_host=%s vllm_url=%s gemini_model=%s",
         config.BACKEND, config.OLLAMA_HOST, config.VLLM_URL, config.GEMINI_MODEL,
-        "<задан>" if config.GEMINI_API_KEY else "<не задан>",
     )
     return _json({"ok": True, **_config_snapshot()})
 
@@ -207,53 +228,15 @@ async def handle_config(request: web.Request) -> web.Response:
 async def handle_providers(request: web.Request) -> web.Response:
     """GET /providers — описание ВСЕХ зарегистрированных провайдеров (в отличие от
     /health, где не настроенные скрыты): название, фолбэк, настроен ли, какие
-    параметры /sampling он использует и какие поля можно менять через
-    POST /providers/<name>/settings. По этому ответу клиент (веб-панель) сам строит
+    параметры /sampling он использует и какой секрет (API-ключ) ему нужен. По этому ответу клиент (веб-панель) сам строит
     свой UI — новый провайдер появляется там без правок на стороне клиента.
-    Значения секретных полей не отдаются, только флаг "set"."""
+    Поле "credential" описывает секрет (API-ключ), который клиент должен присылать в
+    каждом запросе заголовком из credential.header; "configured" — пришёл ли ключ в ЭТОМ
+    запросе (сервер ключи не хранит)."""
     return _json({
         "default": config.BACKEND,
         "providers": [p.describe() for p in providers.all_providers()],
     })
-
-
-async def handle_provider_settings(request: web.Request) -> web.Response:
-    """POST /providers/<name>/settings — поменять поля провайдера «на лету».
-
-    Тело — JSON {"<поле>": "<значение>", ..., "clear": ["<поле>", ...]}; допустимые
-    поля — из settings_fields провайдера (см. GET /providers). Пустое значение
-    означает «не менять», сброс — только явно через "clear". Только тело запроса, не
-    query: URL попадает в логи, а среди полей бывают секреты (API-ключ).
-    В ответе — результат проверки подключения (ping) уже с новыми настройками."""
-    name = request.match_info["name"].strip().lower()
-    if not providers.is_known(name):
-        return _json({"error": config._t("error.unknown_backend", backend=name)}, status=400)
-    provider = providers.get(name)
-
-    if request.query:
-        return _json({"error": config._t("error.settings_in_query")}, status=400)
-
-    try:
-        body = await request.json()
-    except Exception:
-        body = None
-    if not isinstance(body, dict):
-        return _json({"error": config._t("error.invalid_json_body")}, status=400)
-
-    clear = body.pop("clear", None) or []
-    if not isinstance(clear, list):
-        return _json({"error": config._t("error.invalid_json_body")}, status=400)
-
-    try:
-        changed = provider.update_settings(body, clear)
-    except ValueError as e:
-        return _json({"error": str(e)}, status=400)
-    if not changed:
-        return _json({"error": config._t("error.settings_nothing_to_change")}, status=400)
-
-    providers.reset_all_caches()
-    logging.info("Настройки провайдера %s обновлены извне: %s", name, ", ".join(changed))  # значения не логируем
-    return _json({"ok": True, "changed": changed, "status": await provider.ping(), "provider": provider.describe()})
 
 
 _SAMPLING_KEYS = ("temperature", "top_p", "top_k", "seed", "num_ctx", "num_predict", "think")
@@ -371,17 +354,21 @@ async def handle_models(request: web.Request) -> web.Response:
     else:
         selected = _visible_providers()
 
-    result = {}
-    for p in selected:
+    async def scan(p: providers.Provider) -> dict:
         try:
             models = await p.list_models()
-            result[p.name] = {"ok": True, "endpoint": p.endpoint, "models": models}
+            return {"ok": True, "endpoint": p.endpoint, "models": models}
         except aiohttp.ClientConnectorError:
-            result[p.name] = {"ok": False, "endpoint": p.endpoint, "error": config._t("error.backend_conn_refused")}
+            return {"ok": False, "endpoint": p.endpoint, "error": config._t("error.backend_conn_refused")}
         except asyncio.TimeoutError:
-            result[p.name] = {"ok": False, "endpoint": p.endpoint, "error": config._t("error.backend_timeout")}
+            return {"ok": False, "endpoint": p.endpoint, "error": config._t("error.backend_timeout")}
         except Exception as e:
-            result[p.name] = {"ok": False, "endpoint": p.endpoint, "error": str(e)}
+            return {"ok": False, "endpoint": p.endpoint, "error": str(e)}
+
+    # Параллельно: раньше провайдеры опрашивались по очереди, и один недоступный бэкенд
+    # (таймаут подключения) задерживал ответ про остальные.
+    scanned = await asyncio.gather(*(scan(p) for p in selected))
+    result = {p.name: item for p, item in zip(selected, scanned)}
 
     return _json(result)
 
@@ -394,8 +381,9 @@ async def _start_embeddings_download(app: web.Application) -> None:
 
 
 def build_app() -> web.Application:
-    app = web.Application(client_max_size=64 * 1024 * 1024)  # до 64 МБ на запрос
+    app = web.Application(client_max_size=64 * 1024 * 1024, middlewares=[credentials_middleware])  # до 64 МБ на запрос
     app.on_startup.append(_start_embeddings_download)
+    app.on_cleanup.append(_close_providers)
     app.router.add_get("/", handle_index)
     app.router.add_get("/health", handle_health)
     app.router.add_post("/analyze", handle_analyze)
@@ -407,7 +395,6 @@ def build_app() -> web.Application:
     app.router.add_post("/sampling", handle_sampling)
     app.router.add_get("/models", handle_models)
     app.router.add_get("/providers", handle_providers)
-    app.router.add_post("/providers/{name}/settings", handle_provider_settings)
     app.router.add_get("/embeddings", embeddings.handle_embeddings_info)
     app.router.add_post("/embeddings", embeddings.handle_embeddings)
     app.router.add_post("/embeddings/download", embeddings.handle_embeddings_download)

@@ -73,31 +73,30 @@
             {% if card.info.get('error') %}<dt>Ошибка</dt><dd>{{ card.info.get('error') }}</dd>{% endif %}
         </dl>
 
-        {% if card.settings %}
+        {% if card.credential %}
+        {% set cs = card.credential_status %}
         <div class="backend-section">
             <h3 class="section-title">Подключение</h3>
+            {% if not card.credentials_available %}
+            <div class="field-error">Ключ сохранить нельзя: не задана переменная окружения <code>VISION_CREDENTIALS_KEY</code> (мастер-ключ шифрования). Сгенерируйте значение: <code>python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"</code> и перезапустите приложение.</div>
+            {% endif %}
             <form method="post" action="{{ url_for('analyzer.save_provider_settings', name=card.name) }}" class="form" autocomplete="off">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                {% for f in card.settings %}
                 <div class="field">
-                    <label for="setting-{{ card.name }}-{{ f.name }}">{{ f.label }}
-                        {% if f.secret %}{% if f.set %}<span class="tag tag-ok">задан</span>{% else %}<span class="tag tag-warn">не задан</span>{% endif %}{% endif %}
+                    <label for="credential-{{ card.name }}">{{ card.credential.label }}
+                        {% if cs and cs.stored and cs.ok %}<span class="tag tag-ok">задан{% if cs.hint %} {{ cs.hint }}{% endif %}</span>
+                        {% elif cs and cs.stored %}<span class="tag tag-warn">не расшифровывается — введите заново</span>
+                        {% else %}<span class="tag tag-warn">не задан</span>{% endif %}
                     </label>
-                    {% if f.secret %}
-                    {# Секрет: значение никогда не подставляется в страницу — только флаг «задан». #}
-                    <input type="password" id="setting-{{ card.name }}-{{ f.name }}" name="setting_{{ f.name }}" class="input"
+                    {# Секрет: значение никогда не подставляется в страницу — только флаг «задан» и последние 4 символа. #}
+                    <input type="password" id="credential-{{ card.name }}" name="credential" class="input"
                            maxlength="512" autocomplete="new-password" spellcheck="false" autocapitalize="off"
-                           placeholder="{% if f.set %}Оставьте пустым, чтобы не менять{% else %}Вставьте значение{% endif %}">
-                    {% if f.set %}
-                    <label class="checkbox-label"><input type="checkbox" name="clear_{{ f.name }}" value="1"> Удалить сохранённое значение</label>
+                           placeholder="{% if cs and cs.stored %}Оставьте пустым, чтобы не менять{% else %}Вставьте значение{% endif %}">
+                    {% if cs and cs.stored %}
+                    <label class="checkbox-label"><input type="checkbox" name="clear_credential" value="1"> Удалить сохранённое значение</label>
                     {% endif %}
-                    {% else %}
-                    <input type="text" id="setting-{{ card.name }}-{{ f.name }}" name="setting_{{ f.name }}" class="input"
-                           maxlength="512" value="{{ f.value }}" autocomplete="off">
-                    {% endif %}
-                    {% if f.hint %}<div class="field-hint">{{ f.hint }}</div>{% endif %}
+                    {% if card.credential.hint %}<div class="field-hint">{{ card.credential.hint }}</div>{% endif %}
                 </div>
-                {% endfor %}
                 <div><button type="submit" class="btn btn-secondary">Сохранить подключение</button></div>
             </form>
         </div>
@@ -124,8 +123,17 @@
             <div class="field-hint">При явном выборе сервер не переключается на другой бэкенд, если этот перестанет отвечать. «Сбросить к настройкам сервера» возвращает автоматический выбор и фолбэк.</div>
             {% if card.models_error %}
             <div class="field-error">Не удалось получить список моделей: {{ card.models_error }}. Введите ID модели вручную.</div>
+            {% elif not card.models and card.credential_status and card.credential_status.stored %}
+            <div class="field-hint">Список моделей ещё не загружен — нажмите «Обновить список» или введите ID вручную.</div>
             {% elif not card.models %}
             <div class="field-hint">Бэкенд не вернул список моделей — введите ID вручную или оставьте пустым (авто).</div>
+            {% endif %}
+            {% if card.credential_status and card.credential_status.stored %}
+            <form method="post" action="{{ url_for('analyzer.refresh_models', name=card.name) }}" class="form form-inline">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button type="submit" class="btn btn-secondary">Обновить список</button>
+                {% if card.models_cached_at %}<span class="field-hint">Загружен {{ card.models_cached_at|localdt }}; хранится в кэше, страница ради него в Google не ходит.</span>{% endif %}
+            </form>
             {% endif %}
         </div>
 
@@ -154,7 +162,7 @@
         {% endif %}
         {% elif can_configure and not card.available %}
         <p class="field-hint">
-            {% if card.settings and not card.configured %}Введите данные подключения выше — после этого здесь появятся выбор модели и параметры генерации.
+            {% if card.credential and not card.configured %}Введите данные подключения выше — после этого здесь появятся выбор модели и параметры генерации.
             {% else %}Выбор модели и параметры станут доступны, когда бэкенд заработает.{% endif %}
         </p>
         {% endif %}

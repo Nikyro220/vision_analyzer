@@ -20,14 +20,22 @@ signals, rationale, recommendation, text_on_image, context, либо {"_raw": ".
 from __future__ import annotations
 
 import base64
+import logging
 import threading
 import time
 from dataclasses import dataclass, field
+from datetime import datetime, timedelta, timezone
 from urllib.parse import quote
 
 import requests
+from flask import has_app_context
 
+from . import credentials
 from .config import conf
+from .extensions import db
+from .models import ProviderModelsCache, utcnow
+
+log = logging.getLogger("vision_app.services")
 
 
 # Параметры генерации, которыми управляет POST /sampling.
@@ -71,10 +79,32 @@ def _timeout() -> int:
     return get_runtime_setting("VISION_API_TIMEOUT")
 
 
+def _auth_headers(backend: str = "") -> dict[str, str]:
+    """Заголовки с API-ключами для сервера анализа (он ключи НЕ хранит — см. credentials.py).
+
+    backend задан — только ключ этого провайдера (/analyze, /chat, /models с явным выбором).
+    Пусто — ключи всех провайдеров (/health, /providers и запросы «бэкенд по умолчанию»: какой
+    именно выберет сервер, заранее неизвестно). Без контекста приложения (или если БД
+    недоступна) заголовков нет: запрос уйдёт без ключа и сервер вернёт понятную ошибку.
+    """
+    if not has_app_context():
+        return {}
+    try:
+        if backend:
+            key = credentials.get_key(backend)
+            return {credentials.header_name(backend): key} if key else {}
+        return {credentials.header_name(name): key for name, key in credentials.get_all_keys().items()}
+    except Exception:  # noqa: BLE001 — не роняем запрос из-за хранилища ключей
+        log.warning("Не удалось прочитать API-ключи из БД", exc_info=True)
+        return {}
+
+
 def check_health() -> dict:
     """Опрашивает /health. Возвращает словарь статуса или бросает VisionApiError."""
     try:
-        resp = requests.get(f"{_base_url()}/health", timeout=conf("VISION_API_HEALTH_TIMEOUT"))
+        resp = requests.get(
+            f"{_base_url()}/health", headers=_auth_headers(), timeout=conf("VISION_API_HEALTH_TIMEOUT"),
+        )
         data = resp.json()
         if not isinstance(data, dict):
             raise ValueError("ожидался JSON-объект")
@@ -131,9 +161,9 @@ def analyze_image(
             payload["model"] = model
         if caption:
             payload["caption"] = caption
-        request_kwargs = {"json": payload}
+        request_kwargs = {"json": payload, "headers": _auth_headers(backend)}
     else:
-        headers = {"Content-Type": mime_type or "image/jpeg"}
+        headers = {"Content-Type": mime_type or "image/jpeg", **_auth_headers(backend)}
         params = {"lang": lang} if lang else {}
         if backend:
             params["backend"] = backend
@@ -267,19 +297,17 @@ def embed_texts(texts: list[str], timeout: int | None = None) -> tuple[list[list
 
 
 # ----------------------------------------------------------------------------
-# Провайдеры (GET /providers, POST /providers/<имя>/settings на сервере анализа)
+# Провайдеры (GET /providers на сервере анализа)
 # ----------------------------------------------------------------------------
 @dataclass(frozen=True)
-class SettingField:
-    """Настраиваемое поле провайдера (например, API-ключ). У секретных значения нет —
-    сервер отдаёт только флаг ``set``."""
+class CredentialField:
+    """Секрет, который провайдеру нужен в каждом запросе (API-ключ). Сервер анализа его не хранит:
+    значение лежит в БД приложения в зашифрованном виде (credentials.py) и уходит серверу
+    заголовком ``header`` в каждом запросе (_auth_headers)."""
 
-    name: str
     label: str
-    secret: bool = False
     hint: str = ""
-    set: bool = False  # значение задано
-    value: str = ""    # только у несекретных полей
+    header: str = ""
 
 
 @dataclass(frozen=True)
@@ -290,7 +318,7 @@ class ProviderInfo:
     configured: bool = True
     endpoint: str = ""
     sampling_keys: tuple[str, ...] = ()
-    settings: tuple[SettingField, ...] = ()
+    credential: CredentialField | None = None
 
     @property
     def title(self) -> str:
@@ -304,18 +332,14 @@ _providers_state: dict = {"data": None, "fetched_at": 0.0, "failed_at": 0.0, "er
 
 
 def _parse_provider(item: dict) -> ProviderInfo:
-    fields = tuple(
-        SettingField(
-            name=str(f["name"]),
-            label=str(f.get("label") or f["name"]),
-            secret=bool(f.get("secret")),
-            hint=str(f.get("hint") or ""),
-            set=bool(f.get("set")),
-            value="" if f.get("secret") else str(f.get("value") or ""),
+    cred = item.get("credential")
+    credential = None
+    if isinstance(cred, dict):
+        credential = CredentialField(
+            label=str(cred.get("label") or "API-ключ"),
+            hint=str(cred.get("hint") or ""),
+            header=str(cred.get("header") or ""),
         )
-        for f in item.get("settings") or []
-        if isinstance(f, dict) and f.get("name")
-    )
     return ProviderInfo(
         name=str(item["name"]),
         label=str(item.get("label") or ""),
@@ -323,7 +347,7 @@ def _parse_provider(item: dict) -> ProviderInfo:
         configured=bool(item.get("configured", True)),
         endpoint=str(item.get("endpoint") or ""),
         sampling_keys=tuple(k for k in (item.get("sampling_keys") or []) if k in SAMPLING_KEYS),
-        settings=fields,
+        credential=credential,
     )
 
 
@@ -343,7 +367,7 @@ def get_providers(force: bool = False) -> list[ProviderInfo]:
             raise VisionApiError(st["error"])
 
         try:
-            payload = _call("get", "/providers")
+            payload = _call("get", "/providers", keys=True)
             items = payload.get("providers") if isinstance(payload, dict) else None
             if not isinstance(items, list):
                 raise VisionApiError("Сервер анализа не отдаёт список провайдеров (устаревшая версия?).")
@@ -379,27 +403,18 @@ def is_known_backend(name: str) -> bool | None:
         return None
 
 
-def set_provider_settings(name: str, values: dict[str, str], clear: list[str] | None = None) -> dict:
-    """Меняет настройки провайдера на сервере (POST /providers/<имя>/settings).
-
-    values — {поле: значение} (пустые значения сервер пропускает), clear — поля для сброса.
-    Секреты уходят только в теле запроса и нигде не логируются. Возвращает ответ сервера:
-    {"ok", "changed", "status": {"ok": bool, "error"?: str, ...}, "provider": {...}}."""
-    payload: dict = dict(values)
-    if clear:
-        payload["clear"] = list(clear)
-    try:
-        return _call("post", f"/providers/{quote(name, safe='')}/settings", json=payload)
-    finally:
-        invalidate_providers()  # даже при ошибке: статус «настроен» мог измениться
-
-
 # ----------------------------------------------------------------------------
 # Модели и параметры генерации
 # ----------------------------------------------------------------------------
-def _call(method: str, path: str, **kwargs):
-    """GET/POST к серверу анализа с единообразной обработкой ошибок. Возвращает JSON."""
+def _call(method: str, path: str, *, keys: bool | str = False, **kwargs):
+    """GET/POST к серверу анализа с единообразной обработкой ошибок. Возвращает JSON.
+
+    keys — прикладывать ли API-ключи (заголовки X-Api-Key-*): True — все провайдеры,
+    строка — только ключ этого провайдера, False — без ключей (по умолчанию).
+    """
     url = f"{_base_url()}{path}"
+    if keys:
+        kwargs["headers"] = {**_auth_headers("" if keys is True else keys), **kwargs.get("headers", {})}
     try:
         resp = getattr(requests, method)(url, timeout=kwargs.pop("timeout", conf("VISION_API_CALL_TIMEOUT")), **kwargs)
     except requests.exceptions.ConnectionError as exc:
@@ -515,7 +530,7 @@ def chat_with_model(
         payload["system"] = system
 
     try:
-        resp = requests.post(url, json=payload, timeout=_timeout())
+        resp = requests.post(url, json=payload, headers=_auth_headers(backend), timeout=_timeout())
     except requests.exceptions.ConnectionError as exc:
         raise VisionApiError(
             "Не удалось подключиться к серверу анализа изображений. "
@@ -547,14 +562,88 @@ def chat_with_model(
     )
 
 
-def get_models(backend: str) -> list[str]:
-    """Список моделей, которые сейчас сообщает бэкенд (GET /models?backend=...)."""
-    payload = _call("get", "/models", params={"backend": backend})
+def _fetch_models(backend: str) -> list[str]:
+    """Живой запрос GET /models?backend=... (с ключом провайдера, если он сохранён)."""
+    # Облачный провайдер (есть сохранённый ключ) может отвечать медленно — у него свой, более
+    # длинный таймаут, чтобы не раздувать общий VISION_API_CALL_TIMEOUT для /sampling и т. п.
+    cloud = bool(_auth_headers(backend))
+    timeout = conf("VISION_API_MODELS_TIMEOUT") if cloud else conf("VISION_API_CALL_TIMEOUT")
+    payload = _call("get", "/models", keys=backend, params={"backend": backend}, timeout=timeout)
     # Ошибка бэкенда может прийти как {"error": "..."} или {"vllm": {"error": "..."}}.
     for holder in (payload, payload.get(backend) if isinstance(payload, dict) else None):
         if isinstance(holder, dict) and isinstance(holder.get("error"), str) and holder["error"]:
             raise VisionApiError(holder["error"])
     return extract_model_names(payload, backend)
+
+
+def _aware(dt: datetime | None) -> datetime | None:
+    if dt is not None and dt.tzinfo is None:
+        return dt.replace(tzinfo=timezone.utc)  # SQLite отдаёт naive-время (в БД всё в UTC)
+    return dt
+
+
+def _models_cache_row(backend: str) -> ProviderModelsCache | None:
+    """Строка кэша для ТЕКУЩЕГО ключа провайдера. Нет ключа — кэша нет: кэшируются только
+    облачные провайдеры (у локальных Ollama/vLLM список быстрый и меняется при `ollama pull`)."""
+    key = credentials.get_key(backend) if has_app_context() else ""
+    if not key:
+        return None
+    row = db.session.get(ProviderModelsCache, backend)
+    if row is None or row.fingerprint != credentials.fingerprint(key):
+        return None  # кэш другого ключа
+    return row
+
+
+def models_cached_at(backend: str) -> datetime | None:
+    """Когда список моделей облачного провайдера был получен (None — кэша нет)."""
+    row = _models_cache_row(backend)
+    return _aware(row.fetched_at) if row else None
+
+
+def invalidate_models_cache(backend: str) -> None:
+    row = db.session.get(ProviderModelsCache, backend)
+    if row is not None:
+        db.session.delete(row)
+        db.session.commit()
+
+
+def get_models(backend: str, *, force: bool = False, cached_only: bool = False) -> list[str]:
+    """Список моделей бэкенда.
+
+    Для облачного провайдера (с сохранённым ключом) список кэшируется в БД на
+    MODELS_CACHE_TTL секунд: запрос к Google медленный, а модели меняются редко.
+      force       — игнорировать кэш и обновить (кнопка «Обновить список»);
+      cached_only — не ходить в сеть: вернуть кэш (даже устаревший) или [] (отрисовка страницы
+                    статуса не должна ждать Google).
+    Если свежий запрос не удался, а старый кэш есть — отдаётся он (кроме force: там ошибку нужно
+    показать). У локальных провайдеров кэша нет — всегда живой запрос.
+    """
+    row = _models_cache_row(backend)
+    if row is not None and not force:
+        age = utcnow() - _aware(row.fetched_at)
+        if cached_only or age < timedelta(seconds=conf("MODELS_CACHE_TTL")):
+            return list(row.models or [])
+    elif cached_only and has_app_context() and credentials.get_key(backend):
+        return []  # ключ есть, кэша ещё нет
+
+    try:
+        models = _fetch_models(backend)
+    except VisionApiError:
+        if row is not None and not force:
+            log.warning("Список моделей %r не обновился — отдаю устаревший кэш", backend, exc_info=True)
+            return list(row.models or [])
+        raise
+
+    key = credentials.get_key(backend) if has_app_context() else ""
+    if key and models:  # пустой ответ не кэшируем — это скорее сбой, чем «моделей нет»
+        fp = credentials.fingerprint(key)
+        existing = db.session.get(ProviderModelsCache, backend)
+        if existing is None:
+            db.session.add(ProviderModelsCache(provider=backend, fingerprint=fp, models=models))
+        else:
+            existing.fingerprint, existing.models, existing.fetched_at = fp, models, utcnow()
+        db.session.commit()
+    return models
 
 
 def _pick_sampling(data) -> dict:

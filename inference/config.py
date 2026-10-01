@@ -6,10 +6,10 @@ vision_analyzer_prompt, image_upscaler) и мелкие обёртки над н
 и server.py. Собраны в одном месте, чтобы не дублировать
 try/except ImportError и предупреждения в логах по разным файлам.
 
-ВАЖНО про мутируемые "глобалы": BACKEND/OLLAMA_HOST/VLLM_URL/GEMINI_MODEL/
-GEMINI_API_KEY меняются "на лету" через POST /config (см. server.py:
+ВАЖНО про мутируемые "глобалы": BACKEND/OLLAMA_HOST/VLLM_URL/GEMINI_MODEL
+меняются "на лету" через POST /config (см. server.py:
 handle_config) присвоением config.BACKEND = ...", config.OLLAMA_HOST = ...",
-config.VLLM_URL = ...", config.GEMINI_MODEL = ...", config.GEMINI_API_KEY = ...".
+config.VLLM_URL = ...", config.GEMINI_MODEL = ...".
 Другие модули должны делать `import config` и обращаться именно как
 `config.BACKEND` / `config.OLLAMA_HOST` / `config.VLLM_URL` и т.д. — если вместо
 этого сделать `from config import BACKEND`, получится локальная копия
@@ -166,18 +166,9 @@ OLLAMA_HOST = os.environ.get("VISION_ANALYZER_OLLAMA_HOST", "http://127.0.0.1:11
 VLLM_URL = os.environ.get("VISION_ANALYZER_VLLM_URL", "http://host.docker.internal:8000/v1").strip()
 
 # --- Gemini (providers/gemini.py) ---
-# Ключ API берётся из VISION_ANALYZER_GEMINI_API_KEY (или стандартных
-# GEMINI_API_KEY / GOOGLE_API_KEY) либо задаётся "на лету" через POST /config
-# (поле gemini_api_key, только в теле запроса). GET /config ключ НЕ отдаёт —
-# только флаг gemini_configured. Без ключа провайдер просто не настроен:
-# /health показывает его как недоступный, запросы с backend=gemini падают с
-# понятной ошибкой.
-GEMINI_API_KEY = (
-    os.environ.get("VISION_ANALYZER_GEMINI_API_KEY")
-    or os.environ.get("GEMINI_API_KEY")
-    or os.environ.get("GOOGLE_API_KEY")
-    or ""
-).strip()
+# Ключ API сервер НЕ хранит (ни в env, ни в памяти): клиент присылает его в каждом запросе
+# заголовком X-Api-Key-Gemini (см. providers/base.py). Без заголовка провайдер «не настроен»:
+# /health его скрывает, запросы с backend=gemini падают с понятной ошибкой.
 # Модель по умолчанию для backend=gemini (если model=... не передан в запросе).
 GEMINI_MODEL = os.environ.get("VISION_ANALYZER_GEMINI_MODEL", "gemini-2.5-flash").strip()
 GEMINI_API_BASE = os.environ.get(

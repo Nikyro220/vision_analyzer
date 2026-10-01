@@ -20,6 +20,7 @@ from __future__ import annotations
 import asyncio
 import logging
 from abc import ABC, abstractmethod
+from contextvars import ContextVar
 from dataclasses import dataclass
 
 import aiohttp
@@ -67,32 +68,41 @@ def sampling_options(*, with_top_k: bool = True, with_ctx: bool = True) -> dict:
     return options
 
 
-# ---------------------------------------------------------------------------
-# Описание настраиваемых «на лету» полей провайдера
-# ---------------------------------------------------------------------------
-
 #: все параметры генерации, которыми управляет POST /sampling
 ALL_SAMPLING_KEYS = ("temperature", "top_p", "top_k", "seed", "num_ctx", "num_predict", "think")
 
 
-@dataclass(frozen=True)
-class SettingField:
-    """Поле, которое можно менять у провайдера через POST /providers/<name>/settings
-    (и которое клиент — например, веб-панель — рисует сам по этому описанию).
+# ---------------------------------------------------------------------------
+# Учётные данные провайдера (API-ключ)
+# ---------------------------------------------------------------------------
+#
+# Сервер анализа НИКОГДА не хранит ключи: клиент (vision_app) присылает ключ в каждом
+# запросе заголовком  X-Api-Key-<имя провайдера>  (например, X-Api-Key-Gemini). Заголовок, а не
+# query/тело: query попадает в логи, а тело у /analyze — сырые байты картинки. server.py
+# (middleware) раскладывает такие заголовки в request_credentials; провайдер читает свой ключ
+# через Provider.api_key. ContextVar изолирует запросы друг от друга, в том числе внутри
+# asyncio.gather (контекст копируется в каждую задачу).
 
-    name        — ключ в API (например, "api_key")
-    label       — подпись для человека
-    config_attr — атрибут модуля config, в который пишется значение (читается
-                  провайдером в момент вызова — см. примечание про конфигурацию выше)
-    secret      — секрет: значение НИКОГДА не отдаётся наружу, клиенту видно лишь
-                  факт, что оно задано (describe() -> "set")
-    hint        — короткая подсказка под полем
+CREDENTIAL_HEADER_PREFIX = "X-Api-Key-"
+
+#: {имя провайдера (в нижнем регистре): ключ} — только для текущего запроса
+request_credentials: ContextVar[dict] = ContextVar("request_credentials", default={})
+
+
+def credential_header(provider_name: str) -> str:
+    """Имя заголовка, в котором клиент передаёт ключ этого провайдера."""
+    return CREDENTIAL_HEADER_PREFIX + provider_name.capitalize()
+
+
+@dataclass(frozen=True)
+class Credential:
+    """Описание секрета, который клиент присылает в каждом запросе (GET /providers → credential).
+    Само значение сервер не хранит и не отдаёт; хранит его клиент (vision_app — зашифрованным).
+
+    label — подпись для человека, hint — подсказка под полем в UI клиента.
     """
 
-    name: str
     label: str
-    config_attr: str
-    secret: bool = False
     hint: str = ""
 
 
@@ -108,8 +118,9 @@ class Provider(ABC):
     #: какие параметры /sampling этот бэкенд реально использует; клиент строит
     #: форму параметров генерации только из них (num_ctx, например, есть лишь у Ollama)
     sampling_keys: tuple[str, ...] = tuple(k for k in ALL_SAMPLING_KEYS if k != "num_ctx")
-    #: поля, которые клиент может менять через /providers/<name>/settings
-    settings_fields: tuple[SettingField, ...] = ()
+    #: секрет, который клиент присылает в каждом запросе заголовком X-Api-Key-<Имя>
+    #: (None — провайдеру ключ не нужен). Сервер его не хранит, см. блок «Учётные данные» выше.
+    credential: Credential | None = None
     #: на какого провайдера уходить, если этот недоступен по подключению и
     #: клиент не просил его явно (None — без автофолбэка)
     fallback: str | None = None
@@ -124,9 +135,18 @@ class Provider(ABC):
     def endpoint(self) -> str:
         """Адрес бэкенда — для сообщений об ошибках и /health, /models."""
 
+    @property
+    def api_key(self) -> str:
+        """Ключ из заголовка ТЕКУЩЕГО запроса ('' — клиент его не прислал)."""
+        return (request_credentials.get().get(self.name) or "").strip()
+
     def is_configured(self) -> bool:
-        """False, если провайдеру не хватает обязательных настроек (например, ключа API)."""
-        return True
+        """False, если в текущем запросе нет обязательного ключа API. Для провайдеров без
+        credential всегда True."""
+        return self.credential is None or bool(self.api_key)
+
+    async def aclose(self) -> None:
+        """Освобождает долгоживущие ресурсы (HTTP-сессии) при остановке сервера."""
 
     def reset_caches(self) -> None:
         """Сбрасывает кэши (автоопределённая модель и т.п.) — вызывается из /config."""
@@ -134,14 +154,15 @@ class Provider(ABC):
 
     def describe(self) -> dict:
         """Описание провайдера для GET /providers: по нему клиент строит свой UI,
-        не зная ничего о конкретных бэкендах. Значения секретных полей не отдаются."""
-        fields = []
-        for f in self.settings_fields:
-            current = getattr(config, f.config_attr, None)
-            item = {"name": f.name, "label": f.label, "secret": f.secret, "hint": f.hint, "set": bool(current)}
-            if not f.secret:
-                item["value"] = "" if current is None else str(current)
-            fields.append(item)
+        не зная ничего о конкретных бэкендах. Значение ключа не хранится и не отдаётся;
+        `configured` — пришёл ли ключ в ЭТОМ запросе."""
+        credential = None
+        if self.credential is not None:
+            credential = {
+                "label": self.credential.label,
+                "hint": self.credential.hint,
+                "header": credential_header(self.name),
+            }
         return {
             "name": self.name,
             "label": self.label or self.name,
@@ -149,30 +170,8 @@ class Provider(ABC):
             "configured": self.is_configured(),
             "endpoint": self.endpoint,
             "sampling_keys": list(self.sampling_keys),
-            "settings": fields,
+            "credential": credential,
         }
-
-    def update_settings(self, values: dict, clear: list | tuple = ()) -> list[str]:
-        """Применяет значения полей из settings_fields (пустые строки пропускаются —
-        «не менять»; имена из clear сбрасываются в пустое значение). Возвращает имена
-        изменённых полей. Неизвестное поле — ValueError (обработчик отдаёт 400)."""
-        by_name = {f.name: f for f in self.settings_fields}
-        unknown = [n for n in (*values, *clear) if n not in by_name]
-        if unknown:
-            raise ValueError(config._t("error.unknown_setting", backend=self.name, field=", ".join(map(str, unknown))))
-
-        changed: list[str] = []
-        for name, raw in values.items():
-            if not isinstance(raw, str) or not raw.strip():
-                continue
-            setattr(config, by_name[name].config_attr, raw.strip())
-            changed.append(name)
-        for name in clear:
-            setattr(config, by_name[name].config_attr, "")
-            changed.append(name)
-        if changed:
-            self.reset_caches()
-        return changed
 
     # --- модели -----------------------------------------------------------
 
