@@ -287,6 +287,7 @@ async def handle_analyze(request: web.Request) -> web.Response:
         category_overlay = categories.build_overlay(extra_categories)
     except categories.CategoryError as e:
         return _json({"error": str(e)}, status=400)
+    
 
     backend_was_explicit = bool(overrides["backend"])
 
@@ -324,6 +325,15 @@ async def handle_analyze(request: web.Request) -> web.Response:
         return _json({"error": config._t("error.backend_timeout", lang=resolved_lang)}, status=504)
     except (ValueError, RuntimeError) as e:
         return _json({"error": str(e)}, status=400)
+    except aiohttp.ClientResponseError as e:
+        # Ошибка апстрима (503 у Gemini и т.п.) — ожидаемая, трейсбек не нужен.
+        logging.error(
+            "Бэкенд %s вернул %s %s (%s)", backend, e.status, e.message, e.request_info.real_url.host,
+        )
+        return _json(
+            {"error": f"{backend}: {e.status} {e.message}"},
+            status=502 if e.status >= 500 else 400,
+        )
     except Exception as e:
         logging.exception("Ошибка при анализе изображений: %s", e)
         return _json({"error": config._t("error.analyze_failed", lang=resolved_lang)}, status=500)
