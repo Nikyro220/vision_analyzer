@@ -38,6 +38,7 @@ from .users import default_limit as users_default_limit
 from .users import max_limit as users_max_limit
 from .users import max_since_days as users_max_since_days
 from .users import search_users
+from ..chat_prompt import compose_system_prompt
 from ..config import conf
 from ..services import chat_with_model
 
@@ -335,7 +336,9 @@ def run_chat_turn(
     напрямую вместе с ним (картинки прошлых сообщений уже лежат в history).
     VisionApiError от chat_with_model пробрасывается наружу — его обрабатывает blueprint."""
     images = images or []
-    system = build_tool_system_prompt(user, images)
+    # Роль ассистента (из БД, правится в панели) + промпт инструментов как есть. Серверный
+    # промпт-персона отключаем (system_mode=replace): роль теперь задаём мы.
+    system = compose_system_prompt(build_tool_system_prompt(user, images))
     convo = list(history)
     current = message
     references: list = []
@@ -346,7 +349,7 @@ def run_chat_turn(
         # Картинки сообщения нужны только на первом шаге; дальше они остаются в convo.
         outcome = chat_with_model(
             current, history=convo, images=(message_images or None) if step == 0 else None,
-            backend=backend, model=model, lang=lang, system=system,
+            backend=backend, model=model, lang=lang, system=system, system_mode="replace",
         )
         kind, payload = parse_reply(outcome.reply)
 

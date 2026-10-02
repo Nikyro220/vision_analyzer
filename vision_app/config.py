@@ -176,6 +176,7 @@ class Config:
     # был перезапущен посреди ответа модели) — чат снова принимает сообщения.
     CHAT_TURN_STALE_SECONDS = 20 * 60
     CHAT_MAX_TOOL_CALLS = 4  # сколько раз за один ход модель может обратиться к инструментам
+    CHAT_PROMPT_MAX_CHARS = 8000  # длина системного промпта чата, который админ задаёт на /panel/categories/
 
     # Вложения-изображения чата (chat_images.py).
     CHAT_MAX_IMAGES_PER_MESSAGE = 4

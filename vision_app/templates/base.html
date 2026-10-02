@@ -63,8 +63,8 @@
             <a class="nav-link {% if ep == 'panel.analyses_list' %}is-active{% endif %}" href="{{ url_for('panel.analyses_list') }}">
                 <span class="nav-ic">▤</span> Все анализы
             </a>
-            <a class="nav-link {% if ep in ('panel.categories_list', 'panel.category_new', 'panel.category_edit') %}is-active{% endif %}" href="{{ url_for('panel.categories_list') }}">
-                <span class="nav-ic">✚</span> Категории оценки
+            <a class="nav-link {% if ep in ('panel.categories_list', 'panel.category_new', 'panel.category_edit', 'panel.chat_prompt_save') %}is-active{% endif %}" href="{{ url_for('panel.categories_list') }}">
+                <span class="nav-ic">✚</span> Промпты
             </a>
             {% endif %}
         </nav>

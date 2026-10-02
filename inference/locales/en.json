@@ -2,6 +2,8 @@
 	"error.empty_body": "Empty request body.",
 	"error.not_image": "Content was not recognized as an image.",
 	"error.no_images_multipart": "No images found in the 'images' field.",
+	"error.invalid_system_mode": "Invalid 'system_mode': {mode!r} (expected 'append' or 'replace').",
+	"error.system_required_for_replace": "system_mode=replace requires a non-empty 'system' field.",
 	"error.invalid_history": "Invalid 'history' format: expected a list of messages, each with a 'role' of 'user' or 'assistant'.",
 	"error.unsupported_content_type": "Expected multipart/form-data (field 'images') or an image/* body.",
 	"error.unknown_backend": "Unknown backend: {backend!r} (expected 'vllm', 'ollama' or 'gemini')",

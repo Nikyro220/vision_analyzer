@@ -12,7 +12,8 @@ from .. import examples_codec
 from ..config import conf
 from ..decorators import head_admin_required, staff_required
 from ..extensions import db
-from ..forms import AccountForm, CategoryForm, DeleteAccountForm, DeleteCategoryForm
+from ..chat_prompt import DEFAULT_CHAT_PROMPT, get_chat_prompt, is_customized, reset_chat_prompt, set_chat_prompt
+from ..forms import AccountForm, CategoryForm, ChatPromptForm, DeleteAccountForm, DeleteCategoryForm
 from ..categories_store import seed_default_categories
 from ..history import delete_finished, delete_user_account
 from ..settings_store import (
@@ -366,17 +367,62 @@ def settings():
 
 
 # ----------------------------------------------------------------------------
-# Категории оценивания
+# Промпты: системный промпт чата + категории оценивания (страница /panel/categories/)
 # ----------------------------------------------------------------------------
+def _render_prompts(prompt_form: ChatPromptForm | None = None, status: int = 200):
+    rows = db.session.scalars(select(Category).order_by(Category.position, Category.id)).all()
+    if prompt_form is None:
+        prompt_form = ChatPromptForm(formdata=None, prompt=get_chat_prompt())
+    html = render_template(
+        "panel/categories.html",
+        rows=rows,
+        delete_form=DeleteCategoryForm(),
+        prompt_form=prompt_form,
+        prompt_customized=is_customized(),
+        prompt_default=DEFAULT_CHAT_PROMPT,
+    )
+    return html, status
+
+
 @bp.route("/categories/")
 @staff_required
 def categories_list():
-    """Список категорий оценивания — единственное место, где они хранятся
+    """Раздел «Промпты». Сверху — системный промпт чата (хранится в БД, см. chat_prompt.py);
+    ниже — список категорий оценивания, единственное место, где они хранятся
     (см. models.Category); при каждом анализе текущий набор целиком уходит
     на сервер анализа как разовый оверлей (см. services.analyze_image)."""
-    rows = db.session.scalars(select(Category).order_by(Category.position, Category.id)).all()
-    delete_form = DeleteCategoryForm()
-    return render_template("panel/categories.html", rows=rows, delete_form=delete_form)
+    return _render_prompts()
+
+
+@bp.route("/chat-prompt/", methods=["POST"])
+@staff_required
+def chat_prompt_save():
+    """Сохранить системный промпт чата. Действует со следующего сообщения в любом чате;
+    промпт инструментов (поиск по анализам и т. п.) добавляется к нему автоматически."""
+    form = ChatPromptForm()
+    if not form.validate_on_submit():
+        for errors in form.errors.values():
+            for message in errors:
+                flash(message, "error")
+        return _render_prompts(prompt_form=form, status=400)  # введённый текст не теряем
+
+    if set_chat_prompt(form.prompt.data or ""):
+        flash("Системный промпт чата сохранён. Он применится со следующего сообщения.", "success")
+    else:
+        flash("Действует стандартный системный промпт чата.", "info")
+    return redirect(url_for("panel.categories_list"))
+
+
+@bp.route("/chat-prompt/reset/", methods=["POST"])
+@staff_required
+def chat_prompt_reset():
+    form = DeleteCategoryForm()  # пустая форма с CSRF-токеном
+    if not form.validate_on_submit():
+        flash("Сессия устарела, попробуйте ещё раз.", "error")
+    else:
+        reset_chat_prompt()
+        flash("Системный промпт чата сброшен к стандартному.", "success")
+    return redirect(url_for("panel.categories_list"))
 
 
 @bp.route("/categories/import/", methods=["POST"])
