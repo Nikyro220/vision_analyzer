@@ -629,7 +629,12 @@ def save_default_backend():
 
     Это не то же самое, что выбор бэкенда и модели на карточке («Использовать для анализа»):
     тот выбор действует только для панели и важнее умолчания, а умолчание общее для сервера —
-    его используют все запросы без явного ?backend= и от него считается автоматический фолбэк."""
+    его используют все запросы без явного ?backend= и от него считается автоматический фолбэк.
+
+    Побеждает ПОСЛЕДНИЙ явный выбор пользователя: если на карточке раньше был закреплён другой
+    бэкенд, он сбрасывается — иначе панель продолжала бы молча работать на старом выборе, хотя
+    человек только что выбрал новый (в том числе когда он выбрал тот же бэкенд, что уже стоит
+    по умолчанию на сервере). Закреплённая модель того же бэкенда не трогается."""
     provider = _require_backend(request.form.get("backend", "").strip().lower())
 
     if not provider.configured:
@@ -642,8 +647,19 @@ def save_default_backend():
         flash(str(exc), "error")
         return redirect(url_for("analyzer.health"))
 
+    # Бэкенд, закреплённый на карточке, но отличающийся от выбранного сейчас: он перекрывал бы
+    # умолчание (см. settings_store.get_analysis_target), поэтому его снимаем.
+    pinned = get_analysis_target()[0]
+    pinned_elsewhere = bool(pinned) and pinned != provider.name
+    pinned_title = next((p.title for p in get_providers() if p.name == pinned), pinned) if pinned_elsewhere else ""
+
     if current.get("default_backend") == provider.name:
-        flash(f"«{provider.title}» уже является бэкендом по умолчанию.", "info")
+        if pinned_elsewhere:
+            clear_analysis_target()
+            flash(f"Панель теперь использует «{provider.title}» — бэкенд по умолчанию на сервере "
+                  f"(выбор «{pinned_title}» на карточке сброшен).", "success")
+        else:
+            flash(f"«{provider.title}» уже является бэкендом по умолчанию.", "info")
         return redirect(url_for("analyzer.health"))
 
     try:
@@ -653,12 +669,12 @@ def save_default_backend():
         return redirect(url_for("analyzer.health"))
 
     flash(f"Бэкенд по умолчанию на сервере: «{provider.title}».", "success")
+    if pinned_elsewhere:
+        clear_analysis_target()
+        flash(f"Выбор «{pinned_title}» на карточке сброшен — панель использует «{provider.title}».", "info")
     if not ((current.get("backends") or {}).get(provider.name) or {}).get("ok"):
         flash(f"«{provider.title}» сейчас недоступен — пока он не заработает, запросы без явного выбора будут падать "
               "(или уйдут на его фолбэк, если он задан).", "info")
-    if get_analysis_target()[0]:
-        flash("Учтите: панель использует бэкенд, выбранный вручную на карточке, — умолчание на неё не влияет, "
-              "пока вы не нажмёте «Сбросить к настройкам сервера».", "info")
     return redirect(url_for("analyzer.health"))
 
 
