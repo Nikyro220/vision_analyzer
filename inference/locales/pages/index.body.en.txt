@@ -394,8 +394,12 @@ Request body is one of two forms:
         image      — a single image, base64 or data URL (optional)
         images     — a list of images, alternative to 'image'
         system     — optional ADDITION to the system prompt for this
-                     call (see below — a base persona prompt is always
-                     included)
+                     call (see below — by default a base persona prompt
+                     is always included); with system_mode=replace it
+                     becomes the WHOLE system prompt
+        system_mode — 'append' (default) | 'replace' (optional): whether
+                     'system' is appended to the base persona prompt or
+                     replaces it. 'replace' requires a non-empty 'system'
         history    — optional conversation history (same format as
                      POST /analyze — conversation history above)
         backend    — 'vllm' | 'ollama' | 'gemini' (optional, overrides BACKEND)
@@ -404,11 +408,11 @@ Request body is one of two forms:
                      only — does not change the global default)
 
   (b) multipart/form-data with the same fields: 'message'/'system'/
-      'history'/'backend'/'model'/'lang' as plain text fields, images
+      'system_mode'/'history'/'backend'/'model'/'lang' as plain text fields, images
       as one or more 'images'/'image' file fields
 
-backend/model/lang can also be passed as query parameters — works for
-both forms:
+backend/model/lang/system_mode can also be passed as query parameters —
+works for both forms:
   ?backend=vllm&model=google/gemma-4-31B-it&lang=en
 
 By default, every call is prefixed with a persona system prompt: the
@@ -417,7 +421,10 @@ the endpoints, helps make sense of already-produced /analyze reports,
 sampling settings, etc.) — NOT the risk analyzer itself, and should
 not hand down risk-signal verdicts in place of /analyze. A 'system'
 field passed in the request does not replace this prompt — it is
-appended after it as an extra instruction for that call.
+appended after it as an extra instruction for that call. A client that
+has its own role for the assistant (e.g. a web UI) can switch the base
+prompt off with system_mode=replace: the model then gets only the
+'system' you send (empty 'system' -> 400).
 
 The server itself stores NO history at all — it is sent in full by
 the client on every request via the 'history' field (a JSON array,

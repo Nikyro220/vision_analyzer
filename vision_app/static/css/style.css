@@ -1630,3 +1630,14 @@ textarea.input {
     background: var(--bg-panel);
 }
 .mini-list-row .row-thumb { width: 36px; height: 36px; }
+
+/* Раздел «Промпты»: стандартный текст промпта под спойлером */
+.prompt-preview {
+    margin: 8px 0 0;
+    padding: 10px 12px;
+    white-space: pre-wrap;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    font-size: 0.8333rem;
+    color: var(--text-muted);
+}

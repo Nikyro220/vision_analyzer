@@ -1,8 +1,49 @@
 {% extends "base.html" %}
-{% block title %}Категории оценивания{% endblock %}
+{% block title %}Промпты{% endblock %}
 {% block content %}
 <div class="page-header">
-    <h1>Категории оценивания</h1>
+    <h1>Промпты</h1>
+    <p class="page-sub">Тексты, которые определяют поведение модели: роль ассистента в чате и категории оценивания.</p>
+</div>
+
+<div class="card">
+    <div class="backend-head">
+        <h2 class="card-title">Системный промпт чата</h2>
+        {% if prompt_customized %}<span class="tag tag-warn">изменён</span>{% else %}<span class="tag tag-ok">стандартный</span>{% endif %}
+    </div>
+    <form method="post" action="{{ url_for('panel.chat_prompt_save') }}" class="form">
+        {{ prompt_form.hidden_tag() }}
+        <div class="field">
+            {{ prompt_form.prompt(class_="input", rows=10, maxlength=conf("CHAT_PROMPT_MAX_CHARS") * 2, spellcheck="true",
+                                  id="chat-prompt", **{"aria-label": "Системный промпт чата"}) }}
+            {% for err in prompt_form.prompt.errors %}<div class="field-error">{{ err }}</div>{% endfor %}
+            <div class="field-hint">
+                Задаёт роль, тон и общие правила ответов ассистента в чате. Применяется со следующего сообщения, во всех чатах.
+                Описание инструментов (поиск по анализам и пользователям, постановка снимков в очередь) система добавляет
+                после этого текста сама — повторять его не нужно, и изменить его здесь нельзя.
+                Пустое поле — вернуть стандартный текст.
+                <span id="chat-prompt-count" data-max="{{ conf('CHAT_PROMPT_MAX_CHARS') }}"></span>
+            </div>
+        </div>
+        <div class="form-actions">
+            <button type="submit" class="btn btn-primary">Сохранить промпт</button>
+        </div>
+    </form>
+    {% if prompt_customized %}
+    <form method="post" action="{{ url_for('panel.chat_prompt_reset') }}" class="form-inline-tight"
+          onsubmit="return confirm('Вернуть стандартный системный промпт чата? Ваш текст будет удалён.')">
+        {{ delete_form.hidden_tag() }}
+        <button type="submit" class="btn btn-secondary btn-sm">Сбросить к стандартному</button>
+    </form>
+    {% endif %}
+    <details class="field-hint">
+        <summary>Показать стандартный текст</summary>
+        <pre class="prompt-preview">{{ prompt_default }}</pre>
+    </details>
+</div>
+
+<div class="page-header">
+    <h2>Категории оценивания</h2>
     <p class="page-sub">
         Сигналы, которые сервер анализа ищет на изображении. Хранятся только здесь —
         при каждом анализе текущий набор целиком уходит на сервер как разовые категории.
@@ -70,4 +111,20 @@
         </tbody>
     </table>
 </div>
+{% endblock %}
+
+{% block scripts_extra %}
+<script>
+(function () {
+    var box = document.getElementById("chat-prompt"), out = document.getElementById("chat-prompt-count");
+    if (!box || !out) return;
+    var max = parseInt(out.dataset.max, 10);
+    function upd() {
+        var n = box.value.trim().length;
+        out.textContent = " Символов: " + n + " из " + max + ".";
+        out.style.color = n > max ? "var(--danger-strong)" : "";
+    }
+    box.addEventListener("input", upd); upd();
+})();
+</script>
 {% endblock %}

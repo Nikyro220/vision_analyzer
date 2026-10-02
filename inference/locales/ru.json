@@ -2,6 +2,8 @@
 	"error.empty_body": "Пустое тело запроса.",
 	"error.not_image": "Содержимое не распознано как изображение.",
 	"error.no_images_multipart": "Не найдено ни одного изображения в поле 'images'.",
+	"error.invalid_system_mode": "Недопустимое значение 'system_mode': {mode!r} (ожидается 'append' или 'replace').",
+	"error.system_required_for_replace": "Для system_mode=replace нужно непустое поле 'system'.",
 	"error.invalid_history": "Некорректный формат 'history': ожидается список сообщений с полем 'role' ('user'/'assistant').",
 	"error.unsupported_content_type": "Ожидается multipart/form-data (поле 'images') либо тело image/*.",
 	"error.unknown_backend": "Неизвестный backend: {backend!r} (ожидается 'vllm', 'ollama' или 'gemini')",

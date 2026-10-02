@@ -291,6 +291,17 @@ class DeleteCategoryForm(FlaskForm):
     """Пустая форма-обёртка ради CSRF-токена на кнопке «Удалить»."""
 
 
+class ChatPromptForm(FlaskForm):
+    """Системный промпт чата (раздел «Промпты»). Пустое значение = вернуть стандартный текст."""
+
+    prompt = TextAreaField("Системный промпт чата", validators=[Optional()])
+
+    def validate_prompt(self, field) -> None:
+        limit = conf("CHAT_PROMPT_MAX_CHARS")
+        if len((field.data or "").strip()) > limit:
+            raise ValidationError(f"Слишком длинный промпт: не более {limit} символов.")
+
+
 # Форматы Pillow -> (расширение файла, MIME-тип)
 IMAGE_FORMATS = {
     "JPEG": (".jpg", "image/jpeg"),

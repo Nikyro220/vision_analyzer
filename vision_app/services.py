@@ -505,6 +505,7 @@ def chat_with_model(
     model: str = "",
     lang: str | None = None,  # None -> DEFAULT_LANG из настроек
     system: str = "",
+    system_mode: str = "",
 ) -> ChatOutcome:
     """Отправляет одно сообщение на POST /chat (см. inference/chat.py) и
     возвращает разобранный ответ.
@@ -513,6 +514,10 @@ def chat_with_model(
     историю целиком (``history``: список {"role": "user"|"assistant", "content": "..."}).
     ``images`` — необязательный список data-url строк (data:image/...;base64,...)
     для мультимодального сообщения.
+
+    ``system_mode`` — как сервер использует ``system``: "append" (по умолчанию на сервере) —
+    добавляет к своему промпту-персоне, "replace" — НЕ добавляет свой, модель получает только
+    ``system`` (так делает чат панели: роль задаётся в БД, см. chat_prompt.py).
     """
     url = f"{_base_url()}/chat"
     lang = lang or conf("DEFAULT_LANG")
@@ -528,6 +533,8 @@ def chat_with_model(
         payload["model"] = model
     if system:
         payload["system"] = system
+    if system_mode:
+        payload["system_mode"] = system_mode
 
     try:
         resp = requests.post(url, json=payload, headers=_auth_headers(backend), timeout=_timeout())

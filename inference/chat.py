@@ -31,6 +31,9 @@ import providers
 from analyze import _BodyError, _json, _prepare_image
 from config import locales, prompt
 
+#: допустимые значения поля system_mode (см. handle_chat)
+SYSTEM_MODES = ("append", "replace")
+
 # ---------------------------------------------------------------------------
 # Разбор тела запроса — два формата (в отличие от /analyze, тут всегда
 # нужен текст сообщения, поэтому "сырое изображение в теле" не подходит):
@@ -42,6 +45,7 @@ def _query_overrides(request: web.Request) -> dict[str, Any]:
         "backend": request.query.get("backend"),
         "model": request.query.get("model"),
         "lang": request.query.get("lang"),
+        "system_mode": request.query.get("system_mode"),
     }
 
 
@@ -65,7 +69,7 @@ async def _image_from_b64(raw: str, source_name: str, lang: str | None) -> str:
 async def _parse_json_body(request: web.Request, overrides: dict) -> tuple[str, list[str]]:
     """Content-Type: application/json, поля:
     message (обязательно), images/image (необязательно), history,
-    system, backend/model/lang (см. также query-параметры выше)."""
+    system, system_mode, backend/model/lang (см. также query-параметры выше)."""
     try:
         body = await request.json() or {}
     except json.JSONDecodeError:
@@ -94,11 +98,14 @@ async def _parse_json_body(request: web.Request, overrides: dict) -> tuple[str, 
 
 async def _parse_multipart_body(request: web.Request, overrides: dict) -> tuple[str, list[str]]:
     """Content-Type: multipart/form-data — текстовые поля message/
-    system/history/backend/model/lang плюс одно или несколько полей
+    system/system_mode/history/backend/model/lang плюс одно или несколько полей
     'images'/'image' с файлами картинок."""
     reader = await request.multipart()
     images: list[str] = []
-    text_fields = {"message": False, "system": False, "history": True, "backend": True, "model": True, "lang": True}
+    text_fields = {
+        "message": False, "system": False, "history": True, "backend": True, "model": True, "lang": True,
+        "system_mode": True,
+    }
 
     async for part in reader:
         if part.name in text_fields:
@@ -174,22 +181,36 @@ async def handle_chat(request: web.Request) -> web.Response:
 
     backend_was_explicit = bool(overrides["backend"])
 
-    # Дефолтная "личность" ассистента по инструменту (см. prompt.py:
-    # get_chat_system_prompt) — подставляется ВСЕГДА, даже если клиент
-    # передал своё поле 'system': оно не заменяет базовый промпт, а
-    # добавляется к нему как доп. инструкция на этот вызов. Если
-    # prompt.py не найден на сервере (см. config.py) — ведём себя как
-    # раньше и просто передаём system как есть (может быть None).
-    system_prompt = (
-        prompt.get_chat_system_prompt(resolved_lang or config._current_lang(), overrides["system"])
-        if prompt is not None
-        else overrides["system"]
-    )
+    # system_mode: "append" (по умолчанию) — поле 'system' ДОБАВЛЯЕТСЯ к базовому промпту
+    # сервера; "replace" — базовый промпт не подставляется, модель получает только 'system'.
+    system_mode = (overrides["system_mode"] or "append").strip().lower()
+    if system_mode not in SYSTEM_MODES:
+        return _json(
+            {"error": config._t("error.invalid_system_mode", mode=system_mode, lang=resolved_lang)}, status=400,
+        )
+
+    if system_mode == "replace":
+        # Пустой 'system' в режиме replace — почти наверняка ошибка клиента (иначе модель
+        # молча осталась бы вовсе без системного промпта), поэтому не угадываем, а отклоняем.
+        system_prompt = (overrides["system"] or "").strip()
+        if not system_prompt:
+            return _json({"error": config._t("error.system_required_for_replace", lang=resolved_lang)}, status=400)
+    else:
+        # Дефолтная "личность" ассистента по инструменту (см. prompt.py:
+        # get_chat_system_prompt) — подставляется, даже если клиент передал своё поле
+        # 'system': оно не заменяет базовый промпт, а добавляется к нему как доп.
+        # инструкция на этот вызов. Если prompt.py не найден на сервере (см. config.py) —
+        # ведём себя как раньше и просто передаём system как есть (может быть None).
+        system_prompt = (
+            prompt.get_chat_system_prompt(resolved_lang or config._current_lang(), overrides["system"])
+            if prompt is not None
+            else overrides["system"]
+        )
 
     logging.info(
-        "chat: message=%d симв. картинок=%d | backend=%s model=%s lang=%s history=%d",
+        "chat: message=%d симв. картинок=%d | backend=%s model=%s lang=%s history=%d system_mode=%s",
         len(message), len(images), backend, overrides["model"] or "auto",
-        resolved_lang or "default", len(resolved_history),
+        resolved_lang or "default", len(resolved_history), system_mode,
     )
 
     try:
