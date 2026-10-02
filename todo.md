@@ -12,12 +12,6 @@
 
 ## vision_app
 
-1. Define windows of a specific size.
-2. Display an image thumbnail instead of the filename.
-3. Update the functionality for links.
-4. Reconsider the roles.
-5. Add `.env` and store some constants there.
-
 ### Optional
 
 - Add the ability to upload a profile picture.
