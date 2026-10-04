@@ -3,6 +3,9 @@ analyze.py — всё, что относится к POST /analyze: подгот�
 (детект mime + апскейл), разбор тела запроса в трёх поддерживаемых
 форматах (сырые байты, JSON, multipart) и сам хендлер, который сводит
 их к общему пути — вызову backends._analyze_image и сборке ответа.
+Помимо самих изображений запрос может содержать ссылки на посты (поле/параметр
+"url", JSON-поле "urls"): link_fetcher.py достаёт из поста картинки и контекст,
+контекст уходит в caption.
 
 Вынесено из server.py отдельным модулем, потому что это самый сложный
 путь сервера, а server.py должен остаться тонким HTTP-роутингом.
@@ -24,6 +27,7 @@ from PIL import Image
 import backends
 import categories
 import config
+import link_fetcher
 import providers
 from config import image_upscaler, locales
 
@@ -73,8 +77,10 @@ async def _prepare_image(data: bytes, source_name: str) -> tuple[str, str] | Non
 
 
 # ---------------------------------------------------------------------------
-# Разбор тела запроса — три формата, один и тот же результат:
-# (tasks, names, captions, overrides) либо готовый web.Response с ошибкой.
+# Разбор тела запроса — три формата (+ только ссылки в query), один и тот же результат:
+# (tasks, names, captions, url_items) либо _BodyError с готовым web.Response.
+# url_items — [(url, caption_или_None)]: ссылки на посты, они превращаются в картинки
+# позже, в handle_analyze (после проверки lang/backend/categories), см. _tasks_from_links.
 # ---------------------------------------------------------------------------
 
 class _BodyError(Exception):
@@ -104,7 +110,34 @@ def _query_overrides(request: web.Request) -> dict[str, Any]:
     }
 
 
-async def _parse_raw_image_body(request: web.Request, overrides: dict) -> tuple[list, list, list]:
+def _query_url_items(request: web.Request, caption: str | None) -> list[tuple[str, str | None]]:
+    """?url=... (можно повторять) — доступно для любого формата тела."""
+    return [(u.strip(), caption) for u in request.query.getall("url", []) if u.strip()]
+
+
+def _json_url_items(body: dict, default_caption: str | None) -> list[tuple[str, str | None]]:
+    """"url": "..." и/или "urls": ["...", {"url": "...", "caption": "..."}] из JSON-тела."""
+    raw: list[Any] = []
+    if body.get("url"):
+        raw.append(body["url"])
+    urls = body.get("urls")
+    if isinstance(urls, list):
+        raw.extend(urls)
+    elif isinstance(urls, str):
+        raw.append(urls)
+
+    items = []
+    for item in raw:
+        if isinstance(item, dict):
+            url, cap = item.get("url"), item.get("caption") or default_caption
+        else:
+            url, cap = item, default_caption
+        if isinstance(url, str) and url.strip():
+            items.append((url.strip(), cap))
+    return items
+
+
+async def _parse_raw_image_body(request: web.Request, overrides: dict) -> tuple[list, list, list, list]:
     """Content-Type: image/* — сырые байты картинки прямо в теле."""
     data = await request.read()
     if not data:
@@ -114,16 +147,19 @@ async def _parse_raw_image_body(request: web.Request, overrides: dict) -> tuple[
     if prepared is None:
         raise _BodyError(_json({"error": config._t("error.not_image", lang=overrides["lang"])}, status=400))
 
-    return [prepared], ["body"], [overrides["caption"]]
+    return [prepared], ["body"], [overrides["caption"]], _query_url_items(request, overrides["caption"])
 
 
-async def _parse_json_body(request: web.Request, overrides: dict) -> tuple[list, list, list]:
+async def _parse_json_body(request: web.Request, overrides: dict) -> tuple[list, list, list, list]:
     """Content-Type: application/json — удобно для UI/ботов, поддерживает
     batch с caption на каждую картинку отдельно.
 
     'images' — список, каждый элемент либо строка с картинкой (caption
     для неё общий, из overrides['caption']), либо объект
     {"image": "...", "caption": "..."} — свой caption на эту картинку.
+
+    'url' / 'urls' — ссылки на посты (строка либо {"url": "...", "caption": "..."});
+    можно вместе с 'images'. Контекст поста дописывается к caption автоматически.
     """
     body = await request.json() or {}
     for key in overrides:
@@ -134,7 +170,9 @@ async def _parse_json_body(request: web.Request, overrides: dict) -> tuple[list,
         single = body.get("image")
         raw_images = [single] if single else []
 
-    if not raw_images:
+    url_items = _json_url_items(body, overrides["caption"]) + _query_url_items(request, overrides["caption"])
+
+    if not raw_images and not url_items:
         raise _BodyError(_json({"error": config._t("error.empty_body", lang=overrides["lang"])}, status=400))
 
     tasks, names, captions = [], [], []
@@ -158,7 +196,7 @@ async def _parse_json_body(request: web.Request, overrides: dict) -> tuple[list,
         names.append(source_name)
         captions.append(item_caption)
 
-    return tasks, names, captions
+    return tasks, names, captions, url_items
 
 
 # Текстовые поля-переопределения в multipart-запросе → куда класть
@@ -171,7 +209,7 @@ _MULTIPART_TEXT_FIELDS = {
 }
 
 
-async def _parse_multipart_body(request: web.Request, overrides: dict) -> tuple[list, list, list]:
+async def _parse_multipart_body(request: web.Request, overrides: dict) -> tuple[list, list, list, list]:
     """Content-Type: multipart/form-data — старый путь, одно или несколько
     полей 'images'/'image' плюс текстовые поля-переопределения.
 
@@ -181,12 +219,20 @@ async def _parse_multipart_body(request: web.Request, overrides: dict) -> tuple[
     JSON-массивом сразу нескольких — backends._parse_categories_json
     разберёт оба варианта). Клиенту не нужно ничего парсить самому —
     файл просто прикрепляется как есть.
+
+    'url' — ссылка на пост (текстовое поле), тоже можно повторять; вместо 'images' или вместе с ними.
     """
     reader = await request.multipart()
     tasks, names = [], []
     raw_categories: list[str] = []
+    raw_urls: list[str] = []
 
     async for part in reader:
+        if part.name == "url":
+            raw = (await part.read(decode=True)).decode("utf-8").strip()
+            if raw:
+                raw_urls.append(raw)
+            continue
         if part.name == "categories":
             raw = (await part.read(decode=True)).decode("utf-8").strip()
             if raw:
@@ -212,12 +258,20 @@ async def _parse_multipart_body(request: web.Request, overrides: dict) -> tuple[
     if raw_categories:
         overrides["categories"] = raw_categories
 
-    if not tasks:
+    url_items = [(u, overrides["caption"]) for u in raw_urls] + _query_url_items(request, overrides["caption"])
+
+    if not tasks and not url_items:
         raise _BodyError(_json(
             {"error": config._t("error.no_images_multipart", lang=overrides["lang"])}, status=400,
         ))
 
-    return tasks, names, [overrides["caption"]] * len(tasks)
+    return tasks, names, [overrides["caption"]] * len(tasks), url_items
+
+
+async def _parse_links_only_body(request: web.Request, overrides: dict) -> tuple[list, list, list, list]:
+    """Тела нет (или тип не распознан), но есть ?url=... — просто ссылки:
+    curl -X POST "http://host:6769/analyze?url=https://..."."""
+    return [], [], [], _query_url_items(request, overrides["caption"])
 
 
 _BODY_PARSERS = (
@@ -241,6 +295,44 @@ def _json(data, status: int = 200) -> web.Response:
 
 
 # ---------------------------------------------------------------------------
+# Ссылки на посты → картинки + caption
+# ---------------------------------------------------------------------------
+
+async def _tasks_from_links(
+    url_items: list[tuple[str, str | None]], lang: str | None,
+) -> tuple[list, list, list, list, list[link_fetcher.LinkFailure]]:
+    """Разворачивает ссылки в (tasks, names, captions, sources, failures) — те же структуры,
+    что дают парсеры тела, плюс sources (описание источника для ответа) и ошибки по ссылкам.
+
+    Пост с несколькими картинками даёт несколько записей с одним и тем же caption;
+    имя записи — сама ссылка (для нескольких картинок — со скрепой "#N")."""
+    tasks, names, captions, sources, failures = [], [], [], [], []
+
+    for res in await link_fetcher.resolve_links(url_items, lang):
+        if isinstance(res, link_fetcher.LinkFailure):
+            failures.append(res)
+            continue
+
+        accepted = 0
+        for idx, (data, image_url) in enumerate(res.images, 1):
+            name = res.url if len(res.images) == 1 else f"{res.url}#{idx}"
+            prepared = await _prepare_image(data, source_name=name)
+            if prepared is None:
+                logging.warning("Ссылка %s: %s — не изображение, пропускаю", res.url, image_url)
+                continue
+            tasks.append(prepared)
+            names.append(name)
+            captions.append(res.caption or None)
+            sources.append({**res.source, "image_url": image_url} if image_url else dict(res.source))
+            accepted += 1
+
+        if not accepted:
+            failures.append(link_fetcher.make_failure("no_image", 422, lang, url=res.url))
+
+    return tasks, names, captions, sources, failures
+
+
+# ---------------------------------------------------------------------------
 # Хендлер
 # ---------------------------------------------------------------------------
 
@@ -249,11 +341,13 @@ async def handle_analyze(request: web.Request) -> web.Response:
     content_type = request.content_type
 
     parser = next((fn for prefix, fn in _BODY_PARSERS if content_type.startswith(prefix)), None)
+    if parser is None and request.query.getall("url", []):
+        parser = _parse_links_only_body
     if parser is None:
         return _json({"error": config._t("error.unsupported_content_type", lang=overrides["lang"])}, status=400)
 
     try:
-        tasks, names, captions = await parser(request, overrides)
+        tasks, names, captions, url_items = await parser(request, overrides)
     except _BodyError as e:
         return e.response
 
@@ -287,7 +381,32 @@ async def handle_analyze(request: web.Request) -> web.Response:
         category_overlay = categories.build_overlay(extra_categories)
     except categories.CategoryError as e:
         return _json({"error": str(e)}, status=400)
-    
+
+    sources: list[dict | None] = [None] * len(tasks)
+    link_failures: list[link_fetcher.LinkFailure] = []
+    if url_items:
+        if not config.LINKS_ENABLED:
+            return _json({"error": config._t("error.link_disabled", lang=resolved_lang)}, status=503)
+        if len(url_items) > config.LINKS_MAX_PER_REQUEST:
+            return _json(
+                {"error": config._t("error.link_too_many", lang=resolved_lang, max=config.LINKS_MAX_PER_REQUEST)},
+                status=400,
+            )
+        l_tasks, l_names, l_captions, l_sources, link_failures = await _tasks_from_links(url_items, resolved_lang)
+        tasks += l_tasks
+        names += l_names
+        captions += l_captions
+        sources += l_sources
+
+    if not tasks:
+        if not link_failures:  # например, ?url= из одних пробелов
+            return _json({"error": config._t("error.empty_body", lang=resolved_lang)}, status=400)
+        # Ни картинок из тела, ни одной удавшейся ссылки: отвечаем ошибкой первой ссылки.
+        first = link_failures[0]
+        return _json(
+            {"error": first.message, "link_errors": [f.as_dict() for f in link_failures]},
+            status=first.status,
+        )
 
     backend_was_explicit = bool(overrides["backend"])
 
@@ -339,13 +458,20 @@ async def handle_analyze(request: web.Request) -> web.Response:
         return _json({"error": config._t("error.analyze_failed", lang=resolved_lang)}, status=500)
 
     results = []
-    for name, (report, actual_backend) in zip(names, results_raw):
+    for name, source, (report, actual_backend) in zip(names, sources, results_raw):
         if "_raw" in report:
             logging.info(
                 "Анализ %r завершён (backend=%s), ответ модели не по JSON-схеме", name, actual_backend,
             )
         else:
             logging.info("Анализ %r завершён (backend=%s)", name, actual_backend)
-        results.append({"file": name, "backend": actual_backend, "report": report})
+        entry = {"file": name}
+        if source:
+            entry["source"] = source
+        entry.update(backend=actual_backend, report=report)
+        results.append(entry)
 
-    return _json({"count": len(results), "requested_backend": backend, "results": results})
+    response = {"count": len(results), "requested_backend": backend, "results": results}
+    if link_failures:
+        response["link_errors"] = [f.as_dict() for f in link_failures]
+    return _json(response)

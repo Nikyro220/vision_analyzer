@@ -13,6 +13,11 @@
 * Поиск: semantic_search() применяет ТЕ ЖЕ SQL-условия (права, риск, даты), что и обычный
   режим тулза, и только потом ранжирует оставшихся кандидатов по сходству. Права никогда не
   зависят от векторов.
+* Кэш матрицы: векторы текущей модели лежат в памяти процесса одной numpy-матрицей (см.
+  «Кэш матрицы векторов» ниже), чтобы не читать и не разбирать до scan_limit blob'ов на каждый
+  запрос. Кэш — только справочник «id -> вектор»: кандидатов (с правами и фильтрами) по-прежнему
+  отбирает SQL, поэтому устаревшая или лишняя строка в кэше права обойти не может. Отключается
+  настройкой EMBEDDING_MEMORY_CACHE (тогда векторы читаются из БД, как раньше).
 * Текст для эмбеддинга — description (+ caption, если есть). У модели эмбеддингов ограниченное
   окно (для multilingual-mpnet реестр fastembed указывает усечение на 384 токенах), длинный хвост
   она не увидит, поэтому description идёт первым.
@@ -245,6 +250,95 @@ def idle_backfill(app) -> None:
 
 
 # ----------------------------------------------------------------------------
+# Кэш матрицы векторов (в памяти процесса)
+# ----------------------------------------------------------------------------
+@dataclass(frozen=True)
+class _Snapshot:
+    """Неизменяемый слепок всех векторов одной модели: после создания его никто не правит, поэтому
+    параллельные поиски читают его без блокировок, а обновление — это подмена ссылки целиком."""
+
+    model: str
+    dim: int
+    fingerprint: tuple  # (число строк, максимальный created_at) на момент загрузки
+    row_of: dict  # analysis_id -> номер строки в matrix
+    matrix: np.ndarray  # (N, dim) float32, строки L2-нормализованы
+
+
+_snapshot: _Snapshot | None = None
+_snapshot_lock = threading.Lock()  # только на время (пере)загрузки: чтобы N потоков не грузили одно и то же
+
+
+def clear_cache() -> None:
+    """Сбросить кэш (следующий поиск загрузит матрицу заново). В коде приложения не нужен —
+    актуальность проверяет _fingerprint(); пригодится в тестах и при ручной отладке."""
+    global _snapshot
+    with _snapshot_lock:
+        _snapshot = None
+
+
+def _fingerprint(model: str, dim: int) -> tuple:
+    """Дешёвый «отпечаток» таблицы векторов этой модели: (count, max(created_at)).
+    Меняется при любой записи: новая строка поднимает max и count, пересчёт вектора (_upsert)
+    обновляет created_at, удаление уменьшает count. Проверка идёт по БД, а не по флагу в памяти,
+    поэтому работает и когда писатель — другой процесс (несколько воркеров WSGI, CLI reindex)."""
+    count, latest = db.session.execute(
+        select(func.count(), func.max(AnalysisEmbedding.created_at)).where(
+            AnalysisEmbedding.model == model, AnalysisEmbedding.dim == dim
+        )
+    ).one()
+    return int(count or 0), latest
+
+
+def _load_snapshot(model: str, dim: int) -> _Snapshot:
+    started = time.monotonic()
+    # Отпечаток берём ДО чтения строк: если кто-то запишет вектор в промежутке, в слепке будет
+    # не меньше, чем в отпечатке, а следующая проверка увидит расхождение и перезагрузит — то
+    # есть в худшем случае лишняя загрузка, но не устаревшие данные под свежим отпечатком.
+    fingerprint = _fingerprint(model, dim)
+    stmt = select(AnalysisEmbedding.analysis_id, AnalysisEmbedding.vector).where(
+        AnalysisEmbedding.model == model, AnalysisEmbedding.dim == dim
+    )
+    ids: list[int] = []
+    blobs: list[bytes] = []
+    want = dim * 4  # float32
+    for aid, blob in db.session.execute(stmt):
+        if len(blob) != want:  # битая строка: пропускаем, а не роняем весь поиск
+            log.warning("vector_search: вектор анализа %s повреждён (%d байт, ожидалось %d) — пропущен", aid, len(blob), want)
+            continue
+        ids.append(aid)
+        blobs.append(blob)
+    matrix = (
+        np.frombuffer(b"".join(blobs), dtype=np.float32).reshape(len(ids), dim)
+        if ids else np.empty((0, dim), dtype=np.float32)
+    )
+    log.info(
+        "vector_search: кэш векторов загружен: %d × %d (%.1f МБ), модель %s, %d мс",
+        len(ids), dim, matrix.nbytes / 1e6, model, (time.monotonic() - started) * 1000,
+    )
+    return _Snapshot(model, dim, fingerprint, {aid: i for i, aid in enumerate(ids)}, matrix)
+
+
+def _get_snapshot(model: str, dim: int, *, force: bool = False) -> _Snapshot:
+    """Актуальный слепок для (model, dim). Без force — перезагружает, только если отпечаток
+    таблицы изменился. Держим слепок одной модели: векторы разных моделей несовместимы, а
+    поиск идёт только по «текущей»."""
+    global _snapshot
+    snap = _snapshot
+    if not force and snap is not None and snap.model == model and snap.dim == dim:
+        if snap.fingerprint == _fingerprint(model, dim):
+            return snap
+    with _snapshot_lock:
+        snap = _snapshot
+        if not force and snap is not None and snap.model == model and snap.dim == dim:
+            # Пока ждали замок, другой поток мог уже перезагрузить.
+            if snap.fingerprint == _fingerprint(model, dim):
+                return snap
+        snap = _load_snapshot(model, dim)
+        _snapshot = snap
+        return snap
+
+
+# ----------------------------------------------------------------------------
 # Поиск
 # ----------------------------------------------------------------------------
 def get_vector(analysis_id: int) -> tuple[np.ndarray, str] | None:
@@ -294,7 +388,10 @@ def semantic_search(
     из-за слова «человек», и в выдачу попадает всё подряд. Относительное отсечение держит
     только то, что близко к лучшему совпадению, а на запросах, где лучший скор низкий,
     его роль играет абсолютный порог."""
-    cols = [AnalysisEmbedding.analysis_id, AnalysisEmbedding.vector]
+    use_cache = bool(conf("EMBEDDING_MEMORY_CACHE"))
+    dim = int(query_vector.shape[0])
+    # С кэшем blob'ы из БД не читаем: SQL отдаёт только id кандидатов (права и фильтры — те же).
+    cols = [AnalysisEmbedding.analysis_id] if use_cache else [AnalysisEmbedding.analysis_id, AnalysisEmbedding.vector]
     if raw_report_filter is not None:
         cols.append(AnalysisResult.raw_report)
     if text_filter is not None:
@@ -305,7 +402,7 @@ def semantic_search(
         .where(
             *conditions,
             AnalysisEmbedding.model == model,
-            AnalysisEmbedding.dim == int(query_vector.shape[0]),
+            AnalysisEmbedding.dim == dim,
         )
         .order_by(AnalysisResult.created_at.desc())
         .limit(scan_limit)
@@ -321,13 +418,29 @@ def semantic_search(
         if text_filter is not None and not text_filter(f"{row.description or ''}\n{row.caption or ''}"):
             continue
         ids.append(row.analysis_id)
-        vectors.append(from_blob(row.vector))
+        if not use_cache:
+            vectors.append(from_blob(row.vector))
+
+    if use_cache and ids:
+        snap = _get_snapshot(model, dim)
+        rows = [snap.row_of.get(i) for i in ids]
+        if None in rows:
+            # Вектор записан уже после загрузки слепка (или в другом процессе) — один раз
+            # перечитываем; кого и после этого нет, пропускаем (как анализ без вектора).
+            snap = _get_snapshot(model, dim, force=True)
+            rows = [snap.row_of.get(i) for i in ids]
+            kept = [(i, r) for i, r in zip(ids, rows) if r is not None]
+            ids = [i for i, _ in kept]
+            rows = [r for _, r in kept]
+        vectors_matrix = snap.matrix[rows] if ids else None
+    else:
+        vectors_matrix = np.vstack(vectors) if vectors else None
 
     result = SemanticResult(scanned=len(ids))
     if not ids:
         return result
 
-    scores = np.vstack(vectors) @ query_vector
+    scores = vectors_matrix @ query_vector
     result.best_score = float(scores.max())
     cutoff = min_similarity
     if relative_margin > 0:

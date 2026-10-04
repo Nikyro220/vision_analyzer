@@ -89,6 +89,62 @@ Examples:
 
 
 ========================================================
+POST /analyze — analyze a post by link
+========================================================
+Instead of an image (or together with one) you can pass a link to a post: the
+server fetches the image and the post context itself (platform, author, date,
+title, text). The context is written into caption and sent to the model along
+with the image.
+
+Where to put the link:
+  JSON      — "url": "..." or "urls": ["...", {"url": "...", "caption": "..."}]
+  multipart — a text field url (may repeat), with or without images
+  query     — ?url=... (may repeat), works with any body format;
+              with no body it is just a list of links
+Your own caption (field/parameter caption) goes first, before the post context.
+
+How links are read:
+  1. Instagram, X/Twitter, TikTok, Reddit, VK, YouTube, Facebook, Bluesky,
+     Pinterest, etc. — via yt-dlp: metadata without downloading the video
+     (for videos the cover image is analyzed).
+  2. Everything else (t.me, news sites, Threads, direct image links) — via
+     Open Graph (og:image, og:title, og:description). It is also the fallback
+     when yt-dlp fails.
+Several images in one post (a carousel) become several entries in results named
+"link#1", "link#2" and sharing one caption.
+
+Such entries carry a source block in the response: url, method ("yt-dlp" |
+"opengraph" | "direct"), image_kind ("image" — the picture itself, "thumbnail" —
+cover/preview), platform, author, title, date, caption (what the model got),
+image_url. If the fallback kicked in after a yt-dlp error, fallback_reason is
+added — trust such a result less: for posts behind a login, og:image may be a
+placeholder. Links that failed are listed in link_errors (the rest are
+analyzed); if none succeeded the reply is an error with status 400/422/502/504.
+
+Limits: only http/https to public addresses (localhost, 10.x, 192.168.x,
+169.254.x, etc. are rejected). VISION_ANALYZER_LINKS_MAX links per request (10),
+_LINKS_MAX_IMAGES images per post (4), _LINKS_MAX_IMAGE_BYTES per image (20 MB),
+_LINKS_TIMEOUT per link (45 s). Instagram/X/Facebook without a logged-in
+session often return only a login page — set VISION_ANALYZER_LINKS_COOKIES
+(a Netscape-format cookies file). Platform extractors break when sites change —
+keep yt-dlp updated: pip install -U yt-dlp. Disable with VISION_ANALYZER_LINKS_ENABLED=0.
+
+  # 6) A post by link
+  curl -X POST -H "Content-Type: application/json" \
+    -d '{"url": "https://x.com/user/status/123"}' \
+    http://xxx.xxx.xxx.xxx:6769/analyze
+
+  # 7) Several links, with your own note on one of them
+  curl -X POST -H "Content-Type: application/json" \
+    -d '{"urls": ["https://t.me/channel/42", {"url": "https://www.instagram.com/p/AbC/", "caption": "report #17"}]}' \
+    http://xxx.xxx.xxx.xxx:6769/analyze
+
+  # 8) Link in the query, no body (encode URLs containing ? and & — which is what -G --data-urlencode does)
+  curl -X POST -G --data-urlencode "url=https://www.reddit.com/r/pics/comments/abc/x/?context=3" \
+    "http://xxx.xxx.xxx.xxx:6769/analyze?lang=en"
+
+
+========================================================
 POST /lang — switch the default language (for every
 request that doesn't pass its own lang=...)
 ========================================================
@@ -275,6 +331,10 @@ POST /analyze — form (c) JSON body (convenient for UI clients)
 Content-Type: application/json, fields:
   image      — a single image, base64 or data URL
   images     — a list of images (alternative to 'image')
+  url, urls  — link(s) to posts instead of / in addition to images — see
+               'POST /analyze — analyze a post by link' above
+  caption    — optional text sent to the model as context for the image(s);
+               for links the post context is appended to it
   backend, model, lang — same as before, all optional
   history    — optional conversation history (see above)
   categories — optional one-off categories for this call (see below)

@@ -120,6 +120,10 @@ class Config:
     EMBEDDING_RELATIVE_MARGIN = float(os.environ.get("EMBEDDING_RELATIVE_MARGIN", "0.15"))
     # Сколько векторов (самых свежих анализов после фильтров) сравнивается за один запрос.
     EMBEDDING_SCAN_LIMIT = int(os.environ.get("EMBEDDING_SCAN_LIMIT", "5000"))
+    # Держать векторы текущей модели в памяти процесса одной матрицей (vector_search._Snapshot) —
+    # ≈ N × 768 × 4 байт (5000 анализов ≈ 15 МБ). Актуальность проверяется на каждом поиске
+    # дешёвым запросом count/max(created_at). 0 — читать векторы из БД на каждый запрос, как раньше.
+    EMBEDDING_MEMORY_CACHE = os.environ.get("EMBEDDING_MEMORY_CACHE", "1") == "1"
     EMBEDDING_BATCH_SIZE = 32  # сервер принимает максимум 64 текста за запрос; берём с запасом
     EMBEDDING_MAX_TEXT_CHARS = 4000  # серверный лимит — 8000; модель всё равно видит только начало
     EMBEDDING_MAX_MATCHED_IDS = 500  # сколько id выше порога держим для статистики by_risk

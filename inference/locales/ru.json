@@ -53,5 +53,17 @@
 	"error.embeddings_unavailable": "Модель эмбеддингов недоступна: {detail}",
 	"error.embeddings_downloading": "Модель эмбеддингов ещё скачивается или загружается (состояние: {state}) — повторите запрос позже.",
 	"error.embeddings_failed": "Не удалось получить эмбеддинг текста.",
-	"error.embeddings_unsupported_content_type": "Ожидается application/json с полем 'text' или 'texts'."
+	"error.embeddings_unsupported_content_type": "Ожидается application/json с полем 'text' или 'texts'.",
+	"error.link_invalid": "Некорректная ссылка (нужен http/https): {url}",
+	"error.link_blocked": "Ссылка указывает на непубличный адрес и отклонена: {url}",
+	"error.link_no_image": "По ссылке не найдено изображение: {url}",
+	"error.link_fetch_failed": "Не удалось получить {url}: {detail}",
+	"error.link_too_large": "Изображение по ссылке {url} больше {max_mb} МБ.",
+	"error.link_disabled": "Анализ по ссылкам отключён на сервере (VISION_ANALYZER_LINKS_ENABLED=0).",
+	"error.link_too_many": "Слишком много ссылок в одном запросе (максимум {max}).",
+	"link.label_platform": "Платформа",
+	"link.label_author": "Автор",
+	"link.label_date": "Дата",
+	"link.label_title": "Заголовок",
+	"link.label_text": "Текст поста"
 }

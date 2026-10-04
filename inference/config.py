@@ -184,6 +184,27 @@ SERVER_HOST = "0.0.0.0"
 SERVER_PORT = 6769
 
 # ---------------------------------------------------------------------------
+# Анализ по ссылкам на посты (POST /analyze с url, см. link_fetcher.py)
+# ---------------------------------------------------------------------------
+# Сервер сам ходит по ссылкам, которые прислал клиент, поэтому по умолчанию
+# разрешены только публичные адреса (localhost, 10.x, 192.168.x, 169.254.x и
+# т.п. отклоняются — защита от SSRF).
+LINKS_ENABLED = os.environ.get("VISION_ANALYZER_LINKS_ENABLED", "1") == "1"
+# Максимум ссылок в одном запросе.
+LINKS_MAX_PER_REQUEST = int(os.environ.get("VISION_ANALYZER_LINKS_MAX", "10"))
+# Максимум картинок с одного поста (карусель Instagram, несколько фото в твите).
+LINKS_MAX_IMAGES_PER_POST = int(os.environ.get("VISION_ANALYZER_LINKS_MAX_IMAGES", "4"))
+# Максимальный размер одной скачиваемой картинки, байт.
+LINKS_MAX_IMAGE_BYTES = int(os.environ.get("VISION_ANALYZER_LINKS_MAX_IMAGE_BYTES", str(20 * 1024 * 1024)))
+# Таймаут на получение одной ссылки (yt-dlp или один HTTP-запрос), секунд.
+LINKS_TIMEOUT = float(os.environ.get("VISION_ANALYZER_LINKS_TIMEOUT", "45"))
+# Необязательный cookies-файл (формат Netscape) для yt-dlp: Instagram, X, Facebook
+# и др. без входа в аккаунт часто отдают только страницу логина.
+LINKS_COOKIES_FILE = os.environ.get("VISION_ANALYZER_LINKS_COOKIES", "").strip()
+# ТОЛЬКО для разработки/тестов: разрешить ссылки на приватные адреса (отключает защиту от SSRF).
+LINKS_ALLOW_PRIVATE = os.environ.get("VISION_ANALYZER_LINKS_ALLOW_PRIVATE", "0") == "1"
+
+# ---------------------------------------------------------------------------
 # Эмбеддинги текста (POST /embeddings)
 # ---------------------------------------------------------------------------
 # Отдельная лёгкая CPU-модель (ONNX через fastembed), никак не связана с

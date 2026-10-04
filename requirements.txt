@@ -12,3 +12,4 @@ email-validator
 tzdata
 python-dotenv  # vision_app: чтение переменных окружения из файла .env (config.py)
 cryptography  # vision_app: шифрование API-ключей провайдеров в БД (credentials.py)
+yt-dlp  # inference: POST /analyze со ссылкой на пост — метаданные и картинки из соцсетей (link_fetcher.py); экстракторы часто ломаются — обновляйте: pip install -U yt-dlp

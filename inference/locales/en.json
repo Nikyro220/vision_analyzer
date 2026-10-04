@@ -53,5 +53,17 @@
 	"error.embeddings_unavailable": "Embedding model unavailable: {detail}",
 	"error.embeddings_downloading": "The embedding model is still downloading or loading (state: {state}) — retry later.",
 	"error.embeddings_failed": "Failed to get a text embedding.",
-	"error.embeddings_unsupported_content_type": "Expected application/json with a 'text' or 'texts' field."
+	"error.embeddings_unsupported_content_type": "Expected application/json with a 'text' or 'texts' field.",
+	"error.link_invalid": "Not a valid http(s) link: {url}",
+	"error.link_blocked": "The link points to a non-public address and was rejected: {url}",
+	"error.link_no_image": "No image found at {url}.",
+	"error.link_fetch_failed": "Failed to fetch {url}: {detail}",
+	"error.link_too_large": "The image at {url} is larger than {max_mb} MB.",
+	"error.link_disabled": "Analysis by link is disabled on the server (VISION_ANALYZER_LINKS_ENABLED=0).",
+	"error.link_too_many": "Too many links in one request (max {max}).",
+	"link.label_platform": "Platform",
+	"link.label_author": "Author",
+	"link.label_date": "Date",
+	"link.label_title": "Title",
+	"link.label_text": "Post text"
 }
