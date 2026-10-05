@@ -16,8 +16,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}Vision Triage{% endblock %} · Панель анализа</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    {# Палитры тем собираются из vision_app/themes/*.json (по файлу на тему) #}
+    <link rel="stylesheet" href="{{ url_for('themes_css', v=themes_version()) }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/queue.css') }}">
     {# Тема применяется до отрисовки страницы, чтобы не было вспышки; хранится локально в браузере #}
+    <script>window.VT_PRESETS = {{ theme_presets()|tojson }};</script>
     <script src="{{ url_for('static', filename='js/theme.js') }}"></script>
     {% block head_extra %}{% endblock %}
     <link rel="icon" href="data:,">

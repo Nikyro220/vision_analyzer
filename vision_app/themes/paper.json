@@ -1,0 +1,32 @@
+{
+  "label": "Бумага",
+  "hint": "Тёплая, как книжная страница",
+  "group": "Светлые",
+  "order": 26,
+  "mode": "light",
+  "vars": {
+    "--bg": "#f3ecdc",
+    "--bg-panel": "#fbf6ea",
+    "--bg-elevated": "#efe6d2",
+    "--bg-hover": "#e6dcc4",
+    "--border": "#cdbf9f",
+    "--border-soft": "#e0d5ba",
+    "--text": "#2b2417",
+    "--text-muted": "#5e5240",
+    "--text-dim": "#75684f",
+    "--risk-low": "#2f8a53",
+    "--risk-medium": "#b9770e",
+    "--risk-high": "#c63d2f",
+    "--danger": "#c63d2f",
+    "--danger-strong": "#b1301f",
+    "--on-risk": "#ffffff",
+    "--stripe": "rgba(0, 0, 0, 0.025)",
+    "--stripe-strong": "rgba(0, 0, 0, 0.04)",
+    "--role-user-fg": "#1f6f69",
+    "--role-user-bd": "#3fa7a0",
+    "--role-admin-fg": "#6b3fa0",
+    "--role-admin-bd": "#a988d6",
+    "--role-head-fg": "#8a6100",
+    "--role-head-bd": "#d0a23a"
+  }
+}

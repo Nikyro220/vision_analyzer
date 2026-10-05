@@ -5,7 +5,7 @@
    отрисовки (без вспышки тёмной темы у пользователей светлой).
 
    Всё хранится локально в браузере (localStorage), на сервер ничего
-   не уходит. Состояние:  { v: 1, preset: "auto"|"dark"|"light"|"contrast",
+   не уходит. Состояние:  { v: 1, preset: "auto"|"dark"|"light"|"contrast"|…,
                             values: { <ключ поля>: <значение> } }
    В values лежат только явные переопределения пользователя — всё, чего
    там нет, берётся из CSS (пресет + значения по умолчанию).
@@ -78,30 +78,17 @@
     }
 
     // ------------------------------------------------------------- пресеты
-    // mode — светлая или тёмная схема (нужно для расчёта производных цветов);
-    // panel — фон панели пресета (те же значения, что в style.css).
-    var PRESETS = [
-        { id: "auto", label: "Авто", hint: "Как в системе", group: "" },
-        { id: "dark", label: "Тёмная", hint: "Стандартная", group: "Тёмные", mode: "dark", panel: "#141a1e" },
-        { id: "graphite", label: "Графит", hint: "Нейтральный серый", group: "Тёмные", mode: "dark", panel: "#1a1a1a" },
-        { id: "oled", label: "OLED", hint: "Чёрный фон для экономии", group: "Тёмные", mode: "dark", panel: "#0a0a0a" },
-        { id: "midnight", label: "Полночь", hint: "Глубокий синий", group: "Тёмные", mode: "dark", panel: "#111834" },
-        { id: "forest", label: "Лес", hint: "Тёмный зелёный", group: "Тёмные", mode: "dark", panel: "#111c16" },
-        { id: "plum", label: "Слива", hint: "Тёмный фиолетовый", group: "Тёмные", mode: "dark", panel: "#1c1423" },
-        { id: "coffee", label: "Кофе", hint: "Тёплый коричневый", group: "Тёмные", mode: "dark", panel: "#1b1612" },
-        { id: "nord", label: "Арктика", hint: "Холодная сине-серая", group: "Тёмные", mode: "dark", panel: "#2e3440" },
-        { id: "solarized-dark", label: "Solarized тёмная", hint: "Классика для кода", group: "Тёмные", mode: "dark", panel: "#073642" },
-        { id: "light", label: "Светлая", hint: "Для яркого освещения", group: "Светлые", mode: "light", panel: "#ffffff" },
-        { id: "paper", label: "Бумага", hint: "Тёплая, как книжная страница", group: "Светлые", mode: "light", panel: "#fbf6ea" },
-        { id: "mint", label: "Мята", hint: "Светлая зеленоватая", group: "Светлые", mode: "light", panel: "#ffffff" },
-        { id: "sky", label: "Небо", hint: "Светлая голубоватая", group: "Светлые", mode: "light", panel: "#ffffff" },
-        { id: "solarized-light", label: "Solarized светлая", hint: "Классика для кода", group: "Светлые", mode: "light", panel: "#fffbee" },
-        { id: "contrast", label: "Контрастная", hint: "Максимальная читаемость", group: "Контрастные", mode: "dark", panel: "#000000" },
-        { id: "contrast-light", label: "Контрастная светлая", hint: "Чёрное на белом", group: "Контрастные", mode: "light", panel: "#ffffff" }
-    ];
+    // Список тем приходит с сервера (window.VT_PRESETS, см. base.html) из файлов
+    // vision_app/themes/<id>.json: id, label, hint, group, mode ("light"/"dark" — нужно для
+    // расчёта производных цветов), panel (фон панели), accent (только если у темы свой акцент;
+    // иначе акцент остаётся выбранным пользователем или бирюзовым по умолчанию).
+    // «Авто» — не тема, а режим «как в системе», он добавляется здесь.
+    var PRESETS = [{ id: "auto", label: "Авто", hint: "Как в системе", group: "" }]
+        .concat(Array.isArray(global.VT_PRESETS) ? global.VT_PRESETS : []);
     function presetOf(id) { return PRESETS.filter(function (p) { return p.id === id; })[0]; }
     function isLightTheme(id) { var p = presetOf(id); return !!p && p.mode === "light"; }
     function panelOf(id) { var p = presetOf(id); return (p && p.panel) || "#141a1e"; }
+    function accentOf(id) { var p = presetOf(id); return (p && p.accent) || null; }
 
     // ------------------------------------------------------------- шрифты
     var DEFAULT_BODY = '-apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif';
@@ -147,7 +134,7 @@
     var MODULES = [
         {
             id: "accent", title: "Акцент",
-            hint: "Цвет кнопок, активных пунктов меню, ссылок и фокуса. Пресеты темы его не меняют.",
+            hint: "Цвет кнопок, активных пунктов меню, ссылок и фокуса. Часть тем задаёт свой акцент; выбранный здесь цвет его перекрывает.",
             fields: [
                 { key: "accent", label: "Акцентный цвет", kind: "color", cssVar: "--accent", swatches: true },
                 { key: "accentStrong", label: "Акцент: светлый вариант", kind: "color", cssVar: "--accent-strong",
@@ -325,7 +312,9 @@
         var isLight = isLightTheme(theme);
         var panel = parseColor(v.bgPanel) || parseColor(panelOf(theme));
 
-        if (v.accent || theme !== "dark") {
+        // Тема со своим акцентом сама задаёт все четыре переменные в CSS — считаем только
+        // когда акцент выбрал пользователь либо тема без своего акцента не тёмная.
+        if (v.accent || (theme !== "dark" && !accentOf(theme))) {
             var base = parseColor(v.accent) || parseColor("#3fa7a0");
             if (!v.accentStrong) setInline("--accent-strong", toHex(readable(base, panel, isLight, 4.5)));
             setInline("--accent-soft", "rgba(" + base.map(Math.round).join(",") + ",0.14)");
@@ -420,11 +409,12 @@
             if (f && f.customKey) delete state.values[f.customKey];
             commit();
         },
-        // Пресет меняет только палитру: акцент, шрифты и форма остаются как были.
+        // Пресет меняет палитру (и акцент — только у тем со своим акцентом); шрифты и форма остаются как были.
         setPreset: function (id) {
             if (!PRESETS.some(function (p) { return p.id === id; })) return;
             remember();
             state.preset = id;
+            if (accentOf(id)) { delete state.values.accent; delete state.values.accentStrong; }
             MODULES.forEach(function (m) {
                 if (m.scope !== "palette") return;
                 m.fields.forEach(function (f) { delete state.values[f.key]; });

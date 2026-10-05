@@ -1,0 +1,32 @@
+{
+  "label": "Графит",
+  "hint": "Нейтральный серый",
+  "group": "Тёмные",
+  "order": 59,
+  "mode": "dark",
+  "vars": {
+    "--bg": "#121212",
+    "--bg-panel": "#1a1a1a",
+    "--bg-elevated": "#242424",
+    "--bg-hover": "#2e2e2e",
+    "--border": "#3d3d3d",
+    "--border-soft": "#2a2a2a",
+    "--text": "#ececec",
+    "--text-muted": "#a6a6a6",
+    "--text-dim": "#8c8c8c",
+    "--risk-low": "#4fae70",
+    "--risk-medium": "#e0a039",
+    "--risk-high": "#dd5b4d",
+    "--danger": "#dd5b4d",
+    "--danger-strong": "#ef7263",
+    "--on-risk": "#0b1113",
+    "--stripe": "rgba(255, 255, 255, 0.02)",
+    "--stripe-strong": "rgba(255, 255, 255, 0.03)",
+    "--role-user-fg": "#5fc2bb",
+    "--role-user-bd": "#3fa7a0",
+    "--role-admin-fg": "#c9a6f2",
+    "--role-admin-bd": "#7a52a8",
+    "--role-head-fg": "#f2c96a",
+    "--role-head-bd": "#a3822f"
+  }
+}

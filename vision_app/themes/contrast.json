@@ -1,0 +1,32 @@
+{
+  "label": "Контрастная",
+  "hint": "Максимальная читаемость",
+  "group": "Контрастные",
+  "order": 1,
+  "mode": "dark",
+  "vars": {
+    "--bg": "#000000",
+    "--bg-panel": "#000000",
+    "--bg-elevated": "#0d0d0d",
+    "--bg-hover": "#1f1f1f",
+    "--border": "#ffffff",
+    "--border-soft": "#8c8c8c",
+    "--text": "#ffffff",
+    "--text-muted": "#e0e0e0",
+    "--text-dim": "#b8b8b8",
+    "--risk-low": "#3dff8a",
+    "--risk-medium": "#ffd21f",
+    "--risk-high": "#ff5a4a",
+    "--danger": "#ff5a4a",
+    "--danger-strong": "#ff8a7d",
+    "--on-risk": "#000000",
+    "--stripe": "rgba(255, 255, 255, 0.08)",
+    "--stripe-strong": "rgba(255, 255, 255, 0.12)",
+    "--role-user-fg": "#7fe6de",
+    "--role-user-bd": "#5fc2bb",
+    "--role-admin-fg": "#e2c6ff",
+    "--role-admin-bd": "#c9a6f2",
+    "--role-head-fg": "#ffe28a",
+    "--role-head-bd": "#ffd21f"
+  }
+}

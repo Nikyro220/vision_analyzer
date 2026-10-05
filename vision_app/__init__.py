@@ -6,7 +6,7 @@ import os
 from pathlib import Path
 
 import click
-from flask import Flask, flash, redirect, render_template, request, url_for
+from flask import Flask, Response, flash, redirect, render_template, request, url_for
 from flask_login import current_user
 from flask_wtf.csrf import CSRFError
 
@@ -16,12 +16,13 @@ from .extensions import csrf, db, login_manager, migrate
 from .models import ROLE_CHOICES, ROLE_LABELS, RISK_LABELS, Role, User
 from .queue_worker import ensure_worker, worker_enabled
 from .schema import ensure_schema
+from .themes import theme_presets, themes_css, themes_version
 from . import settings_store
 from . import image_dedup, vector_search
 from .utils import local_dt, page_url, plural, truncate_chars
 
 # Эндпоинты, доступные заблокированному пользователю.
-_BLOCKED_ALLOWED = {"accounts.blocked", "accounts.logout", "static"}
+_BLOCKED_ALLOWED = {"accounts.blocked", "accounts.logout", "static", "themes_css"}
 
 
 def create_app(config: dict | None = None) -> Flask:
@@ -62,10 +63,21 @@ def create_app(config: dict | None = None) -> Flask:
     app.register_blueprint(chat.bp, url_prefix="/chat")
     app.register_blueprint(panel.bp)
 
+    @app.get("/themes.css", endpoint="themes_css")
+    def themes_css_view():
+        # CSS палитр тем, собранный из vision_app/themes/*.json. Доступен всем (в т.ч. гостям),
+        # версия в ?v= меняется вместе с содержимым — можно кэшировать надолго.
+        resp = Response(themes_css(), mimetype="text/css")
+        resp.cache_control.public = True
+        resp.cache_control.max_age = 31536000
+        return resp
+
     # --- Jinja ---
     app.jinja_env.filters["localdt"] = local_dt
     app.jinja_env.filters["trunc"] = truncate_chars
     app.jinja_env.filters["plural"] = plural
+    app.jinja_env.globals["theme_presets"] = theme_presets  # темы из vision_app/themes/*.json
+    app.jinja_env.globals["themes_version"] = themes_version
     app.jinja_env.globals["conf"] = conf  # шаблоны читают настройки на ходу: {{ conf("CAPTION_MAX_CHARS") }}
 
     @app.context_processor

@@ -1,0 +1,32 @@
+{
+  "label": "Светлая",
+  "hint": "Для яркого освещения",
+  "group": "Светлые",
+  "order": 1,
+  "mode": "light",
+  "vars": {
+    "--bg": "#f4f6f7",
+    "--bg-panel": "#ffffff",
+    "--bg-elevated": "#eef1f3",
+    "--bg-hover": "#e3e8eb",
+    "--border": "#c6ced3",
+    "--border-soft": "#dde3e6",
+    "--text": "#182126",
+    "--text-muted": "#506069",
+    "--text-dim": "#6a7981",
+    "--risk-low": "#2f8a53",
+    "--risk-medium": "#b9770e",
+    "--risk-high": "#c63d2f",
+    "--danger": "#c63d2f",
+    "--danger-strong": "#b1301f",
+    "--on-risk": "#ffffff",
+    "--stripe": "rgba(0, 0, 0, 0.025)",
+    "--stripe-strong": "rgba(0, 0, 0, 0.04)",
+    "--role-user-fg": "#1f6f69",
+    "--role-user-bd": "#3fa7a0",
+    "--role-admin-fg": "#6b3fa0",
+    "--role-admin-bd": "#a988d6",
+    "--role-head-fg": "#8a6100",
+    "--role-head-bd": "#d0a23a"
+  }
+}

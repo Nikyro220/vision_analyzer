@@ -9,7 +9,7 @@
     var T = window.VTheme;
 
     var ACCENT_SWATCHES = [
-        ["#3fa7a0", "Бирюзовый (по умолчанию)"], ["#4c8dff", "Синий"], ["#8b7bff", "Фиолетовый"],
+        ["#3fa7a0", "Бирюзовый"], ["#4c8dff", "Синий"], ["#8b7bff", "Фиолетовый"],
         ["#e0609a", "Розовый"], ["#e5534b", "Красный"], ["#e08a3c", "Оранжевый"],
         ["#d9c04a", "Жёлтый"], ["#4fae70", "Зелёный"]
     ];
@@ -86,7 +86,8 @@
             var b = el("button", { cls: "vs-swatch", attrs: { type: "button", title: s[1], "aria-label": s[1] } });
             b.style.background = s[0];
             b.addEventListener("click", function () {
-                if (s[0] === "#3fa7a0") T.resetValue(f.key); else T.setValue(f.key, s[0]);
+                // Цвет, совпадающий с акцентом по умолчанию (темы — собственным, иначе бирюзовым), — это сброс
+                if (s[0] === String(T.defaultOf(f.key) || "").toLowerCase()) T.resetValue(f.key); else T.setValue(f.key, s[0]);
             });
             row.appendChild(b);
             return [b, s[0]];
@@ -254,40 +255,56 @@
         ] }));
         return box;
     }
+    function presetPreview(p) {
+        var thumb = p.id === "auto"
+            ? el("div", { cls: "vs-mock-split", kids: [mock("dark"), mock("light")] })
+            : mock(p.id);
+        return [
+            thumb,
+            el("span", { cls: "vs-preset-name", text: p.label }),
+            el("span", { cls: "vs-preset-hint", text: p.hint })
+        ];
+    }
+    // Выбор темы: выпадающий список с группами (<optgroup>, порядок задаёт сервер) и карточка-превью
+    // выбранной темы. Список из ~100 пунктов листается стрелками и ищется набором первых букв.
     function buildPresets() {
-        var grid = el("div", { cls: "vs-presets", attrs: { role: "radiogroup", "aria-label": "Тема" } });
-        var lastGroup = null;
-        var cards = T.presets.map(function (p) {
-            if (p.group && p.group !== lastGroup) {
-                grid.appendChild(el("div", { cls: "vs-preset-group", text: p.group, attrs: { role: "presentation" } }));
+        var id = nextId("preset");
+        var select = el("select", { cls: "input vs-theme-select", attrs: { id: id } });
+        var preview = el("div", { cls: "vs-theme-preview", attrs: { "aria-live": "polite" } });
+        var byId = {};
+        var group = null, groupId = null;
+        T.presets.forEach(function (p) {
+            byId[p.id] = p;
+            var opt = el("option", { text: p.label, attrs: { value: p.id } });
+            if (!p.group) { select.appendChild(opt); return; }          // «Авто» — вне групп
+            if (p.group !== groupId) {
+                group = el("optgroup", { attrs: { label: p.group } });
+                groupId = p.group;
+                select.appendChild(group);
             }
-            lastGroup = p.group;
-            var preview = p.id === "auto"
-                ? el("div", { cls: "vs-mock-split", kids: [mock("dark"), mock("light")] })
-                : mock(p.id);
-            var b = el("button", { cls: "vs-preset", attrs: { type: "button", role: "radio", "data-preset": p.id }, kids: [
-                preview,
-                el("span", { cls: "vs-preset-name", text: p.label }),
-                el("span", { cls: "vs-preset-hint", text: p.hint })
-            ], on: { click: function () {
-                var had = T.hasPaletteOverrides();
-                T.setPreset(p.id);
-                say(had ? "Тема применена. Свои цвета поверхностей, текста и статусов сброшены — «Отменить» вернёт их." : "Тема применена.", "ok");
-            } } });
-            grid.appendChild(b);
-            return [b, p.id];
+            group.appendChild(opt);
+        });
+        select.addEventListener("change", function () {
+            var had = T.hasPaletteOverrides();
+            T.setPreset(select.value);
+            say(had ? "Тема применена. Свои цвета поверхностей, текста и статусов сброшены — «Отменить» вернёт их." : "Тема применена.", "ok");
         });
         syncers.push(function () {
             var cur = T.get().preset;
-            cards.forEach(function (c) {
-                c[0].setAttribute("aria-checked", c[1] === cur ? "true" : "false");
-                c[0].classList.toggle("is-active", c[1] === cur);
-            });
+            select.value = cur;
+            preview.textContent = "";
+            (byId[cur] ? presetPreview(byId[cur]) : []).forEach(function (n) { preview.appendChild(n); });
         });
         return el("section", { cls: "card vs-module", kids: [
             el("h2", { cls: "card-title", text: "Тема" }),
-            el("p", { cls: "field-hint vs-module-hint", text: "Пресет меняет только палитру. Акцентный цвет, шрифты и форма остаются вашими. Светлые темы подходят для яркого освещения, тёмные — для вечера." }),
-            grid
+            el("p", { cls: "field-hint vs-module-hint", text: "Пресет меняет палитру, а у части тем — ещё и акцентный цвет. Шрифты и форма остаются вашими. Темы сгруппированы: тёмные, светлые и контрастные; внутри групп — по алфавиту. В открытом списке можно набрать первые буквы названия." }),
+            el("div", { cls: "vs-theme-picker", kids: [
+                el("div", { cls: "vs-control-stack vs-theme-select-wrap", kids: [
+                    el("label", { cls: "vs-theme-label", text: "Тема оформления", attrs: { for: id } }),
+                    select
+                ] }),
+                preview
+            ] })
         ] });
     }
 

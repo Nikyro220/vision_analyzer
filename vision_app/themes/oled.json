@@ -1,0 +1,32 @@
+{
+  "label": "OLED",
+  "hint": "Чёрный фон для экономии",
+  "group": "Тёмные",
+  "order": 38,
+  "mode": "dark",
+  "vars": {
+    "--bg": "#000000",
+    "--bg-panel": "#0a0a0a",
+    "--bg-elevated": "#151515",
+    "--bg-hover": "#1f1f1f",
+    "--border": "#333333",
+    "--border-soft": "#1c1c1c",
+    "--text": "#e8e8e8",
+    "--text-muted": "#a0a0a0",
+    "--text-dim": "#878787",
+    "--risk-low": "#4fae70",
+    "--risk-medium": "#e0a039",
+    "--risk-high": "#dd5b4d",
+    "--danger": "#dd5b4d",
+    "--danger-strong": "#ef7263",
+    "--on-risk": "#0b1113",
+    "--stripe": "rgba(255, 255, 255, 0.02)",
+    "--stripe-strong": "rgba(255, 255, 255, 0.03)",
+    "--role-user-fg": "#5fc2bb",
+    "--role-user-bd": "#3fa7a0",
+    "--role-admin-fg": "#c9a6f2",
+    "--role-admin-bd": "#7a52a8",
+    "--role-head-fg": "#f2c96a",
+    "--role-head-bd": "#a3822f"
+  }
+}
