@@ -65,7 +65,7 @@ class Config:
     VISION_API_TIMEOUT = _env_int("VISION_API_TIMEOUT", 500)  # /analyze и /chat
     VISION_API_HEALTH_TIMEOUT = 10  # /health и GET /embeddings, сек
     VISION_API_CALL_TIMEOUT = 15  # вспомогательные GET/POST (/models, /sampling, /categories), сек
-    # /models облачного провайдера (Gemini) — отдельный, более длинный таймаут: список приходит
+    # /models облачного провайдера (Gemini, Anthropic) — отдельный, более длинный таймаут: список приходит
     # из интернета и бывает медленным. Раньше из-за него приходилось поднимать общий таймаут выше.
     VISION_API_MODELS_TIMEOUT = 60
     # Сколько хранится в БД кэш списка моделей облачного провайдера, сек (кнопка «Обновить список»

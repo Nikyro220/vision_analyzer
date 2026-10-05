@@ -1,6 +1,6 @@
 # Vision Analyzer
 
-Локальный риск-триаж изображений: vision-модель (vLLM, Ollama или Gemini) смотрит на
+Локальный риск-триаж изображений: vision-модель (vLLM, Ollama, Gemini или Anthropic Claude) смотрит на
 картинку и возвращает структурированный отчёт — уровень риска, сигналы,
 рекомендацию. В репозитории два компонента:
 
@@ -32,7 +32,7 @@ python run.py
 ```bash
 # .env
 FLASK_SECRET_KEY=длинная-случайная-строка
-# мастер-ключ шифрования API-ключей провайдеров (нужен, только если используете Gemini):
+# мастер-ключ шифрования API-ключей провайдеров (нужен, только если используете Gemini или Anthropic):
 VISION_CREDENTIALS_KEY=<результат команды ниже>
 ```
 
@@ -64,7 +64,7 @@ cd inference && python server.py
 | Файл | Назначение |
 |---|---|
 | `server.py` | HTTP-эндпоинты (aiohttp): `/`, `/health`, `/analyze`, `/chat`, `/lang`, `/config`, `/sampling`, `/models`, `/providers`, `/categories` |
-| `providers/` | Бэкенды модели, по модулю на каждый: `vllm.py` (`/v1/chat/completions`), `ollama.py` (`/api/chat`), `gemini.py` (Google `generateContent`); общий интерфейс — `base.py`, реестр — `__init__.py` |
+| `providers/` | Бэкенды модели, по модулю на каждый: `vllm.py` (`/v1/chat/completions`), `ollama.py` (`/api/chat`), `gemini.py` (Google `generateContent`), `anthropic.py` (Anthropic Messages API); общий интерфейс — `base.py`, реестр — `__init__.py` |
 | `backends.py` | Конвейер `/analyze` поверх провайдеров: двухпроходный анализ, фолбэк, постобработка отчёта |
 | `chat.py`, `chat_backends.py` | То же самое, но для `/chat` — свободный диалог с историей, без JSON-схемы риск-отчёта |
 | `config.py` | Константы, параметры сэмплинга, логирование, бутстрап `locales`/`prompt`/`image_upscaler` |
@@ -75,7 +75,7 @@ cd inference && python server.py
 ### Эндпоинты
 
 - `GET /` — список команд и примеров (то же, что ниже, простым текстом).
-- `GET /health` — статус бэкендов (vLLM, Ollama; Gemini — если задан ключ или он выбран по умолчанию): доступность и модель.
+- `GET /health` — статус бэкендов (vLLM, Ollama; Gemini и Anthropic — если задан ключ или они выбраны по умолчанию): доступность и модель.
 - `POST /analyze` — анализ одного или нескольких изображений. Тело запроса —
   любое из трёх: сырые байты картинки (`Content-Type: image/*`),
   `multipart/form-data` (`images`, plus `backend`/`model`/`lang`/`history`)
@@ -95,19 +95,22 @@ cd inference && python server.py
   промпт не подставляется и модель получает только `system` (пустой
   `system` в этом режиме — 400). Если выбранный бэкенд недоступен, а `backend` не был
   передан явно, сервер один раз автоматически пробует второй бэкенд
-  (vllm ↔ ollama; на Gemini и с Gemini автофолбэка нет — картинки не
+  (vllm ↔ ollama; на Gemini/Anthropic и с них автофолбэка нет — картинки не
   должны уходить в облако без явного выбора).
 - `POST /lang` — сменить язык ответов по умолчанию (`ru`/`en`).
 - `GET/POST /config` — посмотреть/поменять `backend`, `ollama_host`,
-  `vllm_url`, `gemini_model` без перезапуска. Ключей API здесь нет: сервер их не хранит
+  `vllm_url`, `gemini_model`, `anthropic_model` без перезапуска. Ключей API здесь нет: сервер их не хранит
   (см. ниже).
 - `GET/POST /sampling` — посмотреть/поменять `temperature`, `top_p`,
   `top_k`, `seed`, `num_ctx`, `num_predict`, `think` (`true`/`false` или
   `low`/`medium`/`high`). Общие для всего сервера и для всех бэкендов.
   `num_ctx` действует только для Ollama; у Gemini `think` переводится в
   `thinkingBudget` / `thinkingLevel`, а `num_predict` включает токены размышлений.
+  У Anthropic из `/sampling` используются только `num_predict` (это `max_tokens`) и `think`
+  (→ `output_config.effort`); `temperature`/`top_p`/`top_k`/`seed` не передаются — актуальные
+  модели Claude отвергают нестандартные значения, а `seed` в Messages API нет.
 - `GET /models` — полный список моделей, которые прямо сейчас отдаёт бэкенд
-  (`?backend=vllm|ollama|gemini`, без параметра — все настроенные).
+  (`?backend=vllm|ollama|gemini|anthropic`, без параметра — все настроенные).
 
 - `GET /providers` — описание **всех** зарегистрированных провайдеров (в отличие от
   `/health`, где не настроенные скрыты): `name`, `label`, `fallback`, `configured`,
@@ -117,12 +120,13 @@ cd inference && python server.py
 
 **API-ключи сервер анализа не хранит** — ни в файлах, ни в переменных окружения, ни в памяти.
 Клиент присылает ключ в **каждом** запросе заголовком `X-Api-Key-<Провайдер>`
-(для Gemini — `X-Api-Key-Gemini`) на `/analyze`, `/chat`, `/models`, `/health` и `/providers`.
-Это заголовок, а не query: URL попадают в логи. `configured` в `/providers` и видимость Gemini в
+(для Gemini — `X-Api-Key-Gemini`, для Anthropic — `X-Api-Key-Anthropic`) на `/analyze`, `/chat`, `/models`, `/health` и `/providers`.
+Это заголовок, а не query: URL попадают в логи. `configured` в `/providers` и видимость облачных провайдеров в
 `/health` / `/models` означают «ключ пришёл в этом запросе».
 
 ```bash
 curl -H "X-Api-Key-Gemini: AIza..." "http://127.0.0.1:6769/models?backend=gemini"
+curl -H "X-Api-Key-Anthropic: sk-ant-..." "http://127.0.0.1:6769/models?backend=anthropic"
 ```
 
 Примеры curl — в тексте `GET /`.
@@ -142,12 +146,16 @@ curl -H "X-Api-Key-Gemini: AIza..." "http://127.0.0.1:6769/models?backend=gemini
 
 | Переменная | По умолчанию | Назначение |
 |---|---|---|
-| `VISION_ANALYZER_BACKEND` | `vllm` | Бэкенд по умолчанию (`vllm` / `ollama` / `gemini`) |
+| `VISION_ANALYZER_BACKEND` | `vllm` | Бэкенд по умолчанию (`vllm` / `ollama` / `gemini` / `anthropic`) |
 | `VISION_ANALYZER_OLLAMA_HOST` | `http://127.0.0.1:11434` | Адрес Ollama |
 | `VISION_ANALYZER_VLLM_URL` | `http://host.docker.internal:8000/v1` | Адрес vLLM (OpenAI-совместимый) |
 | `VISION_ANALYZER_GEMINI_MODEL` | `gemini-2.5-flash` | Модель Gemini по умолчанию |
 | `VISION_ANALYZER_GEMINI_SAFETY` | — (значения API) | Порог фильтров безопасности Gemini (`BLOCK_NONE`, `BLOCK_ONLY_HIGH`, …) |
 | `VISION_ANALYZER_GEMINI_API_BASE` | `https://generativelanguage.googleapis.com/v1beta` | Базовый URL API (например, свой прокси) |
+| `VISION_ANALYZER_ANTHROPIC_MODEL` | `claude-sonnet-5-5` | Модель Claude по умолчанию |
+| `VISION_ANALYZER_ANTHROPIC_MAX_TOKENS` | `16000` | `max_tokens` (если не задан `num_predict`); токены размышлений входят в лимит |
+| `VISION_ANALYZER_ANTHROPIC_VERSION` | `2023-06-01` | Значение заголовка `anthropic-version` |
+| `VISION_ANALYZER_ANTHROPIC_API_BASE` | `https://api.anthropic.com/v1` | Базовый URL API (например, свой прокси) |
 | `VISION_ANALYZER_TEMPERATURE` / `_TOP_P` / `_TOP_K` / `_SEED` | `0` / `1.0` / `1` / `42` | Параметры сэмплинга по умолчанию |
 | `VISION_ANALYZER_NUM_CTX` | — (не переопределяется) | Размер контекста (только Ollama) |
 | `VISION_ANALYZER_NUM_PREDICT` | — (не переопределяется) | Лимит длины ответа |
@@ -187,9 +195,9 @@ curl -H "X-Api-Key-Gemini: AIza..." "http://127.0.0.1:6769/models?backend=gemini
   `GET /providers`, поэтому новый провайдер подхватывается без перезапуска панели). Для админов
   на карточке каждого бэкенда — выбор модели из выпадающего списка (`GET /models`),
   параметры генерации (только те, что бэкенд реально использует) и поля подключения,
-  которые он объявил. Для Google Gemini это **API-ключ**: вставляется в карточку, не
+  которые он объявил. Для облачных провайдеров (Google Gemini, Anthropic Claude) это **API-ключ**: вставляется в карточку, не
   показывается после сохранения (видно лишь «задан»), сразу проверяется и сбрасывается
-  чекбоксом. Не настроенный провайдер (Gemini без ключа) тоже виден — иначе ключ было бы
+  чекбоксом. Не настроенный провайдер (Gemini/Anthropic без ключа) тоже виден — иначе ключ было бы
   негде ввести.
   В блоке «Общий статус» админ меняет **бэкенд по умолчанию** на сервере (`POST /config`,
   поле `backend`): его используют запросы без явного выбора, от него считается автоматический
@@ -259,18 +267,18 @@ curl -H "X-Api-Key-Gemini: AIza..." "http://127.0.0.1:6769/models?backend=gemini
 | `VISION_ANALYZER_PYTHON` | venv рядом с `inference/`, иначе текущий интерпретатор | Каким python запускать `inference/server.py` |
 | `FLASK_RUN_HOST` / `FLASK_RUN_PORT` / `FLASK_DEBUG` | `127.0.0.1` / `6967` / `0` | Параметры `python run.py` |
 
-### API-ключи провайдеров (Gemini)
+### API-ключи провайдеров (Gemini, Anthropic)
 
 Главный админ / админ вводит ключ на странице «Статус сервера». Приложение:
 
 - хранит его в таблице `provider_credentials` **зашифрованным** (Fernet), а не хешированным:
-  ключ нужно отправлять в Google, а из хеша его не восстановить. Мастер-ключ шифрования лежит
+  ключ нужно отправлять провайдеру (Google, Anthropic), а из хеша его не восстановить. Мастер-ключ шифрования лежит
   вне БД — в `VISION_CREDENTIALS_KEY` (отдельно от `FLASK_SECRET_KEY`, чтобы смена секрета Flask
   не обнуляла ключи). Дамп БД без этой переменной ключ не раскрывает;
-- присылает его серверу анализа в каждом запросе (`X-Api-Key-Gemini`);
+- присылает его серверу анализа в каждом запросе (`X-Api-Key-Gemini`, `X-Api-Key-Anthropic`);
 - никогда не показывает: в интерфейсе только «задан» и последние 4 символа;
-- кэширует список моделей Gemini в БД (`provider_models_cache`, TTL `MODELS_CACHE_TTL`, по
-  умолчанию 6 часов). Страница статуса ради списка в Google не ходит — он обновляется кнопкой
+- кэширует список моделей облачного провайдера в БД (`provider_models_cache`, TTL `MODELS_CACHE_TTL`, по
+  умолчанию 6 часов). Страница статуса ради списка в API провайдера не ходит — он обновляется кнопкой
   «Обновить список» (таймаут — `VISION_API_MODELS_TIMEOUT`, отдельно от общего).
 
 Ротация мастер-ключа: задайте `VISION_CREDENTIALS_KEY="новый,старый"` — шифруется первым,
@@ -292,8 +300,8 @@ flask --app vision_app set-role <логин> <роль>    # blocked | user | ad
 
 - Python 3.11+
 - vLLM (OpenAI-совместимый эндпоинт) и/или локально запущенный Ollama с
-  vision-моделью, и/или ключ API Gemini (`providers/gemini.py`, без
-  дополнительных зависимостей — запросы идут через aiohttp)
+  vision-моделью, и/или ключ API Gemini (`providers/gemini.py`) или Anthropic (`providers/anthropic.py`);
+  облачные провайдеры без дополнительных зависимостей — запросы идут через aiohttp
 - `requirements.txt` — общий для `inference/` и `vision_app/` (aiohttp/torch/
   Pillow для сервера анализа, Flask-стек для панели)
 

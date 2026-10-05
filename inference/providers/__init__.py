@@ -1,5 +1,5 @@
 """
-providers — бэкенды модели (vLLM, Ollama, Gemini), по одному модулю на каждый.
+providers — бэкенды модели (vLLM, Ollama, Gemini, Anthropic), по одному модулю на каждый.
 
 Общий интерфейс — providers.base.Provider. Чтобы добавить новый бэкенд:
   1. создать providers/<name>.py с классом-наследником Provider;
@@ -24,12 +24,13 @@ from .base import (
     ALL_SAMPLING_KEYS, CREDENTIAL_HEADER_PREFIX, Credential, Provider,
     ensure_data_url, request_credentials, strip_data_url,
 )
+from .anthropic import AnthropicProvider
 from .gemini import GeminiProvider
 from .ollama import OllamaProvider
 from .vllm import VllmProvider
 
 _PROVIDERS: dict[str, Provider] = {
-    p.name: p for p in (VllmProvider(), OllamaProvider(), GeminiProvider())
+    p.name: p for p in (VllmProvider(), OllamaProvider(), GeminiProvider(), AnthropicProvider())
 }
 
 
@@ -63,7 +64,7 @@ def reset_all_caches() -> None:
 
 __all__ = [
     "Provider", "Credential", "ALL_SAMPLING_KEYS", "CREDENTIAL_HEADER_PREFIX", "request_credentials",
-    "GeminiProvider", "OllamaProvider", "VllmProvider",
+    "AnthropicProvider", "GeminiProvider", "OllamaProvider", "VllmProvider",
     "names", "is_known", "get", "all_providers", "reset_all_caches",
     "strip_data_url", "ensure_data_url",
 ]

@@ -153,7 +153,7 @@
             <form method="post" action="{{ url_for('analyzer.refresh_models', name=card.name) }}" class="form form-inline">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <button type="submit" class="btn btn-secondary">Обновить список</button>
-                {% if card.models_cached_at %}<span class="field-hint">Загружен {{ card.models_cached_at|localdt }}; хранится в кэше, страница ради него в Google не ходит.</span>{% endif %}
+                {% if card.models_cached_at %}<span class="field-hint">Загружен {{ card.models_cached_at|localdt }}; хранится в кэше, страница ради него к провайдеру не ходит.</span>{% endif %}
             </form>
             {% endif %}
         </div>

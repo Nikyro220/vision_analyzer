@@ -156,12 +156,12 @@ def parse_think(v):
     raise ValueError(v)
 
 # Значения по умолчанию — можно переопределить переменными окружения при
-# запуске (VISION_ANALYZER_BACKEND / _OLLAMA_HOST / _VLLM_URL / _GEMINI_*), а также
+# запуске (VISION_ANALYZER_BACKEND / _OLLAMA_HOST / _VLLM_URL / _GEMINI_* / _ANTHROPIC_*), а также
 # "на лету", без перезапуска сервера, через GET/POST /config (см. server.py).
-# BACKEND/OLLAMA_HOST/VLLM_URL/GEMINI_* остаются обычными module-level переменными —
+# BACKEND/OLLAMA_HOST/VLLM_URL/GEMINI_*/ANTHROPIC_* остаются обычными module-level переменными —
 # POST /config меняет их присвоением, тем же способом, что и
 # locales.set_default_lang() меняет DEFAULT_LANG.
-BACKEND = os.environ.get("VISION_ANALYZER_BACKEND", "vllm").strip().lower()  # "vllm", "ollama" или "gemini" (см. providers/)
+BACKEND = os.environ.get("VISION_ANALYZER_BACKEND", "vllm").strip().lower()  # "vllm", "ollama", "gemini" или "anthropic" (см. providers/)
 OLLAMA_HOST = os.environ.get("VISION_ANALYZER_OLLAMA_HOST", "http://127.0.0.1:11434").strip()
 VLLM_URL = os.environ.get("VISION_ANALYZER_VLLM_URL", "http://host.docker.internal:8000/v1").strip()
 
@@ -179,6 +179,20 @@ GEMINI_API_BASE = os.environ.get(
 # не передавать, действуют значения самого API. Для риск-триажа фильтры могут
 # отклонять как раз те картинки, которые нужно проанализировать.
 GEMINI_SAFETY = os.environ.get("VISION_ANALYZER_GEMINI_SAFETY", "").strip().upper()
+
+# --- Anthropic Claude (providers/anthropic.py) ---
+# Ключ API, как и у Gemini, сервер НЕ хранит: клиент присылает его в каждом запросе заголовком
+# X-Api-Key-Anthropic (см. providers/base.py). Без заголовка провайдер «не настроен».
+# Модель по умолчанию для backend=anthropic (если model=... не передан в запросе).
+ANTHROPIC_MODEL = os.environ.get("VISION_ANALYZER_ANTHROPIC_MODEL", "claude-sonnet-5-5").strip()
+ANTHROPIC_API_BASE = os.environ.get(
+    "VISION_ANALYZER_ANTHROPIC_API_BASE", "https://api.anthropic.com/v1"
+).strip().rstrip("/")
+# Значение заголовка anthropic-version (версия Messages API, не модели).
+ANTHROPIC_VERSION = os.environ.get("VISION_ANALYZER_ANTHROPIC_VERSION", "2023-06-01").strip()
+# max_tokens у Messages API обязателен. Используется, когда num_predict (/sampling) не задан.
+# Токены размышлений входят в этот лимит, поэтому значение с запасом.
+ANTHROPIC_MAX_TOKENS = int(os.environ.get("VISION_ANALYZER_ANTHROPIC_MAX_TOKENS", "16000"))
 
 SERVER_HOST = "0.0.0.0"
 SERVER_PORT = 6769

@@ -12,8 +12,9 @@ GET /
 ========================================================
 GET /health
 ========================================================
-Статус бэкендов (vLLM, Ollama, а также Gemini — он показывается, только если
-в запросе пришёл ключ API (заголовок X-Api-Key-Gemini) или он выбран по умолчанию):
+Статус бэкендов (vLLM, Ollama, а также облачные Gemini и Anthropic — они показываются,
+только если в запросе пришёл ключ API (заголовок X-Api-Key-Gemini / X-Api-Key-Anthropic)
+или выбраны по умолчанию):
 доступность + модель.
 
   curl http://xxx.xxx.xxx.xxx:6769/health
@@ -45,7 +46,7 @@ POST /analyze — анализ изображения(й) на риск-сигн
   (а) сырое изображение в теле запроса, Content-Type: image/*
   (б) multipart/form-data с полями:
         images     — одно или несколько изображений (обязательно)
-        backend    — 'vllm' | 'ollama' | 'gemini' (необязательно, переопределяет BACKEND)
+        backend    — 'vllm' | 'ollama' | 'gemini' | 'anthropic' (необязательно, переопределяет BACKEND)
         model      — имя/id модели (необязательно, иначе автоопределение)
         lang       — 'ru' | 'en' (необязательно, язык только для этого
                      запроса — не меняет глобальный дефолт)
@@ -162,16 +163,17 @@ POST /lang — сменить язык по умолчанию (для всех 
 
 
 ========================================================
-GET/POST /config — посмотреть/поменять backend, ollama_host, vllm_url, gemini_model
+GET/POST /config — посмотреть/поменять backend, ollama_host, vllm_url, gemini_model, anthropic_model
 ========================================================
 GET возвращает текущие значения. POST принимает 'backend', 'ollama_host',
-'vllm_url' и/или 'gemini_model' (любое подмножество, хотя бы одно) — через
+'vllm_url', 'gemini_model' и/или 'anthropic_model' (любое подмножество, хотя бы одно) — через
 query, JSON-тело или form-поле, как и /lang. Действует сразу, без перезапуска
 сервера. Стартовые значения также можно задать переменными окружения
-VISION_ANALYZER_BACKEND / _OLLAMA_HOST / _VLLM_URL / _GEMINI_MODEL.
+VISION_ANALYZER_BACKEND / _OLLAMA_HOST / _VLLM_URL / _GEMINI_MODEL /
+_ANTHROPIC_MODEL.
 
-Ключ Gemini здесь не принимается: сервер ключи не хранит, клиент присылает
-их в каждом запросе заголовком X-Api-Key-Gemini (см. GET /providers).
+Ключи API здесь не принимаются: сервер ключи не хранит, клиент присылает
+их в каждом запросе заголовком X-Api-Key-Gemini / X-Api-Key-Anthropic (см. GET /providers).
 
 Gemini (backend=gemini) — облачный бэкенд: картинки уходят в Google.
 Поэтому на него НИКОГДА не происходит автоматический фолбэк с других
@@ -180,6 +182,14 @@ Gemini (backend=gemini) — облачный бэкенд: картинки ух
 model=... в самом запросе). Если Gemini отклоняет картинку фильтрами
 безопасности, запрос вернёт ошибку 400 с причиной; порог фильтров можно
 задать переменной VISION_ANALYZER_GEMINI_SAFETY (например BLOCK_NONE).
+
+Anthropic Claude (backend=anthropic) — тоже облачный бэкенд (картинки уходят в
+Anthropic) с теми же правилами: автофолбэка на него и с него нет. По умолчанию
+используется модель claude-sonnet-5-5 (anthropic_model, либо model=... в самом
+запросе). Если Claude отказывается обрабатывать картинку, запрос вернёт ошибку 400
+с причиной. Из /sampling используются только num_predict (это max_tokens) и think;
+temperature, top_p, top_k и seed не передаются (актуальные модели Claude отвергают
+нестандартные значения сэмплинга, а seed в Messages API нет).
 
   curl http://xxx.xxx.xxx.xxx:6769/config
 
@@ -191,6 +201,7 @@ model=... в самом запросе). Если Gemini отклоняет ка
 
   # Gemini: ключ передаётся заголовком в каждом запросе, а не через /config
   curl -H "X-Api-Key-Gemini: AIza..." "http://xxx.xxx.xxx.xxx:6769/models?backend=gemini"
+  curl -H "X-Api-Key-Anthropic: sk-ant-..." "http://xxx.xxx.xxx.xxx:6769/models?backend=anthropic"
 
 
 ========================================================
@@ -245,6 +256,12 @@ medium/high задают бюджет (1024/8192/24576 токенов), true —
 num_predict у Gemini включает токены размышлений: слишком малое значение
 при включённом think даёт пустой или обрезанный ответ.
 
+Anthropic: think=true (по умолчанию) ничего не передаёт (поведение модели по
+умолчанию); low/medium/high -> output_config.effort; false -> effort=low (полностью
+выключить thinking на актуальных моделях нельзя). effort поддерживают не все модели
+(например, Haiku 4.5 — нет): для них оставляйте think=true. num_predict — это
+max_tokens и, как у Gemini, включает токены размышлений.
+
 vllm_context_window (в GET-ответе) — read-only, реально узнанный у
 vLLM размер контекста (GET /v1/models -> max_model_len), либо null,
 если бэкенд недоступен или конкретная сборка это поле не отдаёт.
@@ -256,8 +273,8 @@ vLLM размер контекста (GET /v1/models -> max_model_len), либо
 ========================================================
 GET /models — список всех моделей, которые сейчас отдаёт бэкенд
 ========================================================
-Без параметра — сканирует все настроенные бэкенды (Gemini — только если
-в запросе есть заголовок X-Api-Key-Gemini). ?backend=vllm|ollama|gemini — только один. В отличие от /health (там только автоопределённая
+Без параметра — сканирует все настроенные бэкенды (Gemini/Anthropic — только если
+в запросе есть заголовок X-Api-Key-Gemini / X-Api-Key-Anthropic). ?backend=vllm|ollama|gemini|anthropic — только один. В отличие от /health (там только автоопределённая
 первая модель), здесь полный список.
 
   curl http://xxx.xxx.xxx.xxx:6769/models
@@ -461,7 +478,7 @@ POST /chat — свободный диалог с моделью (без risk-JS
                      нужно непустое 'system'
         history    — необязательная история диалога (тот же формат,
                      что у POST /analyze — история диалога выше)
-        backend    — 'vllm' | 'ollama' | 'gemini' (необязательно, переопределяет BACKEND)
+        backend    — 'vllm' | 'ollama' | 'gemini' | 'anthropic' (необязательно, переопределяет BACKEND)
         model      — имя/id модели (необязательно, иначе автоопределение)
         lang       — 'ru' | 'en' (необязательно, язык только для этого
                      запроса — не меняет глобальный дефолт)
@@ -491,7 +508,7 @@ query/multipart, JSON-строка — как и у /analyze).
 
 Если backend не передан явно, а выбранный по умолчанию бэкенд
 недоступен по подключению, сервер один раз автоматически пробует
-второй бэкенд (vllm <-> ollama), прежде чем вернуть ошибку. У gemini
+второй бэкенд (vllm <-> ollama), прежде чем вернуть ошибку. У gemini и anthropic
 автофолбэка нет.
 
 Для backend=vllm, если удалось узнать реальный max_model_len (см.

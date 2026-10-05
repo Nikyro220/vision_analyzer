@@ -3,7 +3,7 @@ server.py — HTTP-слой vision_analyzer_server: простые хендле�
 /health, /lang, /config, /sampling, /models), сборка приложения aiohttp
 и entrypoint. Сам /analyze — самый сложный путь — вынесен в analyze.py:
 подготовка изображений и разбор трёх форматов тела запроса там.
-Собственно общением с моделью (Ollama/vLLM/Gemini) занимаются провайдеры
+Собственно общением с моделью (Ollama/vLLM/Gemini/Anthropic) занимаются провайдеры
 в providers/ (по модулю на бэкенд), конвейер /analyze — backends.py.
 /providers — самоописание провайдеров (в т.ч. какой ключ API им нужен), чтобы клиенты не
 зашивали список бэкендов. Ключи API сервер НЕ хранит: клиент присылает ключ в каждом запросе
@@ -14,10 +14,11 @@ server.py — HTTP-слой vision_analyzer_server: простые хендле�
 POST /chat — свободный диалог с моделью (текст + картинки, с историей),
 без риск-JSON-схемы /analyze — вынесен в chat.py/chat_backends.py.
 
-Поддерживает три бэкенда (см. providers/):
+Поддерживает четыре бэкенда (см. providers/):
   - vllm   — OpenAI-совместимый API (/v1/chat/completions), напр. gvllm2.service
   - ollama — /api/chat с картинкой в base64 и принудительным JSON-выводом
   - gemini — Google Gemini (generateContent), по умолчанию gemini-2.5-flash
+  - anthropic — Anthropic Claude (Messages API), по умолчанию claude-sonnet-5-5
 
 Запуск:
     python server.py
@@ -82,7 +83,7 @@ async def handle_index(request: web.Request) -> web.Response:
 def _visible_providers() -> list[providers.Provider]:
     """Провайдеры, которые показываем в /health и /models без явного ?backend=.
 
-    Не настроенный провайдер (сейчас — Gemini без ключа API) скрыт, пока он
+    Не настроенный провайдер (облачный без ключа API: Gemini, Anthropic) скрыт, пока он
     не выбран бэкендом по умолчанию: иначе у тех, кто Gemini не использует,
     в статусе вечно висел бы «недоступный» бэкенд.
     """
@@ -146,7 +147,13 @@ async def handle_lang(request: web.Request) -> web.Response:
     return _json({"ok": True, "default_lang": lang, "available": available})
 
 
-_CONFIG_FIELDS = ("backend", "ollama_host", "vllm_url", "gemini_model")
+_CONFIG_FIELDS = ("backend", "ollama_host", "vllm_url", "gemini_model", "anthropic_model")
+
+# Ключи API здесь не принимаются: поле -> текст ошибки (сервер ключи не хранит).
+_REJECTED_KEY_FIELDS = {
+    "gemini_api_key": "error.gemini_key_not_stored",
+    "anthropic_api_key": "error.anthropic_key_not_stored",
+}
 
 
 def _config_snapshot() -> dict:
@@ -157,14 +164,15 @@ def _config_snapshot() -> dict:
         "ollama_host": config.OLLAMA_HOST,
         "vllm_url": config.VLLM_URL,
         "gemini_model": config.GEMINI_MODEL,
+        "anthropic_model": config.ANTHROPIC_MODEL,
     }
 
 
 async def handle_config(request: web.Request) -> web.Response:
-    """GET — вернуть текущие backend/ollama_host/vllm_url/gemini_model.
+    """GET — вернуть текущие backend/ollama_host/vllm_url/gemini_model/anthropic_model.
 
     POST — изменить одно или несколько полей "на лету", без перезапуска.
-    Принимает backend, ollama_host, vllm_url, gemini_model (query, JSON-тело
+    Принимает backend, ollama_host, vllm_url, gemini_model, anthropic_model (query, JSON-тело
     или form-поле, как и /lang). Хотя бы одно поле должно быть передано.
 
     Ключи API здесь НЕ принимаются и нигде не хранятся: клиент присылает ключ провайдера
@@ -173,8 +181,9 @@ async def handle_config(request: web.Request) -> web.Response:
     if request.method == "GET":
         return _json(_config_snapshot())
 
-    if "gemini_api_key" in request.query or "gemini_api_key" in request.headers:
-        return _json({"error": config._t("error.gemini_key_not_stored")}, status=400)
+    for field, message_key in _REJECTED_KEY_FIELDS.items():
+        if field in request.query or field in request.headers:
+            return _json({"error": config._t(message_key)}, status=400)
 
     try:
         if request.content_type == "application/json":
@@ -191,8 +200,9 @@ async def handle_config(request: web.Request) -> web.Response:
         key: request.query.get(key) if request.query.get(key) is not None else body.get(key)
         for key in _CONFIG_FIELDS
     }
-    if body.get("gemini_api_key"):
-        return _json({"error": config._t("error.gemini_key_not_stored")}, status=400)
+    for field, message_key in _REJECTED_KEY_FIELDS.items():
+        if body.get(field):
+            return _json({"error": config._t(message_key)}, status=400)
 
     if not any(values.values()):
         return _json({"error": config._t("error.config_missing_fields")}, status=400)
@@ -213,14 +223,17 @@ async def handle_config(request: web.Request) -> web.Response:
     if values["gemini_model"]:
         config.GEMINI_MODEL = values["gemini_model"].strip()
 
+    if values["anthropic_model"]:
+        config.ANTHROPIC_MODEL = values["anthropic_model"].strip()
+
     # Кэш автоопределённых моделей (и обнаруженного контекста vLLM) мог
     # указывать на прежний хост/URL — сбрасываем, чтобы следующий запрос
     # заново определил всё там, куда сейчас реально указывают настройки.
     providers.reset_all_caches()
 
     logging.info(
-        "Конфигурация обновлена извне: backend=%s ollama_host=%s vllm_url=%s gemini_model=%s",
-        config.BACKEND, config.OLLAMA_HOST, config.VLLM_URL, config.GEMINI_MODEL,
+        "Конфигурация обновлена извне: backend=%s ollama_host=%s vllm_url=%s gemini_model=%s anthropic_model=%s",
+        config.BACKEND, config.OLLAMA_HOST, config.VLLM_URL, config.GEMINI_MODEL, config.ANTHROPIC_MODEL,
     )
     return _json({"ok": True, **_config_snapshot()})
 
@@ -340,7 +353,7 @@ async def handle_sampling(request: web.Request) -> web.Response:
 async def handle_models(request: web.Request) -> web.Response:
     """Сканирует бэкенд(ы) и возвращает список всех доступных там моделей.
 
-    ?backend=<имя> — только один бэкенд (vllm | ollama | gemini); без
+    ?backend=<имя> — только один бэкенд (vllm | ollama | gemini | anthropic); без
     параметра — все настроенные (см. _visible_providers).
     Не путать с /health: там только уже автоопределённая (первая) модель,
     здесь — полный список, чтобы было видно, из чего вообще выбирать.

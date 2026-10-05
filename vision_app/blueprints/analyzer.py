@@ -512,7 +512,7 @@ def _render_health(bound_forms: dict | None = None, status_code: int = 200):
                 "form": None,
             }
             if card["configurable"]:
-                # Страница не должна ждать Google: берём список из кэша БД (для облачных
+                # Страница не должна ждать провайдера: берём список из кэша БД (для облачных
                 # провайдеров), а обновляется он кнопкой «Обновить список» (refresh_models).
                 try:
                     card["models"] = get_models(name, cached_only=True)
@@ -596,7 +596,7 @@ def save_model(name: str):
 
     if model:
         try:
-            known = get_models(name, cached_only=True)  # из кэша — без обращения к Google
+            known = get_models(name, cached_only=True)  # из кэша — без обращения к провайдеру
             if known and model not in known:
                 known = get_models(name, force=True)  # в кэше нет: перед отказом сверяемся с живым списком
         except VisionApiError:
