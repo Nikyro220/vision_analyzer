@@ -1012,6 +1012,7 @@ button.logout-link {
 }
 .form-wrap { flex-wrap: wrap; }
 .input-grow { flex: 1 1 260px; min-width: 0; }
+.input-locked { background: var(--surface-2, transparent); color: var(--text-dim); cursor: not-allowed; font-family: var(--font-mono); letter-spacing: 0.04em; }
 .sampling-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
 .field-hint { margin: 8px 0 0; font-size: 0.8333rem; color: var(--text-dim); }
 .tag-accent { color: var(--accent-strong); border-color: var(--accent); }
@@ -1641,3 +1642,52 @@ textarea.input {
     font-size: 0.8333rem;
     color: var(--text-muted);
 }
+
+
+/* ---------------- Настройки: сворачиваемые разделы ---------------- */
+/* Шапка раздела растянута на всю карточку (отрицательные поля компенсируют padding .card),
+   поэтому раскрывается нажатием в любом месте свёрнутого раздела, а не только по тексту. */
+.settings-group > summary {
+    list-style: none; cursor: pointer; user-select: none;
+    display: flex; align-items: center; gap: 12px;
+    margin: -20px -22px; padding: 20px 22px;
+    border-radius: var(--radius);
+}
+.settings-group > summary::-webkit-details-marker { display: none; }
+.settings-group > summary::before { content: "▸"; color: var(--text-dim); transition: transform 0.15s; flex: none; }
+.settings-group > summary:hover { background: var(--bg-hover); }
+.settings-group > summary:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.settings-group > summary .card-title { margin: 0; flex: 1 1 auto; }
+.settings-group-meta { font-size: 0.8333rem; color: var(--text-dim); white-space: nowrap; }
+.settings-group[open] > summary::before { transform: rotate(90deg); }
+.settings-group[open] > summary { margin-bottom: 0; padding-bottom: 14px; border-bottom-left-radius: 0; border-bottom-right-radius: 0; }
+.settings-group[open] > summary + * { margin-top: 26px; }
+
+
+/* ---------------- Чекбоксы ---------------- */
+input[type="checkbox"] {
+    appearance: none; -webkit-appearance: none;
+    flex: none; width: 18px; height: 18px; margin: 0;
+    display: inline-grid; place-content: center; vertical-align: middle;
+    background: var(--bg-elevated);
+    border: 1.5px solid var(--border);
+    border-radius: 5px;
+    cursor: pointer;
+    transition: background-color 0.12s, border-color 0.12s, box-shadow 0.12s;
+}
+input[type="checkbox"]::after {
+    content: "";
+    width: 10px; height: 10px;
+    background: var(--on-accent);
+    clip-path: polygon(14% 52%, 0 66%, 38% 100%, 100% 22%, 86% 8%, 38% 72%);
+    transform: scale(0);
+    transition: transform 0.12s ease-out;
+}
+input[type="checkbox"]:hover { border-color: var(--accent); }
+input[type="checkbox"]:checked { background: var(--accent); border-color: var(--accent); }
+input[type="checkbox"]:checked::after { transform: scale(1); }
+input[type="checkbox"]:indeterminate { background: var(--accent); border-color: var(--accent); }
+input[type="checkbox"]:indeterminate::after { clip-path: polygon(0 40%, 100% 40%, 100% 60%, 0 60%); transform: scale(1); }
+input[type="checkbox"]:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--accent-soft); border-color: var(--accent); }
+input[type="checkbox"]:disabled { opacity: 0.5; cursor: not-allowed; }
+.checkbox-label { cursor: pointer; }

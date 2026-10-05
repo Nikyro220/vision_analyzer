@@ -299,13 +299,16 @@ def _json(data, status: int = 200) -> web.Response:
 # ---------------------------------------------------------------------------
 
 async def _tasks_from_links(
-    url_items: list[tuple[str, str | None]], lang: str | None,
+    url_items: list[tuple[str, str | None]], lang: str | None, with_images: bool = False,
 ) -> tuple[list, list, list, list, list[link_fetcher.LinkFailure]]:
     """Разворачивает ссылки в (tasks, names, captions, sources, failures) — те же структуры,
     что дают парсеры тела, плюс sources (описание источника для ответа) и ошибки по ссылкам.
 
     Пост с несколькими картинками даёт несколько записей с одним и тем же caption;
-    имя записи — сама ссылка (для нескольких картинок — со скрепой "#N")."""
+    имя записи — сама ссылка (для нескольких картинок — со скрепой "#N").
+
+    with_images=True (?return_images=1) — в source каждой записи добавляются image_b64/image_mime:
+    исходная скачанная картинка (до апскейла), чтобы клиент мог сохранить её у себя для превью."""
     tasks, names, captions, sources, failures = [], [], [], [], []
 
     for res in await link_fetcher.resolve_links(url_items, lang):
@@ -320,10 +323,15 @@ async def _tasks_from_links(
             if prepared is None:
                 logging.warning("Ссылка %s: %s — не изображение, пропускаю", res.url, image_url)
                 continue
+            source = {**res.source, "image_url": image_url} if image_url else dict(res.source)
+            if with_images:
+                original_mime = await _detect_image_mime(data)
+                source["image_b64"] = base64.b64encode(data).decode("ascii")
+                source["image_mime"] = original_mime or prepared[1]
             tasks.append(prepared)
             names.append(name)
             captions.append(res.caption or None)
-            sources.append({**res.source, "image_url": image_url} if image_url else dict(res.source))
+            sources.append(source)
             accepted += 1
 
         if not accepted:
@@ -392,7 +400,9 @@ async def handle_analyze(request: web.Request) -> web.Response:
                 {"error": config._t("error.link_too_many", lang=resolved_lang, max=config.LINKS_MAX_PER_REQUEST)},
                 status=400,
             )
-        l_tasks, l_names, l_captions, l_sources, link_failures = await _tasks_from_links(url_items, resolved_lang)
+        l_tasks, l_names, l_captions, l_sources, link_failures = await _tasks_from_links(
+            url_items, resolved_lang, with_images=request.query.get("return_images", "").lower() in ("1", "true", "yes"),
+        )
         tasks += l_tasks
         names += l_names
         captions += l_captions

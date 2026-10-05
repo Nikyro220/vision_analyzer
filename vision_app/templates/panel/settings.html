@@ -11,12 +11,17 @@
 
     <div class="card settings-toolbar">
         <input type="search" id="settings-filter" class="input" placeholder="Найти настройку по названию или имени…" autocomplete="off">
+        <button type="button" class="btn btn-secondary" id="settings-toggle-all" data-state="collapsed">Развернуть все</button>
         <button type="submit" class="btn btn-primary">Сохранить</button>
     </div>
 
     {% for group in groups %}
-    <div class="card settings-group" data-settings-group>
-        <h2 class="card-title">{{ group.title }}</h2>
+    {% set changed = group.rows|selectattr('overridden')|list|length %}
+    <details class="card settings-group" data-settings-group id="group-{{ loop.index0 }}">
+        <summary class="settings-group-summary">
+            <h2 class="card-title">{{ group.title }}</h2>
+            <span class="settings-group-meta">{{ group.rows|length }}{% if changed %} · изменено: {{ changed }}{% endif %}</span>
+        </summary>
         {% if group.description %}<p class="field-hint">{{ group.description }}</p>{% endif %}
 
         {% for row in group.rows %}
@@ -76,7 +81,7 @@
             </div>
         </div>
         {% endfor %}
-    </div>
+    </details>
     {% endfor %}
 
     <p class="empty-hint" id="settings-empty" hidden>Ничего не найдено.</p>
@@ -193,13 +198,39 @@ document.addEventListener("DOMContentLoaded", () => {
         field.addEventListener("change", handleChange);
     });
 
+    // Разделы свёрнуты по умолчанию. Поиск раскрывает разделы с совпадениями,
+    // а после очистки строки возвращает то состояние, которое было до поиска.
+    const groups = Array.from(document.querySelectorAll("[data-settings-group]"));
+    const toggleAll = document.getElementById("settings-toggle-all");
+    let savedOpen = null;
+
+    const syncToggleLabel = () => {
+        if (!toggleAll) return;
+        const allOpen = groups.length > 0 && groups.filter((g) => !g.hidden).every((g) => g.open);
+        toggleAll.dataset.state = allOpen ? "expanded" : "collapsed";
+        toggleAll.textContent = allOpen ? "Свернуть все" : "Развернуть все";
+    };
+    groups.forEach((g) => g.addEventListener("toggle", syncToggleLabel));
+    if (toggleAll) {
+        toggleAll.addEventListener("click", () => {
+            const open = toggleAll.dataset.state !== "expanded";
+            groups.filter((g) => !g.hidden).forEach((g) => { g.open = open; });
+            syncToggleLabel();
+        });
+    }
+
+    // Якорь /panel/settings/#group-N раскрывает нужный раздел
+    const hashMatch = /^#group-(\d+)$/.exec(location.hash);
+    if (hashMatch && groups[Number(hashMatch[1])]) groups[Number(hashMatch[1])].open = true;
+
     // Быстрый поиск по настройкам
     const filter = document.getElementById("settings-filter");
     if (filter) {
         filter.addEventListener("input", () => {
             const q = filter.value.trim().toLowerCase();
+            if (q && savedOpen === null) savedOpen = groups.map((g) => g.open);
             let shown = 0;
-            document.querySelectorAll("[data-settings-group]").forEach((group) => {
+            groups.forEach((group) => {
                 let any = false;
                 group.querySelectorAll("[data-settings-row]").forEach((row) => {
                     const hit = !q || row.dataset.search.includes(q);
@@ -209,7 +240,14 @@ document.addEventListener("DOMContentLoaded", () => {
                 group.hidden = !any;
                 if (any) shown++;
             });
+            if (q) {
+                groups.forEach((g) => { if (!g.hidden) g.open = true; });
+            } else if (savedOpen) {
+                groups.forEach((g, i) => { g.open = savedOpen[i]; });
+                savedOpen = null;
+            }
             document.getElementById("settings-empty").hidden = shown > 0;
+            syncToggleLabel();
         });
     }
 

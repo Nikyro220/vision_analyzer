@@ -8,6 +8,7 @@ import re
 from dataclasses import dataclass
 from difflib import SequenceMatcher
 from functools import lru_cache
+from urllib.parse import urlsplit
 
 from flask import current_app, request
 from flask_wtf import FlaskForm
@@ -322,18 +323,66 @@ class AcceptedImage:
     caption: str = ""
 
 
+LINK_MAX_LEN = 2048
+_BARE_LINK_RE = re.compile(r"^[\w-]+(\.[\w-]+)+(/\S*)?$", re.UNICODE)  # t.me/chan/1, instagram.com/p/x
+
+
+def parse_links(raw: str) -> tuple[list[str], list[tuple[str, str]]]:
+    """Текст из поля «Ссылки» -> (годные ссылки без повторов, [(ссылка, причина отказа)]).
+
+    Ссылки разделяются пробелами/переводами строк. Адрес без схемы («t.me/chan/1») дополняется
+    https://. Принимаются только http/https. Дальнейшую проверку (публичный ли адрес, есть ли
+    там картинка) делает сервер анализа при обработке — см. inference/link_fetcher.py.
+    """
+    good: list[str] = []
+    bad: list[tuple[str, str]] = []
+    seen: set[str] = set()
+    for token in (raw or "").split():
+        link = token.strip().strip("<>\"'")
+        if not link:
+            continue
+        if "://" not in link and _BARE_LINK_RE.match(link):
+            link = "https://" + link
+        if len(link) > LINK_MAX_LEN:
+            bad.append((link[:60] + "…", "слишком длинная ссылка"))
+            continue
+        try:
+            parts = urlsplit(link)
+            host = parts.hostname
+        except ValueError:
+            bad.append((link, "некорректный адрес"))
+            continue
+        if parts.scheme not in ("http", "https") or not host:
+            bad.append((link[:80], "нужна ссылка вида https://…"))
+            continue
+        if link in seen:
+            continue
+        seen.add(link)
+        good.append(link)
+    return good, bad
+
+
 class ImageUploadForm(FlaskForm):
-    """Один или несколько файлов за раз. Годные файлы уходят в очередь,
-    негодные пропускаются с пояснением (form.rejected)."""
+    """Файлы и/или ссылки на посты за раз. Годные файлы и ссылки уходят в очередь,
+    негодные пропускаются с пояснением (form.rejected / form.rejected_links).
 
-    image = MultipleFileField(
-        "Изображения",
-        validators=[FileRequired("Выберите хотя бы один файл изображения.")],
-    )
+    Ссылку на пост скачивает и разбирает сервер анализа (yt-dlp / Open Graph): из поста берутся
+    картинки и контекст (автор, текст), который попадает в подпись к снимку.
+    """
 
-    # Заполняются в validate_image
+    image = MultipleFileField("Изображения")
+    links = TextAreaField("Ссылки на посты", render_kw={"rows": 3})
+
+    # Заполняются в validate_image / validate_links
     accepted: list[AcceptedImage]
     rejected: list[tuple[str, str]]
+    link_urls: list[str]
+    rejected_links: list[tuple[str, str]]
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.accepted, self.rejected = [], []
+        self.link_urls, self.rejected_links = [], []
 
     def validate_image(self, field):
         """Проверяем содержимое через Pillow, а не расширение файла.
@@ -342,6 +391,8 @@ class ImageUploadForm(FlaskForm):
         в ТОМ ЖЕ порядке, что и файлы (это обеспечивает static/js/queue.js — рисует
         поле подписи сразу под каждым выбранным файлом). Если подписей меньше, чем
         файлов (JS не сработал, форма отправлена без него), недостающие — пустые.
+
+        Пустой выбор — не ошибка: можно прислать только ссылки (см. validate()).
         """
         self.accepted, self.rejected = [], []
 
@@ -377,11 +428,36 @@ class ImageUploadForm(FlaskForm):
             ext, mime = IMAGE_FORMATS[fmt]
             self.accepted.append(AcceptedImage(name, data, ext, mime, caption))
 
-        if not self.accepted:
+    def validate_links(self, field):
+        self.link_urls, self.rejected_links = parse_links(field.data or "")
+
+    def validate(self, extra_validators=None):
+        if not super().validate(extra_validators):
+            return False
+
+        from .settings_store import get_runtime_setting
+
+        total = len(self.accepted) + len(self.link_urls)
+        if not total:
             reasons = "; ".join(f"«{n}»: {why}" for n, why in self.rejected[: conf("REJECTED_FILES_SHOWN")])
-            raise ValidationError(
-                "Загрузите правильное изображение. " + reasons if reasons else "Файлы не загружены."
+            if self.rejected_links:
+                reasons = "; ".join(
+                    [reasons] * bool(reasons)
+                    + [f"«{n}»: {why}" for n, why in self.rejected_links[: conf("REJECTED_FILES_SHOWN")]]
+                )
+            message = (
+                "Загрузите правильное изображение или ссылку. " + reasons
+                if reasons
+                else "Выберите файл изображения или вставьте ссылку на пост."
             )
+            self.image.errors = [*self.image.errors, message]
+            return False
+
+        max_files = get_runtime_setting("QUEUE_MAX_FILES_PER_UPLOAD")
+        if total > max_files:
+            self.links.errors = [*self.links.errors, f"За один раз можно добавить не больше {max_files} файлов и ссылок суммарно."]
+            return False
+        return True
 
 
 # ----------------------------------------------------------------------------

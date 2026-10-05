@@ -48,6 +48,7 @@ from ..utils import is_safe_next, local_dt, paginate, plural, query_to_id
 bp = Blueprint("analyzer", __name__)
 
 _FILES = ("файл", "файла", "файлов")
+_LINKS = ("ссылка", "ссылки", "ссылок")
 
 
 def _own_results(q: str = ""):
@@ -142,7 +143,7 @@ def _enqueue_uploads(form: ImageUploadForm):
             AnalysisResult.user_id == current_user.id, AnalysisResult.status != Status.DONE 
         )
     )
-    if pending_now + len(form.accepted) > limit:
+    if pending_now + len(form.accepted) + len(form.link_urls) > limit:
         flash(
             f"В вашей очереди уже {pending_now}, максимум — {limit}. Дождитесь обработки и повторите.",
             "error",
@@ -172,6 +173,21 @@ def _enqueue_uploads(form: ImageUploadForm):
             )
             db.session.add(row)
             added.append(row)
+        # Ссылки на пост: картинку скачивает сервер анализа при обработке (queue_worker), поэтому
+        # пока image_path пуст. image_hash="" — чтобы фоновый подсчёт хешей не принял запись за потерянный файл.
+        link_rows: list[AnalysisResult] = []
+        for link in form.link_urls:
+            row = AnalysisResult(
+                user_id=current_user.id,
+                image_path="",
+                original_name=link[:255],
+                image_mime="",
+                image_hash="",
+                source_url=link,
+                status=Status.QUEUED,
+            )
+            db.session.add(row)
+            link_rows.append(row)
         db.session.commit()
     except Exception:
         db.session.rollback()
@@ -180,13 +196,22 @@ def _enqueue_uploads(form: ImageUploadForm):
         raise
 
     wake_worker(current_app)
-    numbers = ", ".join(f"№{row.id}" for row in added)  # id доступны после commit
-    flash(f"Добавлено в очередь: {plural(len(form.accepted), _FILES)} ({numbers}).", "success")
+    numbers = ", ".join(f"№{row.id}" for row in [*added, *link_rows])  # id доступны после commit
+    parts = []
+    if added:
+        parts.append(plural(len(added), _FILES))
+    if link_rows:
+        parts.append(plural(len(link_rows), _LINKS))
+    flash(f"Добавлено в очередь: {' и '.join(parts)} ({numbers}).", "success")
     shown = conf("REJECTED_FILES_SHOWN")
     for name, reason in form.rejected[:shown]:
         flash(f"Пропущен файл «{name}»: {reason}.", "warning")
     if len(form.rejected) > shown:
         flash(f"…и ещё пропущено: {len(form.rejected) - shown}.", "warning")
+    for link, reason in form.rejected_links[:shown]:
+        flash(f"Пропущена ссылка «{link}»: {reason}.", "warning")
+    if len(form.rejected_links) > shown:
+        flash(f"…и ещё пропущено ссылок: {len(form.rejected_links) - shown}.", "warning")
     return redirect(url_for("analyzer.dashboard"))
 
 

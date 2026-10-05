@@ -4,7 +4,7 @@
 {% block content %}
 <div class="page-header">
     <h1>{{ result.original_name or "Результат анализа" }} <span class="id-tag id-tag-lg" title="Номер анализа — по нему можно найти запись в истории и в чате">№{{ result.id }}</span></h1>
-    <p class="page-sub">Загружено {{ result.created_at|localdt }}{% if result.user_id != current_user.id %} · пользователь {{ result.owner_label }}{% endif %}</p>
+    <p class="page-sub">Загружено {{ result.created_at|localdt }}{% if result.user_id != current_user.id %} · пользователь {{ result.owner_label }}{% endif %}{% if result.source_url %} · источник: <a href="{{ result.source_url }}" target="_blank" rel="noopener noreferrer nofollow">{{ result.source_url|truncate(60) }}</a>{% endif %}</p>
 </div>
 
 <div class="result-layout">

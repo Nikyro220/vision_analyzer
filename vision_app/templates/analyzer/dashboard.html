@@ -23,7 +23,7 @@
 {% block content %}
 <div class="page-header">
     <h1>Новый анализ изображения</h1>
-    <p class="page-sub">Загрузите один или несколько файлов — они встанут в очередь и будут обработаны локальной vision-моделью по одному.</p>
+    <p class="page-sub">Загрузите файлы или вставьте ссылки на посты — всё встанет в очередь и будет обработано vision-моделью по одному.</p>
 </div>
 
 <div class="panel-grid panel-grid-uneven">
@@ -37,7 +37,7 @@
             <form method="post" enctype="multipart/form-data" class="form" id="upload-form" data-caption-max="{{ conf("CAPTION_MAX_CHARS") }}" novalidate>
                 {{ form.hidden_tag() }}
                 <div class="dropzone" id="dropzone">
-                    <input type="file" name="image" id="id_image" accept="image/*" multiple required>
+                    <input type="file" name="image" id="id_image" accept="image/*" multiple>
                     <div class="dropzone-hint">
                         <span class="dropzone-ic">⇧</span>
                         <span>Перетащите изображения сюда или нажмите, чтобы выбрать файлы</span>
@@ -46,6 +46,12 @@
                 </div>
                 {% for error in form.image.errors %}<div class="field-error">{{ error }}</div>{% endfor %}
                 <div class="caption-list" id="caption-list" hidden></div>
+                <div class="field link-field">
+                    <label for="id_links">Или ссылки на посты</label>
+                    {{ form.links(class_="input", id="id_links", placeholder="https://… — по одной ссылке на строку", spellcheck="false", autocapitalize="off") }}
+                    <div class="field-hint">Instagram, X/Twitter, TikTok, Reddit, VK, YouTube, Bluesky, Pinterest, публичные посты t.me, новостные сайты и прямые ссылки на картинки. Картинку и контекст поста (автор, текст) подтянет сервер анализа; для видео анализируется обложка.</div>
+                    {% for error in form.links.errors %}<div class="field-error">{{ error }}</div>{% endfor %}
+                </div>
                 <button type="submit" class="btn btn-primary btn-block" id="submit-btn">Добавить в очередь</button>
             </form>
         </div>
@@ -58,7 +64,7 @@
             <ul class="queue-list" id="queue-list">
                 {% for item in pending %}{{ queue_row(item) }}{% endfor %}
             </ul>
-            <p class="empty-hint" id="queue-empty" {% if pending %}hidden{% endif %}>Очередь пуста — загруженные файлы появятся здесь.</p>
+            <p class="empty-hint" id="queue-empty" {% if pending %}hidden{% endif %}>Очередь пуста — загруженные файлы и ссылки появятся здесь.</p>
             <p class="field-hint">Обработка идёт в фоне: страницу можно перезагрузить или закрыть, очередь не потеряется. Готовые результаты появляются в «Последних загрузках».</p>
             <p class="field-hint queue-error" id="queue-error" hidden>Не удаётся обновить очередь — повторяю попытку…</p>
         </div>
@@ -80,7 +86,7 @@
             {% endfor %}
         </ul>
         <a href="{{ url_for('analyzer.history') }}" class="link-more" id="recent-more" {% if not recent %}hidden{% endif %}>Вся история →</a>
-        <p class="empty-hint" id="recent-empty" {% if recent %}hidden{% endif %}>Пока нет завершённых анализов. Загрузите первое изображение слева.</p>
+        <p class="empty-hint" id="recent-empty" {% if recent %}hidden{% endif %}>Пока нет завершённых анализов. Загрузите первое изображение или ссылку слева.</p>
     </div>
 </div>
 {% endblock %}

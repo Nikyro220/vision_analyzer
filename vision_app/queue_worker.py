@@ -22,19 +22,21 @@
 from __future__ import annotations
 
 import logging
+import re
 import threading
 import time
-from datetime import timezone
+import uuid
+from datetime import datetime, timezone
 from pathlib import Path
 
 from sqlalchemy import or_, select, update
 
 from . import image_dedup, vector_search
 from .categories_store import build_categories_payload
-from .config import conf
+from .config import Config, conf
 from .extensions import db
 from .models import AnalysisResult, Status, utcnow
-from .services import VisionApiError, analyze_image
+from .services import AnalysisOutcome, LinkOutcome, VisionApiError, analyze_image, analyze_link
 from .settings_store import get_analysis_target, get_runtime_setting
 
 log = logging.getLogger("vision_app.queue")
@@ -45,6 +47,11 @@ _PROCESS_STARTED = utcnow().replace(tzinfo=None)
 
 _registry_lock = threading.Lock()
 _workers: dict[int, list["QueueWorker"]] = {}
+
+_EXT_BY_MIME = {
+    "image/jpeg": ".jpg", "image/png": ".png", "image/gif": ".gif", "image/webp": ".webp",
+    "image/bmp": ".bmp", "image/tiff": ".tiff",
+}
 
 _MIME_BY_EXT = {
     ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png", ".gif": "image/gif",
@@ -111,17 +118,21 @@ def _run_analysis(app, image_path: str, image_mime: str, caption: str = ""):
         return None, f"Внутренняя ошибка обработки: {exc}"
 
 
+def _outcome_values(outcome: AnalysisOutcome) -> dict:
+    return dict(
+        backend=outcome.backend,
+        risk_level=outcome.risk_level,
+        needs_human_review=outcome.needs_human_review,
+        description=outcome.description,
+        raw_report=outcome.raw_report,
+        error="",
+    )
+
+
 def _finish(job_id: int, outcome, error: str) -> None:
     values: dict = {"status": Status.DONE, "finished_at": utcnow(), "is_new": True}
     if outcome is not None:
-        values.update(
-            backend=outcome.backend,
-            risk_level=outcome.risk_level,
-            needs_human_review=outcome.needs_human_review,
-            description=outcome.description,
-            raw_report=outcome.raw_report,
-            error="",
-        )
+        values.update(_outcome_values(outcome))
     else:
         values["error"] = error
 
@@ -140,6 +151,97 @@ def _finish(job_id: int, outcome, error: str) -> None:
         vector_search.index_analysis(job_id)
 
 
+# ----------------------------------------------------------------------------
+# Задачи-ссылки: картинку скачивает сервер анализа (yt-dlp / Open Graph)
+# ----------------------------------------------------------------------------
+def _run_link_analysis(url: str):
+    """Возвращает (LinkOutcome | None, текст_ошибки)."""
+    backend, model = get_analysis_target()
+    categories = build_categories_payload()
+    db.session.rollback()  # не держим транзакцию на время долгого HTTP-запроса
+    try:
+        return analyze_link(url, backend=backend, model=model, categories=categories), ""
+    except VisionApiError as exc:
+        return None, str(exc)
+    except Exception as exc:  # noqa: BLE001 — задача не должна навсегда застревать в «обрабатывается»
+        log.exception("Непредвиденная ошибка при анализе ссылки")
+        return None, f"Внутренняя ошибка обработки: {exc}"
+
+
+def _ext_for(mime: str) -> str:
+    ext = _EXT_BY_MIME.get(mime)
+    if ext:
+        return ext
+    tail = re.sub(r"[^a-z0-9]", "", mime.split("/")[-1].lower())[:8]
+    return f".{tail}" if tail else ".jpg"
+
+
+def _finish_link(app, job_id: int, user_id: int, url: str, result: LinkOutcome | None, error: str) -> None:
+    """Сохраняет результат задачи-ссылки.
+
+    Первая картинка поста заполняет саму задачу, остальные (карусель, галерея) становятся
+    новыми готовыми записями того же пользователя. Без картинок — обычная ошибка задачи.
+    """
+    if result is None or not result.items:
+        _finish(job_id, None, error or "Не удалось получить изображение по ссылке.")
+        return
+
+    root = Path(app.config["UPLOAD_FOLDER"])
+    now = datetime.now(timezone.utc)
+    written: list[Path] = []
+    saved: list[tuple] = []  # (LinkItem, относительный путь, sha256)
+    try:
+        for item in result.items:
+            rel = f"{Config.UPLOADS_DIR}/{now:%Y/%m/%d}/{uuid.uuid4().hex}{_ext_for(item.mime)}"
+            target = root / rel
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_bytes(item.image_bytes)
+            written.append(target)
+            saved.append((item, rel, image_dedup.sha256_bytes(item.image_bytes)))
+    except OSError as exc:
+        for path in written:
+            path.unlink(missing_ok=True)
+        log.exception("Очередь: не удалось сохранить картинку из ссылки (задача %s)", job_id)
+        _finish(job_id, None, f"Не удалось сохранить скачанное изображение: {exc}")
+        return
+
+    first, first_rel, first_hash = saved[0]
+    finished = utcnow()
+    updated = db.session.execute(
+        update(AnalysisResult)
+        .where(AnalysisResult.id == job_id, AnalysisResult.status == Status.PROCESSING)
+        .values(
+            status=Status.DONE, finished_at=finished, is_new=True,
+            image_path=first_rel, image_mime=first.mime, image_hash=first_hash,
+            original_name=first.name[:255], caption=first.caption,
+            **_outcome_values(first.outcome),
+        )
+        .execution_options(synchronize_session=False)
+    )
+    if updated.rowcount != 1:
+        db.session.rollback()
+        for path in written:
+            path.unlink(missing_ok=True)
+        log.warning("Задача %s изменилась во время обработки — результат не записан", job_id)
+        return
+
+    extra_rows = []
+    for item, rel, digest in saved[1:]:
+        row = AnalysisResult(
+            user_id=user_id, image_path=rel, original_name=item.name[:255], image_mime=item.mime,
+            image_hash=digest, caption=item.caption, source_url=url, status=Status.DONE,
+            started_at=finished, finished_at=finished, is_new=True, **_outcome_values(item.outcome),
+        )
+        db.session.add(row)
+        extra_rows.append(row)
+    db.session.commit()
+
+    for row_id in [job_id, *(r.id for r in extra_rows)]:
+        vector_search.index_analysis(row_id)
+    if result.errors:
+        log.info("Ссылка %s: часть картинок не обработана: %s", url, "; ".join(result.errors))
+
+
 def process_next(app) -> bool:
     """Обрабатывает одну задачу. True — задача была, False — очередь пуста."""
     with app.app_context():
@@ -148,15 +250,23 @@ def process_next(app) -> bool:
             if job_id is None:
                 return False
             row = db.session.execute(
-                select(AnalysisResult.image_path, AnalysisResult.image_mime, AnalysisResult.caption)
+                select(
+                    AnalysisResult.image_path, AnalysisResult.image_mime, AnalysisResult.caption,
+                    AnalysisResult.source_url, AnalysisResult.user_id,
+                )
                 .where(AnalysisResult.id == job_id)
             ).one()
             db.session.rollback()
 
-            log.info("Очередь: начинаю анализ задачи %s (%s)", job_id, row.image_path)
             started = time.monotonic()
-            outcome, error = _run_analysis(app, row.image_path, row.image_mime, row.caption)
-            _finish(job_id, outcome, error)
+            if row.source_url and not row.image_path:  # анализ по ссылке: файла ещё нет
+                log.info("Очередь: начинаю анализ задачи %s (ссылка %s)", job_id, row.source_url)
+                link_result, error = _run_link_analysis(row.source_url)
+                _finish_link(app, job_id, row.user_id, row.source_url, link_result, error)
+            else:
+                log.info("Очередь: начинаю анализ задачи %s (%s)", job_id, row.image_path)
+                outcome, error = _run_analysis(app, row.image_path, row.image_mime, row.caption)
+                _finish(job_id, outcome, error)
             log.info(
                 "Очередь: задача %s завершена за %.1f с (%s)",
                 job_id, time.monotonic() - started, "ошибка: " + error if error else "успешно",

@@ -201,10 +201,15 @@ def analyze_image(
         raise VisionApiError("Сервер не вернул ни одного результата анализа.")
 
     first = results[0] if isinstance(results[0], dict) else {}
-    report = first.get("report") or {}
+    return _outcome_from_result(first)
+
+
+def _outcome_from_result(item: dict) -> AnalysisOutcome:
+    """Один элемент results[] ответа /analyze -> AnalysisOutcome."""
+    report = item.get("report") or {}
     if not isinstance(report, dict):
         report = {}
-    backend = str(first.get("backend", ""))[: conf("VISION_API_BACKEND_NAME_CHARS")]
+    backend = str(item.get("backend", ""))[: conf("VISION_API_BACKEND_NAME_CHARS")]
 
     if "_raw" in report:
         return AnalysisOutcome(
@@ -228,6 +233,101 @@ def analyze_image(
         raw_report=report,
         is_raw_fallback=False,
     )
+
+
+@dataclass
+class LinkItem:
+    """Одна картинка из поста + результат её анализа."""
+
+    name: str  # ссылка (для поста с несколькими картинками — со скрепой «#N»)
+    image_bytes: bytes
+    mime: str
+    outcome: AnalysisOutcome
+    caption: str = ""  # контекст поста (платформа, автор, текст...), который ушёл модели
+
+
+@dataclass
+class LinkOutcome:
+    items: list[LinkItem] = field(default_factory=list)
+    errors: list[str] = field(default_factory=list)  # ссылки/картинки, которые не удалось разобрать
+
+
+def analyze_link(
+    link: str,
+    lang: str | None = None,
+    backend: str = "",
+    model: str = "",
+    categories: list[dict] | None = None,
+) -> LinkOutcome:
+    """Анализ по ссылке на пост: сервер сам скачивает картинки (yt-dlp / Open Graph) и контекст поста.
+
+    Запрос идёт с return_images=1 — сервер дополнительно возвращает исходную картинку
+    (source.image_b64), чтобы приложение сохранило её для превью и страницы результата.
+    Пост с несколькими картинками даёт несколько LinkItem. Бросает VisionApiError, если не
+    получилось ничего (ошибка ссылки, сервер недоступен и т. п.).
+    """
+    url = f"{_base_url()}/analyze"
+    payload: dict = {"url": link, "lang": lang or conf("DEFAULT_LANG")}
+    if categories:
+        payload["categories"] = categories
+    if backend:
+        payload["backend"] = backend
+    if model:
+        payload["model"] = model
+
+    try:
+        resp = requests.post(
+            url, json=payload, params={"return_images": "1"}, headers=_auth_headers(backend), timeout=_timeout(),
+        )
+    except requests.exceptions.ConnectionError as exc:
+        raise VisionApiError(
+            "Не удалось подключиться к серверу анализа изображений. "
+            "Проверьте, что vision_analyzer_server.py запущен."
+        ) from exc
+    except requests.exceptions.Timeout as exc:
+        raise VisionApiError("Сервер анализа изображений не ответил вовремя (таймаут).") from exc
+
+    try:
+        data = resp.json()
+    except ValueError:
+        data = None
+
+    if resp.status_code >= 400:
+        message = data.get("error", resp.text) if isinstance(data, dict) else resp.text
+        raise VisionApiError(f"Сервер вернул ошибку ({resp.status_code}): {message}")
+    if not isinstance(data, dict):
+        raise VisionApiError("Сервер вернул некорректный JSON-ответ.")
+
+    outcome = LinkOutcome(
+        errors=[str(e.get("error", "")) for e in data.get("link_errors") or [] if isinstance(e, dict)],
+    )
+    for entry in data.get("results") or []:
+        if not isinstance(entry, dict):
+            continue
+        source = entry.get("source") if isinstance(entry.get("source"), dict) else {}
+        raw_image = source.get("image_b64")
+        try:
+            image_bytes = base64.b64decode(raw_image, validate=True) if raw_image else b""
+        except (ValueError, TypeError):
+            image_bytes = b""
+        if not image_bytes:
+            outcome.errors.append(
+                "Сервер анализа не вернул картинку из ссылки (устаревшая версия сервера без return_images?)."
+            )
+            continue
+        outcome.items.append(
+            LinkItem(
+                name=str(entry.get("file") or link),
+                image_bytes=image_bytes,
+                mime=str(source.get("image_mime") or "image/jpeg"),
+                outcome=_outcome_from_result(entry),
+                caption=str(source.get("caption") or ""),
+            )
+        )
+
+    if not outcome.items:
+        raise VisionApiError(outcome.errors[0] if outcome.errors else "Сервер не вернул ни одного результата анализа.")
+    return outcome
 
 
 # ----------------------------------------------------------------------------

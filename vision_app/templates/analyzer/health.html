@@ -101,25 +101,43 @@
             {% if not card.credentials_available %}
             <div class="field-error">Ключ сохранить нельзя: не задана переменная окружения <code>VISION_CREDENTIALS_KEY</code> (мастер-ключ шифрования). Сгенерируйте значение: <code>python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"</code> и перезапустите приложение.</div>
             {% endif %}
-            <form method="post" action="{{ url_for('analyzer.save_provider_settings', name=card.name) }}" class="form" autocomplete="off">
-                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                <div class="field">
-                    <label for="credential-{{ card.name }}">{{ card.credential.label }}
-                        {% if cs and cs.stored and cs.ok %}<span class="tag tag-ok">задан{% if cs.hint %} {{ cs.hint }}{% endif %}</span>
-                        {% elif cs and cs.stored %}<span class="tag tag-warn">не расшифровывается — введите заново</span>
-                        {% else %}<span class="tag tag-warn">не задан</span>{% endif %}
-                    </label>
-                    {# Секрет: значение никогда не подставляется в страницу — только флаг «задан» и последние 4 символа. #}
-                    <input type="password" id="credential-{{ card.name }}" name="credential" class="input"
+            {% set key_locked = cs and cs.stored and cs.ok %}
+            <div class="field">
+                <label for="credential-{{ card.name }}">{{ card.credential.label }}
+                    {% if key_locked %}<span class="tag tag-ok">задан</span>
+                    {% elif cs and cs.stored %}<span class="tag tag-warn">не расшифровывается — введите заново</span>
+                    {% else %}<span class="tag tag-warn">не задан</span>{% endif %}
+                </label>
+                {# Секрет: значение никогда не подставляется в страницу — у заданного ключа видны только маска и последние 4 символа. #}
+                {% if key_locked %}
+                <form method="post" action="{{ url_for('analyzer.save_provider_settings', name=card.name) }}" class="form form-inline"
+                      onsubmit="return confirm('Стереть сохранённый ключ «{{ card.title }}»?');">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <input type="hidden" name="clear_credential" value="1">
+                    <input type="text" id="credential-{{ card.name }}" class="input input-grow input-locked" value="••••••••{{ cs.hint }}"
+                           disabled readonly aria-label="{{ card.credential.label }} (задан, изменить нельзя — сначала сотрите)">
+                    <button type="submit" class="btn btn-danger">Стереть</button>
+                </form>
+                <div class="field-hint">Чтобы заменить ключ, сначала сотрите текущий, затем введите новый.</div>
+                {% else %}
+                <form method="post" action="{{ url_for('analyzer.save_provider_settings', name=card.name) }}" class="form form-inline" autocomplete="off">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <input type="password" id="credential-{{ card.name }}" name="credential" class="input input-grow"
                            maxlength="512" autocomplete="new-password" spellcheck="false" autocapitalize="off"
-                           placeholder="{% if cs and cs.stored %}Оставьте пустым, чтобы не менять{% else %}Вставьте значение{% endif %}">
-                    {% if cs and cs.stored %}
-                    <label class="checkbox-label"><input type="checkbox" name="clear_credential" value="1"> Удалить сохранённое значение</label>
-                    {% endif %}
-                    {% if card.credential.hint %}<div class="field-hint">{{ card.credential.hint }}</div>{% endif %}
-                </div>
-                <div><button type="submit" class="btn btn-secondary">Сохранить подключение</button></div>
-            </form>
+                           placeholder="Вставьте значение">
+                    <button type="submit" class="btn btn-primary">Сохранить</button>
+                </form>
+                {% if cs and cs.stored %}
+                <form method="post" action="{{ url_for('analyzer.save_provider_settings', name=card.name) }}" class="form form-inline"
+                      onsubmit="return confirm('Стереть сохранённый ключ «{{ card.title }}»?');">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <input type="hidden" name="clear_credential" value="1">
+                    <button type="submit" class="btn btn-danger btn-sm">Стереть</button>
+                </form>
+                {% endif %}
+                {% endif %}
+                {% if card.credential.hint %}<div class="field-hint">{{ card.credential.hint }}</div>{% endif %}
+            </div>
         </div>
         {% endif %}
 

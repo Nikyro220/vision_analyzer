@@ -191,6 +191,9 @@ class AnalysisResult(db.Model):
     # SHA-256 содержимого файла (image_dedup.py): по нему повторные загрузки одного и того же
     # файла склеиваются в один снимок. NULL — ещё не посчитан, "" — файл на диске потерян.
     image_hash = db.Column(db.String(64), nullable=True, index=True)
+    # Ссылка на пост, из которой взято изображение (анализ «по ссылке»). Пока задача в очереди,
+    # image_path пуст: сервер анализа сам скачивает картинку, и файл появляется при обработке.
+    source_url = db.Column(db.Text, nullable=False, default="", server_default="")
 
     @property
     def owner_label(self) -> str:
