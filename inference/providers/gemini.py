@@ -37,12 +37,17 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import re
 from urllib.parse import quote
 
 import aiohttp
 
 import config
 from .base import Credential, Provider, split_data_url
+
+# Повторы временных ошибок Gemini (перегрузка 5xx, минутный лимит 429 на Free Tier: 5 запросов/мин).
+_RETRY_ATTEMPTS = 2
+_RETRY_MAX_WAIT = 35.0  # дольше не ждём — отдаём ошибку клиенту
 
 
 # Размышления: SAMPLING_DEFAULTS["think"] — True / False / "low" / "medium" / "high".
@@ -254,14 +259,42 @@ class GeminiProvider(Provider):
                 {"type": c, "threshold": config.GEMINI_SAFETY.lower()} for c in _SAFETY_CATEGORIES
             ]
 
-        async with self._get_session().post(
-            f"{config.GEMINI_API_BASE}/interactions", json=body, headers=self._headers(),
-            timeout=config.REQUEST_TIMEOUT,
-        ) as resp:
-            await self._check(resp)
-            data = await resp.json()
+        for attempt in range(_RETRY_ATTEMPTS + 1):
+            async with self._get_session().post(
+                f"{config.GEMINI_API_BASE}/interactions", json=body, headers=self._headers(),
+                timeout=config.REQUEST_TIMEOUT,
+            ) as resp:
+                delay = await self._retry_delay(resp, attempt) if attempt < _RETRY_ATTEMPTS else None
+                if delay is None:
+                    await self._check(resp)
+                    data = await resp.json()
+                    break
+            logging.warning(
+                "Gemini(%s): HTTP %s, повтор через %.0f с (попытка %d/%d)",
+                model, resp.status, delay, attempt + 1, _RETRY_ATTEMPTS,
+            )
+            await asyncio.sleep(delay)
 
         return self._extract_text(data, model)
+
+    @staticmethod
+    async def _retry_delay(resp: aiohttp.ClientResponse, attempt: int) -> float | None:
+        """Сколько ждать перед повтором, либо None — не повторять. Повторяем только временное:
+        503/500/502/504 (перегрузка у Google) и 429 по минутному лимиту, если ждать недолго.
+        Суточную квоту и долгие ожидания не повторяем: ошибка уйдёт клиенту сразу."""
+        if resp.status in (500, 502, 503, 504):
+            return min(2.0 * (2 ** attempt), 10.0)
+        if resp.status != 429:
+            return None
+        try:
+            message = str(((await resp.json()).get("error") or {}).get("message") or "")
+        except Exception:
+            return None
+        if re.search(r"per\s+day|daily", message, re.IGNORECASE):
+            return None
+        found = re.search(r"retry in (\d+(?:\.\d+)?)\s*s", message, re.IGNORECASE)
+        wait = float(found.group(1)) + 1.0 if found else 15.0
+        return wait if wait <= _RETRY_MAX_WAIT else None
 
     @staticmethod
     def _extract_text(data: dict, model: str) -> str:

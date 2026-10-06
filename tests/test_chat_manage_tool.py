@@ -237,3 +237,79 @@ def test_head_admin_views_other_users_analyses(app):
         # обычный админ: аргумент отбрасывается, видит только своё (как и раньше)
         adm = json.loads(search_analyses(_u("adm"), {"user": "bob"}).text)
         assert adm["total_matched"] == 0 and any("user" in w for w in adm["warnings"])
+
+
+def test_phantom_card_claim_is_retried_into_real_call(app, monkeypatch):
+    """Модель по образцу истории пишет «подготовил заявку», не вызвав инструмент: карточки нет.
+    Сервер возвращает ей ошибку, и она обязана вызвать manage_user по-настоящему."""
+    history = [
+        {"role": "user", "content": "повысь bob до админа"},
+        {"role": "assistant", "content": "Я подготовил заявку. Подтвердите в карточке ниже."},
+    ]
+    seen = []
+
+    class Out:
+        backend, model = "b", "m"
+
+        def __init__(self, reply):
+            self.reply = reply
+
+    replies = iter([
+        "Хорошо, я подготовил заявку на изменение роли bob. Пожалуйста, подтвердите это действие в карточке ниже.",
+        _call("manage_user", action="set_role", user="bob", role="admin"),
+        "Подготовил — подтвердите в карточке ниже.",
+    ])
+
+    def fake(message, **k):
+        seen.append(message)
+        return Out(next(replies))
+
+    monkeypatch.setattr(runner, "chat_with_model", fake)
+    with app.test_request_context():
+        turn = runner.run_chat_turn(_u("head"), "теперь разжалуй bob до обычного юзера", history, "b", "m")
+        assert [r["kind"] for r in turn.references] == ["action"]
+        assert ChatAction.query.count() == 1
+        assert seen[1].startswith("[TOOL ERROR]")
+
+
+def test_phantom_card_claim_retried_only_once(app, monkeypatch):
+    _scripted(monkeypatch, "Подготовил заявку, подтвердите в карточке ниже.",
+              "Подготовил заявку, подтвердите в карточке ниже.")
+    with app.test_request_context():
+        turn = runner.run_chat_turn(_u("head"), "разжалуй bob", [], "b", "m")
+        assert turn.references == [] and ChatAction.query.count() == 0
+
+
+def test_phantom_guard_ignored_for_non_head_admin(app, monkeypatch):
+    _scripted(monkeypatch, "Подготовил заявку, подтвердите в карточке ниже.")
+    with app.test_request_context():
+        turn = runner.run_chat_turn(_u("alice"), "привет", [], "b", "m")
+        assert turn.reply.startswith("Подготовил")
+
+
+def test_system_prompt_contains_current_time(app, monkeypatch):
+    """Модель не знает «сейчас»: дата и время добавляются в системный промпт в конец."""
+    from datetime import datetime, timezone
+
+    seen = {}
+
+    class Out:
+        backend, model, reply = "b", "m", "Привет."
+
+    def fake(message, **k):
+        seen["system"] = k["system"]
+        return Out()
+
+    monkeypatch.setattr(runner, "chat_with_model", fake)
+    with app.test_request_context():
+        runner.run_chat_turn(_u("alice"), "привет", [], "b", "m")
+    assert seen["system"].rstrip().endswith("Время называй, только если спросили.")
+    assert "Сейчас " in seen["system"] and str(datetime.now(timezone.utc).year) in seen["system"]
+
+
+def test_current_time_note_formatting(app):
+    from datetime import datetime, timezone
+
+    with app.app_context():
+        note = runner.current_time_note(datetime(2026, 10, 6, 10, 2, tzinfo=timezone.utc))
+    assert "вторник, 6 октября 2026, 15:02 (Asia/Aqtobe, UTC+05:00)" in note
