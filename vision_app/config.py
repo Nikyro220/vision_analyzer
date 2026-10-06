@@ -223,6 +223,9 @@ class Config:
     # Инструмент search_users (chat_tools/users.py).
     USER_SEARCH_DEFAULT_LIMIT = 10
     USER_SEARCH_MAX_LIMIT = 25
+    CHAT_ACTION_TTL_MINUTES = 10  # сколько заявка на действие над пользователем ждёт подтверждения
+    CHAT_ACTION_MAX_PENDING = 5  # неподтверждённых заявок на одного админа одновременно
+    USER_SEARCH_MAX_CARDS = 10  # карточек пользователей под ответом (со ссылкой на страницу в панели)
     USER_SEARCH_MAX_SINCE_DAYS = 730  # можно смотреть вглубь на 2 года
 
     # --- Форматы дат (локальное время, см. utils.local_dt) ---

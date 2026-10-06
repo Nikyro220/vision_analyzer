@@ -465,6 +465,42 @@ class ChatMessage(db.Model):
         return f"<ChatMessage {self.id} {self.role}>"
 
 
+class ChatActionStatus:
+    PENDING = "pending"  # заявка создана моделью, ждёт нажатия кнопки администратором
+    RUNNING = "running"  # кнопка нажата, выполняется (защита от двойного клика)
+    DONE = "done"
+    FAILED = "failed"
+    CANCELLED = "cancelled"
+    EXPIRED = "expired"
+
+
+class ChatAction(db.Model):
+    """Заявка на действие над пользователем, подготовленная моделью в чате (chat_tools/manage.py).
+
+    Модель сама ничего не меняет: она только создаёт такую запись, а выполняется она, когда
+    главный администратор нажимает «Подтвердить» в карточке под ответом (POST /chat/actions/<id>/confirm).
+    Таблица же служит журналом: кто, что, над кем и чем всё закончилось."""
+
+    __tablename__ = "chat_actions"
+
+    id = db.Column(db.Integer, primary_key=True)
+    admin_id = db.Column(db.Integer, db.ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    session_id = db.Column(db.Integer, nullable=True)  # чат, где заявка создана (без FK: журнал переживает чат)
+    action = db.Column(db.String(16), nullable=False)  # manage.ACTION_*
+    target_id = db.Column(db.Integer, nullable=False)  # без FK: пользователя могут удалить этой же заявкой
+    target_label = db.Column(db.String(150), nullable=False, default="")  # логин на момент создания заявки
+    params = db.Column(db.JSON, nullable=False, default=dict)
+    summary = db.Column(db.String(400), nullable=False, default="")
+    status = db.Column(db.String(12), nullable=False, default=ChatActionStatus.PENDING, index=True)
+    created_at = db.Column(db.DateTime, nullable=False, default=utcnow)
+    expires_at = db.Column(db.DateTime, nullable=False)
+    resolved_at = db.Column(db.DateTime, nullable=True)
+    result = db.Column(db.Text, nullable=False, default="")
+
+    def __repr__(self) -> str:
+        return f"<ChatAction {self.id} {self.action} -> {self.target_id} {self.status}>"
+
+
 class ChatAnalysisJob(db.Model):
     """Изображение из чата, поставленное моделью в общую очередь анализа (chat_jobs.py).
 

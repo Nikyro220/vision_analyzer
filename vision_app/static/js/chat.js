@@ -244,6 +244,8 @@
   // из тех же строк БД, что и текстовую сводку для модели) — фронт их только
   // рисует, ничего не парсит из текста ответа модели.
   function buildRefCard(ref) {
+    if (ref.kind === "user") return buildUserCard(ref);
+    if (ref.kind === "action") return buildActionCard(ref);
     var card = document.createElement("a");
     card.className = "chat-ref-card";
     card.href = ref.url || "#";
@@ -278,6 +280,185 @@
     info.appendChild(metaLine);
 
     card.appendChild(info);
+    return card;
+  }
+
+  // Карточка пользователя (результат инструмента search_users, только для админов):
+  // аватар (картинка или инициалы на цвете пользователя), логин, роль и ссылка на его страницу в панели.
+  var HEX_RE = /^#[0-9a-fA-F]{6}$/;
+
+  function buildUserCard(ref) {
+    var card = document.createElement("a");
+    card.className = "chat-ref-card chat-ref-user" + (ref.active === false || ref.role === "blocked" ? " is-blocked" : "");
+    card.href = ref.url || "#";
+    card.target = "_blank";
+    card.rel = "noopener noreferrer";
+
+    var avatar = el("span", "chat-ref-avatar");
+    if (HEX_RE.test(ref.avatar_color || "")) avatar.style.setProperty("--avatar-bg", ref.avatar_color);
+    if (HEX_RE.test(ref.avatar_fg || "")) avatar.style.setProperty("--avatar-fg", ref.avatar_fg);
+    if (ref.avatar_url) {
+      var img = document.createElement("img");
+      img.src = ref.avatar_url;
+      img.alt = "";
+      img.loading = "lazy";
+      avatar.appendChild(img);
+    } else {
+      avatar.textContent = ref.initials || (ref.label || "?").charAt(0).toUpperCase();
+    }
+    card.appendChild(avatar);
+
+    var info = el("span", "chat-ref-info");
+    var label = el("span", "chat-ref-label");
+    label.textContent = ref.label || "Пользователь #" + ref.id;
+    if (ref.subtitle) label.title = ref.subtitle;
+    info.appendChild(label);
+
+    var metaLine = el("span", "chat-ref-meta");
+    var badge = el("span", "chat-ref-badge chat-ref-role-" + String(ref.role || "").replace(/[^a-z_]/g, ""));
+    badge.textContent = ref.role_label || ref.role || "";
+    metaLine.appendChild(badge);
+    var meta = el("span", "chat-ref-date");
+    var parts = [];
+    if (typeof ref.analyses_count === "number") parts.push("анализов: " + ref.analyses_count);
+    if (ref.date) parts.push(ref.date);
+    meta.textContent = parts.join(" · ");
+    metaLine.appendChild(meta);
+    info.appendChild(metaLine);
+
+    card.appendChild(info);
+    return card;
+  }
+
+  // Заявка на действие над пользователем (инструмент manage_user, только главный админ). Модель ничего
+  // не выполняет: действие происходит, только когда человек нажимает «Подтвердить» (POST confirm_url).
+  // Статус карточки — всегда из ответа сервера (state_url), а не из сохранённого в сообщении.
+  var ACTION_STATUS = {
+    running: "Выполняется…", done: "Выполнено", failed: "Не выполнено",
+    cancelled: "Отменено", expired: "Срок подтверждения истёк"
+  };
+
+  function buildActionCard(initial) {
+    var card = el("div", "chat-ref-card chat-action");
+
+    function post(url, body, onDone) {
+      fetch(url, {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "Content-Type": "application/json", "X-CSRFToken": csrf },
+        body: JSON.stringify(body || {})
+      })
+        .then(function (r) {
+          return r.json().catch(function () { return {}; });
+        })
+        .then(function (data) {
+          if (data && data.card) render(data.card, data.ok === false ? data.message : "");
+          else render(initial, "Не удалось выполнить запрос.");
+        })
+        .catch(function () {
+          render(initial, "Нет связи с сервером.");
+        });
+      if (onDone) onDone();
+    }
+
+    function render(ref, note) {
+      initial = ref;
+      card.className = "chat-ref-card chat-action" + (ref.danger ? " is-danger" : "") + " is-" + ref.status;
+      card.textContent = "";
+
+      var head = el("div", "chat-action-head");
+      var title = el("span", "chat-action-title");
+      title.textContent = ref.title || "Действие";
+      head.appendChild(title);
+      if (ref.target_url) {
+        var link = document.createElement("a");
+        link.href = ref.target_url;
+        link.target = "_blank";
+        link.rel = "noopener noreferrer";
+        link.className = "chat-action-link";
+        link.textContent = "страница пользователя";
+        head.appendChild(link);
+      }
+      card.appendChild(head);
+
+      var summary = el("div", "chat-action-summary");
+      summary.textContent = ref.summary || "";
+      card.appendChild(summary);
+
+      if (ref.details && ref.details.length) {
+        var list = el("ul", "chat-action-details");
+        ref.details.forEach(function (line) {
+          var li = document.createElement("li");
+          li.textContent = line;
+          list.appendChild(li);
+        });
+        card.appendChild(list);
+      }
+
+      if (ref.status === "pending") {
+        var input = null;
+        if (ref.type_to_confirm) {
+          input = document.createElement("input");
+          input.type = "text";
+          input.className = "input input-mono chat-action-input";
+          input.placeholder = "Для удаления введите логин: " + ref.type_to_confirm;
+          input.autocomplete = "off";
+          card.appendChild(input);
+        }
+        var row = el("div", "chat-action-buttons");
+        var ok = document.createElement("button");
+        ok.type = "button";
+        ok.className = "btn btn-sm " + (ref.danger ? "btn-danger" : "btn-primary");
+        ok.textContent = "Подтвердить";
+        var cancel = document.createElement("button");
+        cancel.type = "button";
+        cancel.className = "btn btn-sm btn-secondary";
+        cancel.textContent = "Отмена";
+        function sync() {
+          ok.disabled = !!input && input.value.trim() !== ref.type_to_confirm;
+        }
+        if (input) {
+          input.addEventListener("input", sync);
+          sync();
+        }
+        function lock() {
+          ok.disabled = true;
+          cancel.disabled = true;
+        }
+        ok.addEventListener("click", function () {
+          post(ref.confirm_url, { confirm_text: input ? input.value.trim() : "" }, lock);
+        });
+        cancel.addEventListener("click", function () {
+          post(ref.cancel_url, {}, lock);
+        });
+        row.appendChild(ok);
+        row.appendChild(cancel);
+        card.appendChild(row);
+        if (ref.expires) {
+          var exp = el("div", "chat-action-note");
+          exp.textContent = "Действует до " + ref.expires;
+          card.appendChild(exp);
+        }
+      } else {
+        var status = el("div", "chat-action-status");
+        status.textContent = (ACTION_STATUS[ref.status] || ref.status) + (ref.result ? ": " + ref.result : "");
+        card.appendChild(status);
+      }
+      if (note) {
+        var warn = el("div", "chat-action-note chat-action-error");
+        warn.textContent = note;
+        card.appendChild(warn);
+      }
+    }
+
+    render(initial);
+    // Карточка в старом сообщении могла уже быть подтверждена, отменена или просрочена.
+    if (initial.state_url && (initial.status === "pending" || initial.status === "running")) {
+      fetch(initial.state_url, { credentials: "same-origin", headers: { Accept: "application/json" } })
+        .then(function (r) { return r.ok ? r.json() : null; })
+        .then(function (data) { if (data && data.card) render(data.card); })
+        .catch(function () {});
+    }
     return card;
   }
 

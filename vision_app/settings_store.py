@@ -215,6 +215,9 @@ SETTING_GROUPS: list[tuple[str, str, list[RuntimeSetting]]] = [
         _s("SEARCH_MAX_KEYWORDS", "Поиск анализов: ключевых слов", lo=1, hi=50),
         _s("USER_SEARCH_DEFAULT_LIMIT", "Поиск пользователей: записей по умолчанию", lo=1, hi=100),
         _s("USER_SEARCH_MAX_LIMIT", "Поиск пользователей: максимум записей", lo=1, hi=500),
+        _s("USER_SEARCH_MAX_CARDS", "Поиск пользователей: карточек под ответом", lo=0, hi=50),
+        _s("CHAT_ACTION_TTL_MINUTES", "Действия из чата: срок заявки, мин", lo=1, hi=1440),
+        _s("CHAT_ACTION_MAX_PENDING", "Действия из чата: неподтверждённых заявок", lo=1, hi=50),
         _s("USER_SEARCH_MAX_SINCE_DAYS", "Поиск пользователей: глубина, дней", lo=1, hi=36500),
     ]),
     ("Загрузка, файлы и миниатюры", "Размеры, кэш и фоновый подсчёт хешей файлов.", [

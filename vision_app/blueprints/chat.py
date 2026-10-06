@@ -22,9 +22,10 @@ from sqlalchemy import func, or_, select, update
 
 from .. import chat_images, chat_jobs
 from ..chat_tools import ChatImage, attachment_note, delivery_message, run_chat_turn
+from ..chat_tools import manage as chat_manage
 from ..config import conf
 from ..extensions import db
-from ..models import ChatMessage, ChatRole, ChatSession, utcnow
+from ..models import ChatAction, ChatActionStatus, ChatMessage, ChatRole, ChatSession, utcnow
 from ..services import VisionApiError
 from ..settings_store import get_analysis_target
 from ..thumbs import ensure_thumb
@@ -448,6 +449,53 @@ def _message_payload(message: ChatMessage, attachments: dict[int, list[dict]]) -
     }
 
 
+# ---------------------------------------------------------------------------
+# Действия над пользователями, подготовленные моделью (chat_tools/manage.py)
+# ---------------------------------------------------------------------------
+
+
+def _own_action(action_id: int) -> ChatAction:
+    """Заявка текущего главного администратора; чужая или несуществующая — 404 (не раскрываем, что она есть)."""
+    if not current_user.is_head_admin:
+        abort(403)
+    row = db.session.get(ChatAction, action_id)
+    if row is None or row.admin_id != current_user.id:
+        abort(404)
+    return row
+
+
+def _action_reply(row: ChatAction, ok: bool, message: str):
+    db.session.refresh(row)
+    return jsonify({"ok": ok, "message": message, "card": chat_manage.action_card(row)})
+
+
+@bp.route("/actions/<int:action_id>")
+@login_required
+def action_state(action_id: int):
+    """Текущее состояние заявки: карточки в старых сообщениях по нему обновляют свой статус."""
+    row = _own_action(action_id)
+    if row.status == ChatActionStatus.PENDING and chat_manage._aware(row.expires_at) < utcnow():
+        chat_manage._finish(row, ChatActionStatus.EXPIRED, "Срок подтверждения истёк.")
+    return jsonify({"card": chat_manage.action_card(row)})
+
+
+@bp.route("/actions/<int:action_id>/confirm", methods=["POST"])
+@login_required
+def action_confirm(action_id: int):
+    row = _own_action(action_id)
+    body = request.get_json(silent=True) or {}
+    ok, message = chat_manage.confirm_action(current_user, row, str(body.get("confirm_text") or ""))
+    return _action_reply(row, ok, message)
+
+
+@bp.route("/actions/<int:action_id>/cancel", methods=["POST"])
+@login_required
+def action_cancel(action_id: int):
+    row = _own_action(action_id)
+    ok, message = chat_manage.cancel_action(current_user, row)
+    return _action_reply(row, ok, message)
+
+
 @bp.route("/<int:session_id>/state")
 @login_required
 def state(session_id: int):
@@ -508,7 +556,7 @@ def _deliver(session_row: ChatSession, job, row) -> dict:
         try:
             turn = run_chat_turn(
                 current_user, delivery_message(payload), history, target_backend, target_model, lang=conf("DEFAULT_LANG"),
-                images=all_images, session_id=session_row.id,
+                images=all_images, session_id=session_row.id, allow_actions=False,
             )
             reply, backend, model = turn.reply, turn.backend, turn.model
             references = references + [r for r in turn.references if r.get("id") != row.id]

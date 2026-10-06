@@ -863,6 +863,50 @@ textarea.input {
 .chat-ref-risk-high { color: var(--risk-high); border-color: var(--risk-high); }
 .chat-ref-date { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
+/* Заявка на действие над пользователем (инструмент manage_user, только главный админ) */
+.chat-action {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 6px;
+    width: min(100%, 440px);
+    padding: 10px 12px;
+}
+.chat-action.is-danger { border-color: var(--danger); }
+.chat-action.is-done { border-color: var(--risk-low); }
+.chat-action.is-cancelled, .chat-action.is-expired { opacity: .7; }
+.chat-action-head { display: flex; justify-content: space-between; gap: 8px; align-items: baseline; }
+.chat-action-title { font-family: var(--font-mono); font-size: 0.8rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: .04em; }
+.chat-action-link { font-size: 0.7333rem; }
+.chat-action-summary { font-size: 0.9rem; color: var(--text); }
+.chat-action-details { margin: 0; padding-left: 18px; font-size: 0.8rem; color: var(--text-muted); }
+.chat-action-buttons { display: flex; gap: 8px; margin-top: 2px; }
+.chat-action-input { width: 100%; }
+.chat-action-note, .chat-action-status { font-size: 0.75rem; color: var(--text-dim); }
+.chat-action-status { color: var(--text); }
+.chat-action-error { color: var(--danger-strong); }
+
+/* Карточка пользователя (инструмент search_users, только для админов) */
+.chat-ref-user { width: 250px; }
+.chat-ref-avatar {
+    flex: none;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--avatar-bg, var(--bg-panel));
+    color: var(--avatar-fg, var(--text));
+    font-family: var(--font-mono);
+    font-size: 0.8667rem;
+    font-weight: 700;
+}
+.chat-ref-avatar img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.chat-ref-user.is-blocked .chat-ref-avatar { opacity: .55; }
+.chat-ref-role-blocked { color: var(--risk-high); border-color: var(--risk-high); }
+.chat-ref-role-admin, .chat-ref-role-head_admin { color: var(--accent); border-color: var(--accent); }
+
 .chat-turn-meta {
     display: block;
     margin-top: 6px;

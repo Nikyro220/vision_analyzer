@@ -283,6 +283,8 @@ def _conditions(user: User, args: dict) -> list:
     scope = _in_scope_condition(user, args["own_only"])
     if scope is not None:
         conditions.append(scope)
+    if args.get("owner_id"):  # «анализы пользователя X»: только главный админ (см. search_analyses)
+        conditions.append(AnalysisResult.user_id == args["owner_id"])
     if args["risk_level"]:
         conditions.append(AnalysisResult.risk_level == args["risk_level"])
     if args["needs_review"]:
@@ -363,6 +365,12 @@ def _build_reference_cards(rows: list[AnalysisResult], show_user: bool) -> list[
             card["username"] = row.user.username
         cards.append(card)
     return cards
+
+
+def _scope_label(show_user: bool, args: dict) -> str:
+    if args.get("owner_label"):
+        return f"только анализы пользователя {args['owner_label']}"
+    return "все пользователи" if show_user else "только анализы самого пользователя"
 
 
 def _error(message: str, **extra) -> ToolResult:
@@ -481,7 +489,7 @@ def _search_semantic(user: User, args: dict, warnings: list[str]) -> ToolResult:
     show_user = user.is_head_admin and not args["own_only"]
     payload: dict = {
         "mode": "semantic",
-        "scope": "все пользователи" if show_user else "только анализы самого пользователя",
+        "scope": _scope_label(show_user, args),
         "total_matched": len(rep_ids),
         "by_risk": by_risk,
         "needs_review_count": needs_review,
@@ -519,7 +527,21 @@ def _search_semantic(user: User, args: dict, warnings: list[str]) -> ToolResult:
 
 def search_analyses(user: User, raw_args) -> ToolResult:
     """Точка входа инструмента: аргументы от модели -> результат."""
+    # `user` («анализы такого-то пользователя») — только у главного администратора. У остальных
+    # аргумент остаётся в raw_args и отбрасывается как неизвестный: права не расширяются.
+    owner = None
+    if isinstance(raw_args, dict) and "user" in raw_args and user.is_head_admin:
+        from .manage import find_target
+
+        raw_args = dict(raw_args)
+        ref = raw_args.pop("user")
+        owner = find_target(ref)
+        if owner is None:
+            return _error("пользователь не найден (нужен точный логин или id); список — через инструмент пользователей")
+
     args, warnings = normalize_args(raw_args)
+    if owner is not None:
+        args["owner_id"], args["owner_label"] = owner.id, owner.username
 
     # Категории запрошены, но ни одна не распознана: молча отдать всё без фильтра
     # было бы обманом («были ли анализы с X?» -> «вот всё»). Возвращаем ошибку со
@@ -568,7 +590,7 @@ def search_analyses(user: User, raw_args) -> ToolResult:
         by_risk[label] = by_risk.get(label, 0) + 1
 
     payload: dict = {
-        "scope": "все пользователи" if show_user else "только анализы самого пользователя",
+        "scope": _scope_label(show_user, args),
         "order": args["order"],  # newest — от новых к старым, oldest — от старых к новым
         "total_matched": len(rows),
         "by_risk": by_risk,
