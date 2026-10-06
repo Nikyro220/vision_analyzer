@@ -120,11 +120,12 @@ def build_tool_system_prompt(user=None, images: list[ChatImage] | None = None) -
         users_tool_block = ""
         users_example = ""
 
+
     # --- Блок manage_category (администраторы панели) ---
     if is_staff:
         category_tool_block = (
             f"""
-<tool name="manage_category">
+<tool name="{CATEGORY_TOOL_NAME}">
 <purpose>Assessment categories are the rules the vision analyzer applies to every image for every user.</purpose>
 <actions>
   list: all categories including disabled ones (runs immediately)
