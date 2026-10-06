@@ -1,8 +1,10 @@
-{# Аватар: загруженная картинка или инициалы. cls — класс-обёртка (размер задаётся в CSS). #}
+{# Аватар: загруженная картинка (в т.ч. анимированная) или инициалы на фоне цвета пользователя.
+   cls — класс-обёртка (размер задаётся в CSS). Ссылка на картинку берётся из БД (users.avatar_url),
+   поэтому аватар виден и другим пользователям. #}
 {% macro avatar(user, cls='account-avatar') -%}
-<span class="{{ cls }}" aria-hidden="true">
+<span class="{{ cls }}" aria-hidden="true" style="--avatar-bg: {{ user.color_hex }}; --avatar-fg: {{ user.color_fg }}">
     {%- if user.has_avatar -%}
-    <img src="{{ url_for('accounts.avatar', user_id=user.id, v=user.avatar_version) }}" alt="" width="256" height="256">
+    <img src="{{ user.avatar_src }}" alt="" width="256" height="256">
     {%- else -%}{{ user.initials }}{%- endif -%}
 </span>
 {%- endmacro %}

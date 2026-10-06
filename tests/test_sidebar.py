@@ -13,19 +13,29 @@ PASSWORD = "Sup3r-secret-pass"
 
 
 def test_display_name_styles_and_initials():
-    u = User(username="ivan_p", nickname="Иван Петров", display_style="nickname")
-    assert (u.display_name, u.initials) == ("Иван Петров", "ИП")
-    u.display_style = "username"
-    assert u.display_name == "ivan_p"
-    u.display_style = "both"
-    assert u.display_name == "Иван Петров (@ivan_p)"
-    # без никнейма всегда логин, какой бы стиль ни был выбран
-    for style in ("nickname", "username", "both"):
+    u = User(username="ivan_p", family_name="Петров", given_name="Иван", middle_name="Сергеевич",
+             nickname="Ванёк", display_style="fio")
+    assert (u.display_name, u.initials) == ("Петров Иван Сергеевич", "ПИ")
+    u.display_style = "fi"
+    assert (u.display_name, u.initials) == ("Петров Иван", "ПИ")
+    u.display_style = "nickname"
+    assert (u.display_name, u.initials) == ("Ванёк", "В")
+    # нет нужных данных -> «Название аккаунта», а без него логин
+    assert User(username="x", nickname="Ник", display_style="fio").display_name == "Ник"
+    assert User(username="x", given_name="Иван", display_style="fio").display_name == "Иван"  # заполнена часть ФИО
+    for style in ("fio", "fi", "nickname"):
         u = User(username="nick", nickname="  ", display_style=style)
         assert (u.display_name, u.initials) == ("nick", "N")
-    # никнейм совпадает с логином — не дублируем
-    assert User(username="Bob", nickname="bob", display_style="both").display_name == "bob"
-    assert User(username="x", nickname="Один", display_style="both").initials == "О"
+    # старые значения стиля (username / both) ведут себя как «Никнейм»
+    for style in ("username", "both"):
+        assert User(username="x", nickname="Один", display_style=style).display_name == "Один"
+
+
+def test_user_color_helpers():
+    u = User(username="c", color="#FF0000")
+    assert (u.color_hex, u.color_fg) == ("#ff0000", "#ffffff")
+    assert User(username="c", color="#ffff00").color_fg == "#111111"  # на светлом фоне — тёмный текст
+    assert User(username="c", color="oops", id=3).color_hex.startswith("#")  # битое значение -> цвет по id
 
 
 @pytest.fixture()

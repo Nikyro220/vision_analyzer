@@ -1,5 +1,7 @@
 """Регистрация, вход/выход, страница блокировки, профиль."""
 
+import json
+
 from flask import Blueprint, abort, flash, jsonify, redirect, render_template, request, send_file, session, url_for
 from flask_login import current_user, login_required, login_user, logout_user
 from sqlalchemy import func, select
@@ -10,6 +12,7 @@ from ..extensions import db
 from ..forms import AccountForm, DeleteAccountForm, LoginForm, RegisterForm
 from ..history import delete_user_account
 from ..models import AnalysisResult, Role, Status, User, utcnow
+from ..user_stats import user_stats
 from ..utils import is_safe_next
 
 bp = Blueprint("accounts", __name__, url_prefix="/accounts")
@@ -114,8 +117,13 @@ def profile():
     if form.validate_on_submit():
         current_user.username = form.username.data.strip()
         current_user.email = (form.email.data or "").strip()
+        current_user.family_name = form.family_name.data or ""
+        current_user.given_name = form.given_name.data or ""
+        current_user.middle_name = form.middle_name.data or ""
         current_user.nickname = form.nickname.data or ""
         current_user.display_style = form.display_style.data
+        if form.color.data:
+            current_user.color = form.color.data.lower()
         db.session.commit()
         flash("Данные аккаунта обновлены.", "success")
         return redirect(url_for("accounts.profile"))
@@ -129,15 +137,14 @@ def profile():
     ).all()
     history_count = db.session.scalar(select(func.count(AnalysisResult.id)).where(*finished))
 
-    delete_sql = f"DELETE FROM users WHERE id = {current_user.id};"
-
     return render_template(
         "accounts/profile.html",
         form=form,
         delete_form=delete_form,
-        delete_sql=delete_sql,
+        delete_sql=current_user.delete_command,
         analyses=analyses,
         history_count=history_count,
+        stats=user_stats(current_user),
     )
 
 
@@ -145,7 +152,7 @@ def profile():
 @login_required
 def delete_own_account():
     form = DeleteAccountForm()
-    delete_sql = f"DELETE FROM users WHERE id = {current_user.id};"
+    delete_sql = current_user.delete_command
 
     if form.validate_on_submit() and (form.confirm_sql.data or "").strip() == delete_sql:
         username = current_user.username
@@ -165,9 +172,7 @@ def delete_own_account():
 @bp.route("/avatar/<int:user_id>/")
 @login_required
 def avatar(user_id: int):
-    """Файл аватара. Видит владелец и админы (как и остальные данные профиля)."""
-    if user_id != current_user.id and not current_user.is_panel_staff:
-        abort(404)
+    """Файл аватара. Его видят все вошедшие пользователи (аватар — публичная часть профиля)."""
     target = db.session.get(User, user_id)
     path = avatars.avatar_file(user_id)
     if target is None or not target.has_avatar or not path.is_file():
@@ -178,22 +183,39 @@ def avatar(user_id: int):
 @bp.route("/avatar/", methods=["POST"])
 @login_required
 def avatar_upload():
-    """Принимает отредактированный в браузере аватар (поле `avatar`), отвечает JSON."""
+    """Принимает аватар и отвечает JSON.
+
+    Обычный случай — поле `avatar` с картинкой, уже отредактированной в браузере (256x256).
+    Анимированный — поле `avatar` с ИСХОДНЫМ файлом плюс поле `params` (JSON с настройками редактора):
+    кадры обрабатывает сервер, см. avatars.process_animated.
+    """
     upload = request.files.get("avatar")
     if upload is None:
         return jsonify(ok=False, error="Файл не выбран."), 400
-    limit = conf("AVATAR_MAX_UPLOAD_BYTES")
-    raw = upload.stream.read(limit + 1)  # читаем не больше лимита, а не весь запрос
+
+    raw_params = request.form.get("params")
     try:
-        data = avatars.process_avatar(raw)
+        if raw_params is None:
+            limit = conf("AVATAR_MAX_UPLOAD_BYTES")
+            raw = upload.stream.read(limit + 1)  # читаем не больше лимита, а не весь запрос
+            data = avatars.process_avatar(raw)
+        else:
+            try:
+                params = avatars.parse_params(json.loads(raw_params))
+            except ValueError as exc:  # битый JSON (AvatarError — тоже ValueError, текст у неё свой)
+                raise avatars.AvatarError("Некорректные параметры редактора.") from exc
+            limit = conf("AVATAR_MAX_ANIMATED_BYTES")
+            raw = upload.stream.read(limit + 1)
+            data, _animated = avatars.process_animated(raw, params)
     except avatars.AvatarError as exc:
         return jsonify(ok=False, error=str(exc)), 400
 
     avatars.save_avatar(current_user.id, data)
     current_user.avatar_updated_at = utcnow()
+    current_user.avatar_url = avatars.avatar_link(current_user.id, current_user.avatar_version)
     db.session.commit()
     flash("Аватар обновлён.", "success")
-    return jsonify(ok=True, url=url_for("accounts.avatar", user_id=current_user.id, v=current_user.avatar_version))
+    return jsonify(ok=True, url=current_user.avatar_url)
 
 
 @bp.route("/avatar/delete/", methods=["POST"])
@@ -202,6 +224,7 @@ def avatar_delete():
     if current_user.has_avatar:
         avatars.remove_avatar(current_user.id)
         current_user.avatar_updated_at = None
+        current_user.avatar_url = None
         db.session.commit()
         flash("Аватар удалён.", "success")
     return redirect(url_for("accounts.profile"))

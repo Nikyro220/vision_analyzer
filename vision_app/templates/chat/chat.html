@@ -38,7 +38,7 @@
         </ul>
     </div>
 
-    <div class="card chat-card" id="chat-root"
+    <div class="card chat-card" id="chat-root" style="--user-color: {{ current_user.color_hex }}"
          data-send-url="{{ url_for('chat.send', session_id=session.id) }}"
          data-csrf="{{ csrf_token() }}"
          data-pending-url="{{ url_for('chat.pending', session_id=session.id) }}"

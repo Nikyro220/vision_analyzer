@@ -1,0 +1,19 @@
+{# Сводка по пользователю. Ждёт переменные: stats (см. user_stats.py) и who — чьи это данные. #}
+<h3 class="subtitle stats-title">Статистика</h3>
+<div class="stat-tiles">
+    <div class="stat-tile"><span class="stat-num">{{ stats.total }}</span><span class="stat-label">всего анализов</span></div>
+    <div class="stat-tile"><span class="stat-num">{{ stats.done }}</span><span class="stat-label">завершено</span></div>
+    <div class="stat-tile"><span class="stat-num">{{ stats.high }}</span><span class="stat-label">высокий риск</span></div>
+    <div class="stat-tile"><span class="stat-num">{{ stats.needs_review }}</span><span class="stat-label">на проверку</span></div>
+</div>
+<dl class="def-list stats-list">
+    <dt>В очереди / в обработке</dt><dd>{{ stats.active }}</dd>
+    <dt>Риск средний / низкий</dt><dd>{{ stats.medium }} / {{ stats.low }}{% if stats.unknown %} · не определён: {{ stats.unknown }}{% endif %}</dd>
+    <dt>С ошибкой</dt><dd>{{ stats.with_error }}</dd>
+    <dt>По ссылке на пост</dt><dd>{{ stats.by_link }}</dd>
+    <dt>За 7 / 30 дней</dt><dd>{{ stats.last_7_days }} / {{ stats.last_30_days }}</dd>
+    <dt>Первый анализ</dt><dd>{{ stats.first_at|localdt }}</dd>
+    <dt>Последний анализ</dt><dd>{{ stats.last_at|localdt }}</dd>
+    <dt>Чатов / сообщений</dt><dd>{{ stats.chats }} / {{ stats.chat_messages }}</dd>
+    <dt>Аккаунту</dt><dd>{{ stats.account_days }} дн.</dd>
+</dl>

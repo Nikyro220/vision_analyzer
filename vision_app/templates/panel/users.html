@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "partials/avatar.html" import avatar %}
 {% block title %}Пользователи{% endblock %}
 {% block content %}
 <div class="page-header">
@@ -30,7 +31,7 @@
         <tbody>
             {% for u in page.items %}
             <tr onclick="window.location.href='{{ url_for('panel.user_detail', pk=u.id) }}';">
-                <td>{{ u.username }}</td>
+                <td><span class="user-cell">{{ avatar(u, 'avatar-sm') }}{{ u.username }}</span></td>
                 <td>{{ u.email or "—" }}</td>
                 <td><span class="role-badge role-{{ u.role }}">{{ u.role_display_ru }}</span></td>
                 <td>{{ u.created_at|localdt('date') }}</td>

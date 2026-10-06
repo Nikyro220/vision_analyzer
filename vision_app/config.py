@@ -164,6 +164,12 @@ class Config:
     AVATAR_MAX_UPLOAD_BYTES = 2 * 1024 * 1024  # браузер присылает уже отрисованный 256x256, запас большой
     AVATAR_MAX_SIDE = 2048  # px; больше — отклоняем (защита от «бомб» распаковки)
     AVATAR_CACHE_SECONDS = 24 * 3600  # Cache-Control; в URL есть ?v=<время изменения>
+    # Анимированные аватары (GIF / анимированный WebP / APNG): браузер присылает ИСХОДНЫЙ файл и
+    # параметры редактора, кадры обрабатывает сервер (avatars.process_animated).
+    AVATAR_MAX_ANIMATED_BYTES = 8 * 1024 * 1024  # исходный файл анимации
+    AVATAR_MAX_FRAMES = 200  # больше кадров — отклоняем
+    AVATAR_MAX_ANIMATED_PIXELS = 250_000_000  # ширина * высота * кадры исходника (защита от перегрузки CPU)
+    AVATAR_MAX_OUTPUT_BYTES = 2 * 1024 * 1024  # размер готового анимированного WebP на диске
 
     THUMB_SIZE = 96  # px; в интерфейсе показываем 36-44 px, запас под retina-экраны
     THUMB_QUALITY = 80

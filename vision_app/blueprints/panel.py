@@ -26,6 +26,7 @@ from ..settings_store import (
 )
 from ..models import ROLE_CHOICES, ROLE_LABELS, AnalysisResult, Category, Role, Status, User
 from ..services import VisionApiError, check_health
+from ..user_stats import user_stats
 from ..utils import paginate, plural
 
 bp = Blueprint("panel", __name__, url_prefix="/panel")
@@ -115,7 +116,7 @@ def user_detail(pk: int):
 
     edit_form = AccountForm(obj=target, current_id=target.id)
     delete_form = DeleteAccountForm()
-    delete_sql = f"DELETE FROM users WHERE id = {target.id};"
+    delete_sql = target.delete_command
 
     return render_template(
         "panel/user_detail.html",
@@ -128,6 +129,7 @@ def user_detail(pk: int):
         edit_form=edit_form,
         delete_form=delete_form,
         delete_sql=delete_sql,
+        stats=user_stats(target),
     )
 
 
@@ -148,7 +150,7 @@ def user_history(pk: int):
 @bp.route("/users/<int:pk>/edit/", methods=["POST"])
 @staff_required
 def user_edit(pk: int):
-    """Изменение данных аккаунта (логин/email/никнейм/стиль имени) со стороны админа."""
+    """Изменение данных аккаунта (логин, email, имя, название аккаунта, стиль имени, цвет) со стороны админа."""
     target = db.get_or_404(User, pk)
 
     if not current_user.can_manage(target):
@@ -159,8 +161,13 @@ def user_edit(pk: int):
     if form.validate_on_submit():
         target.username = form.username.data.strip()
         target.email = (form.email.data or "").strip()
+        target.family_name = form.family_name.data or ""
+        target.given_name = form.given_name.data or ""
+        target.middle_name = form.middle_name.data or ""
         target.nickname = form.nickname.data or ""
         target.display_style = form.display_style.data
+        if form.color.data:
+            target.color = form.color.data.lower()
         db.session.commit()
         flash(f"Данные пользователя «{target.username}» обновлены.", "success")
     else:
@@ -181,7 +188,7 @@ def user_delete(pk: int):
         flash("У вас нет прав на удаление этого пользователя.", "error")
         return redirect(url_for("panel.user_detail", pk=target.id))
 
-    delete_sql = f"DELETE FROM users WHERE id = {target.id};"
+    delete_sql = target.delete_command
     form = DeleteAccountForm()
 
     if form.validate_on_submit() and (form.confirm_sql.data or "").strip() == delete_sql:

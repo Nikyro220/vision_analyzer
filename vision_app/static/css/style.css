@@ -190,8 +190,8 @@ h1, h2, h3 {
     width: 32px;
     height: 32px;
     border-radius: 50%;
-    background: var(--accent-soft);
-    color: var(--accent-strong);
+    background: var(--avatar-bg, var(--accent-soft));
+    color: var(--avatar-fg, var(--accent-strong));
     font-family: var(--font-mono);
     font-size: 0.8rem;
     font-weight: 700;
@@ -1300,8 +1300,8 @@ input[type="checkbox"]:disabled { opacity: 0.5; cursor: not-allowed; }
     height: 96px;
     border-radius: 50%;
     overflow: hidden;
-    background: var(--accent-soft);
-    color: var(--accent-strong);
+    background: var(--avatar-bg, var(--accent-soft));
+    color: var(--avatar-fg, var(--accent-strong));
     font-family: var(--font-mono);
     font-size: 1.8rem;
     font-weight: 700;
@@ -1324,8 +1324,13 @@ input[type="checkbox"]:disabled { opacity: 0.5; cursor: not-allowed; }
     /* шахматка: видно прозрачные области, которые остаются после поворота/сжатия */
     background: repeating-conic-gradient(var(--bg-elevated) 0% 25%, var(--bg-panel) 0% 50%) 0 0 / 16px 16px;
 }
-.avatar-stage canvas { display: block; width: 100%; height: auto; cursor: grab; }
-.avatar-stage canvas.is-dragging { cursor: grabbing; }
+.avatar-stage { cursor: grab; touch-action: none; user-select: none; }
+.avatar-stage.is-dragging { cursor: grabbing; }
+.avatar-stage canvas { display: block; width: 100%; height: auto; }
+/* Живой предпросмотр анимированного аватара: <img> двигается CSS-преобразованием, анимацию играет браузер. */
+.avatar-anim { position: absolute; inset: 0; overflow: hidden; pointer-events: none; }
+.avatar-anim[hidden] { display: none; }
+.avatar-anim img { position: absolute; left: 50%; top: 50%; max-width: none; transform-origin: center; }
 .avatar-guide {
     position: absolute;
     inset: 0;
@@ -1340,15 +1345,18 @@ input[type="checkbox"]:disabled { opacity: 0.5; cursor: not-allowed; }
     border: 1px dashed rgba(255, 255, 255, 0.75);
 }
 .avatar-controls { display: grid; gap: 10px; margin-top: 12px; }
-.avatar-controls label {
-    display: grid;
-    grid-template-columns: 1fr auto;
-    gap: 2px 8px;
-    font-size: 0.8667rem;
-    color: var(--text-muted);
+.avatar-ctl label { display: block; margin-bottom: 2px; font-size: 0.8667rem; color: var(--text-muted); }
+.avatar-ctl-row { display: grid; grid-template-columns: 1fr 76px auto auto; align-items: center; gap: 8px; }
+.avatar-range { width: 100%; min-width: 0; accent-color: var(--accent); }
+.avatar-num {
+    width: 100%; padding: 4px 6px; text-align: right;
+    font-family: var(--font-mono); font-size: 0.8333rem;
+    color: var(--text); background: var(--bg-elevated);
+    border: 1px solid var(--border); border-radius: var(--radius-sm, 6px);
 }
-.avatar-controls output { font-family: var(--font-mono); font-size: 0.8rem; color: var(--text-dim); }
-.avatar-controls input[type="range"] { grid-column: 1 / -1; width: 100%; accent-color: var(--accent); }
+.avatar-unit { min-width: 1.4em; font-family: var(--font-mono); font-size: 0.8rem; color: var(--text-dim); }
+.avatar-ctl-reset { padding: 4px 9px; line-height: 1; }
+.avatar-ctl.is-default .avatar-ctl-reset { opacity: 0.35; }
 .avatar-toolbar { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
 .avatar-error { margin: 10px 0 0; color: var(--danger-strong); font-size: 0.8667rem; }
 .avatar-error[hidden] { display: none; }
@@ -1356,3 +1364,86 @@ input[type="checkbox"]:disabled { opacity: 0.5; cursor: not-allowed; }
 /* Аватар внутри карточки «Изменить данные». */
 .avatar-section { margin-bottom: 18px; padding-bottom: 18px; border-bottom: 1px solid var(--border-soft); }
 .subtitle { margin: 0 0 10px; font-size: 0.9333rem; font-weight: 600; color: var(--text-muted); }
+
+
+/* ---------------- Аватар: выбор по клику, размеры, цвет пользователя ---------------- */
+
+.avatar-pick {
+    position: relative;
+    flex: none;
+    padding: 0;
+    border: 0;
+    border-radius: 50%;
+    background: none;
+    cursor: pointer;
+    line-height: 0;
+}
+.avatar-pick:focus-visible { outline: 2px solid var(--accent-strong); outline-offset: 3px; }
+.avatar-pick-hint {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    background: rgba(0, 0, 0, 0.55);
+    color: #fff;
+    font-size: 0.8rem;
+    line-height: 1;
+    opacity: 0;
+    transition: opacity 0.15s;
+}
+.avatar-pick:hover .avatar-pick-hint, .avatar-pick:focus-visible .avatar-pick-hint { opacity: 1; }
+
+.avatar-sm, .avatar-md {
+    flex: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    overflow: hidden;
+    background: var(--avatar-bg, var(--accent-soft));
+    color: var(--avatar-fg, var(--accent-strong));
+    font-family: var(--font-mono);
+    font-weight: 700;
+}
+.avatar-sm { width: 24px; height: 24px; font-size: 0.65rem; }
+.avatar-md { width: 40px; height: 40px; font-size: 0.9rem; }
+.avatar-sm img, .avatar-md img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.user-heading { display: flex; align-items: center; gap: 12px; }
+.user-cell { display: inline-flex; align-items: center; gap: 8px; }
+
+.color-chip {
+    display: inline-block;
+    width: 0.9em;
+    height: 0.9em;
+    margin-right: 4px;
+    vertical-align: -0.1em;
+    border-radius: 50%;
+    border: 1px solid var(--border);
+}
+.field input[type="color"] { width: 64px; height: 36px; padding: 2px; cursor: pointer; }
+
+/* ---------------- Статистика пользователя ---------------- */
+
+.stats-title { margin-top: 18px; }
+.stat-tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(92px, 1fr)); gap: 8px; margin-bottom: 12px; }
+.stat-tile {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 8px 10px;
+    background: var(--bg-elevated);
+    border: 1px solid var(--border-soft);
+    border-radius: var(--radius);
+}
+.stat-num { font-family: var(--font-mono); font-size: 1.3rem; font-weight: 700; }
+.stat-label { font-size: 0.7333rem; color: var(--text-dim); }
+
+/* ---------------- Чат: цвет пользователя ---------------- */
+
+.chat-turn-user {
+    border-left-color: var(--user-color, var(--accent));
+    background: linear-gradient(90deg, color-mix(in srgb, var(--user-color, transparent) 9%, transparent), transparent 60%);
+}
+.chat-turn-user .chat-turn-role { color: color-mix(in srgb, var(--user-color, var(--accent-strong)) 75%, var(--text)); }

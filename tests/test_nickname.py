@@ -1,6 +1,8 @@
-"""Логин (уникальный) + никнейм и стиль отображения имени; перенос старого ФИО."""
+"""Логин (уникальный), ФИО, название аккаунта, стиль отображения имени, цвет; перенос старого ФИО."""
 
+import html as htmllib
 import os
+import re
 import sqlite3
 
 import pytest
@@ -50,11 +52,44 @@ def _save(client, **over):
 
 def test_profile_saves_nickname_and_style(app):
     c = _login(app, "alice")
-    r = _save(c, nickname="  Алиса   Смит ", display_style="both")
+    r = _save(c, nickname="  Алиса   Смит ", display_style="nickname")
     assert r.status_code == 302
     _, _, nick, style = _user(app, "alice")
-    assert (nick, style) == ("Алиса Смит", "both")  # пробелы схлопнуты
-    assert "Алиса Смит (@alice)" in c.get("/history/").get_data(as_text=True)
+    assert (nick, style) == ("Алиса Смит", "nickname")  # пробелы схлопнуты
+    assert ">Алиса Смит<" in c.get("/history/").get_data(as_text=True)
+
+
+def test_full_name_styles(app):
+    c = _login(app, "alice")
+    names = {"family_name": "Смит", "given_name": "Алиса", "middle_name": "Ивановна", "nickname": "Али"}
+    assert _save(c, display_style="fio", **names).status_code == 302
+    assert ">Смит Алиса Ивановна<" in c.get("/history/").get_data(as_text=True)
+    assert _save(c, display_style="fi", **names).status_code == 302
+    assert ">Смит Алиса<" in c.get("/history/").get_data(as_text=True)
+    assert _save(c, display_style="nickname", **names).status_code == 302
+    assert ">Али<" in c.get("/history/").get_data(as_text=True)
+
+
+def test_color_saved_and_validated(app):
+    c = _login(app, "alice")
+    assert _save(c, color="#AABBCC").status_code == 302
+    with app.app_context():
+        assert User.query.filter_by(username="alice").one().color == "#aabbcc"
+    assert _save(c, color="red").status_code == 200  # не #rrggbb
+    assert _save(c).status_code == 302  # поле пустое — цвет остаётся прежним
+    with app.app_context():
+        assert User.query.filter_by(username="alice").one().color == "#aabbcc"
+
+
+def test_color_is_random_on_register(app):
+    colors = set()
+    for i in range(6):
+        c = app.test_client()
+        r = c.post("/accounts/register/", data={"username": f"newbie{i}", "email": "", "password1": PASSWORD, "password2": PASSWORD})
+        assert r.status_code == 302, r.get_data(as_text=True)[:300]
+        with app.app_context():
+            colors.add(User.query.filter_by(username=f"newbie{i}").one().color)
+    assert all(len(c) == 7 and c.startswith("#") for c in colors) and len(colors) > 1
 
 
 def test_invalid_style_rejected(app):
@@ -80,20 +115,100 @@ def test_nickname_not_unique_but_username_is(app):
 def test_profile_form_has_select_and_avatar_on_top(app):
     html = _login(app, "alice").get("/accounts/profile/").get_data(as_text=True)
     assert '<select' in html and 'name="display_style"' in html and 'name="nickname"' in html
-    assert "first_name" not in html and "Фамилия" not in html
+    assert 'name="family_name"' in html and 'name="given_name"' in html and 'name="middle_name"' in html
+    assert 'type="color"' in html and "Название аккаунта" in html
+    opts = html[html.index('name="display_style"'):]
+    opts = opts[: opts.index("</select>")]
+    assert re.findall(r"<option[^>]*>([^<]+)</option>", opts) == ["ФИО", "Фамилия Имя", "Никнейм"]
+    assert "Логин (@" not in html and "Показывается как" not in html
     edit = html.index("Изменить данные")
     assert edit < html.index('id="avatar-card"') < html.index('name="nickname"')  # аватар — вверху карточки
     assert 'class="card avatar-card"' not in html  # отдельной карточки больше нет
 
 
-def test_admin_can_edit_nickname_and_style(app):
+def test_data_card_labels(app):
+    c = _login(app, "alice")
+    _save(c, nickname="Ник", family_name="Смит", given_name="Алиса", display_style="fi")
+    html = c.get("/accounts/profile/").get_data(as_text=True)
+    card = html[html.index("Данные аккаунта"): html.index("Изменить данные")]
+    assert "<dt>Название аккаунта</dt><dd>Ник</dd>" in card
+    assert "<dt>Никнейм</dt><dd>Смит Алиса</dd>" in card  # то, что показывается, теперь подписано «Никнейм»
+    assert "Показывается как" not in card
+
+
+def test_admin_can_edit_names_and_style(app):
     c = _login(app, "adm")
     uid = _user(app, "bob")[0]
-    r = c.post(f"/panel/users/{uid}/edit/", data={"username": "bob", "email": "", "nickname": "Боб", "display_style": "username"})
+    r = c.post(f"/panel/users/{uid}/edit/", data={
+        "username": "bob", "email": "", "nickname": "Боб", "display_style": "fi",
+        "family_name": "Марли", "given_name": "Боб", "middle_name": "", "color": "#112233",
+    })
     assert r.status_code == 302
-    assert _user(app, "bob")[2:] == ("Боб", "username")
+    assert _user(app, "bob")[2:] == ("Боб", "fi")
     page = c.get(f"/panel/users/{uid}/").get_data(as_text=True)
-    assert "Показывается как" in page and "Боб" in page
+    assert "Название аккаунта" in page and "Марли Боб" in page and "#112233" in page
+
+
+def _page_text(html):
+    return html[html.index("<h3 class=\"subtitle stats-title\">") :]
+
+
+def test_profile_and_panel_show_analysis_stats(app):
+    from vision_app.models import AnalysisResult
+    uid = _user(app, "bob")[0]
+    with app.app_context():
+        for i, (status, risk, review) in enumerate([("done", "high", True), ("done", "low", False), ("done", "medium", False), ("queued", "unknown", False)]):
+            db.session.add(AnalysisResult(user_id=uid, image_path=f"x/{i}.png", status=status, risk_level=risk, needs_human_review=review))
+        db.session.commit()
+    own = _page_text(_login(app, "bob").get("/accounts/profile/").get_data(as_text=True))
+    panel = _page_text(_login(app, "adm").get(f"/panel/users/{uid}/").get_data(as_text=True))
+    for page in (own, panel):
+        assert '<span class="stat-num">4</span><span class="stat-label">всего анализов' in page
+        assert '<span class="stat-num">3</span><span class="stat-label">завершено' in page
+        assert '<span class="stat-num">1</span><span class="stat-label">высокий риск' in page
+        assert "<dt>В очереди / в обработке</dt><dd>1</dd>" in page
+        assert "<dt>Риск средний / низкий</dt><dd>1 / 1</dd>" in page
+
+
+def test_stats_for_user_without_anything(app):
+    html = _page_text(_login(app, "alice").get("/accounts/profile/").get_data(as_text=True))
+    assert '<span class="stat-num">0</span><span class="stat-label">всего анализов' in html
+    assert "<dt>Первый анализ</dt><dd>—</dd>" in html
+
+
+# ---- удаление аккаунта: подтверждение логином ----
+
+def _delete(client, url, text):
+    return client.post(url, data={"confirm_sql": text})
+
+
+def test_delete_own_account_requires_username(app):
+    c = _login(app, "alice")
+    uid = _user(app, "alice")[0]
+    assert "DELETE FROM users WHERE username = 'alice';" in htmllib.unescape(c.get("/accounts/profile/").get_data(as_text=True))
+    _delete(c, "/accounts/profile/delete/", f"DELETE FROM users WHERE id = {uid};")  # старая команда с id больше не годится
+    _delete(c, "/accounts/profile/delete/", "DELETE FROM users WHERE username = 'bob';")  # чужой логин
+    _delete(c, "/accounts/profile/delete/", "alice")  # одного логина мало
+    with app.app_context():
+        assert User.query.filter_by(username="alice").count() == 1
+    assert _delete(c, "/accounts/profile/delete/", "DELETE FROM users WHERE username = 'alice';").status_code == 302
+    with app.app_context():
+        assert User.query.filter_by(username="alice").count() == 0
+
+
+def test_admin_delete_requires_target_username(app):
+    c = _login(app, "adm")
+    uid = _user(app, "bob")[0]
+    url = f"/panel/users/{uid}/delete/"
+    page = c.get(f"/panel/users/{uid}/").get_data(as_text=True)
+    assert "DELETE FROM users WHERE username = 'bob';" in htmllib.unescape(page)
+    _delete(c, url, f"DELETE FROM users WHERE id = {uid};")
+    _delete(c, url, "DELETE FROM users WHERE username = 'adm';")
+    with app.app_context():
+        assert User.query.filter_by(username="bob").count() == 1
+    _delete(c, url, "DELETE FROM users WHERE username = 'bob';")
+    with app.app_context():
+        assert User.query.filter_by(username="bob").count() == 0
 
 
 # ---- перенос ФИО из старой базы ----
@@ -121,11 +236,26 @@ def test_legacy_names_migrated_and_columns_dropped(tmp_path):
             names = {u.username: u.nickname for u in User.query.all()}
             assert names == {"full": "Петров Иван", "onlyfirst": "Иван", "none": "", "padded": "Сидорова Анна"}
             cols = {c["name"] for c in inspect(db.engine).get_columns("users")}
-            assert {"nickname", "display_style"} <= cols and not ({"first_name", "last_name"} & cols)
+            assert {"nickname", "display_style", "family_name", "given_name", "middle_name", "color", "avatar_url"} <= cols
+            assert not ({"first_name", "last_name"} & cols)
             assert User.query.filter_by(username="full").one().display_style == "nickname"
+            assert all(u.color.startswith("#") and len(u.color) == 7 for u in User.query.all())  # цвет выдан старым аккаунтам
     with app.app_context():  # новый пользователь вставляется без ошибок NOT NULL
         u = User(username="fresh")
         u.set_password(PASSWORD)
         db.session.add(u)
         db.session.commit()
         assert u.display_name == "fresh"
+
+
+def test_old_display_styles_and_missing_colors_are_backfilled(app):
+    from vision_app.schema import backfill_user_fields
+    with app.app_context():
+        a, b = User.query.filter_by(username="alice").one(), User.query.filter_by(username="bob").one()
+        a.display_style, a.color = "both", ""  # значения из старой версии
+        b.display_style, b.color = "username", "#123456"
+        db.session.commit()
+        assert backfill_user_fields() == 2
+        a, b = User.query.filter_by(username="alice").one(), User.query.filter_by(username="bob").one()
+        assert (a.display_style, b.display_style) == ("nickname", "nickname")
+        assert a.color.startswith("#") and len(a.color) == 7 and b.color == "#123456"  # чужой цвет не трогаем

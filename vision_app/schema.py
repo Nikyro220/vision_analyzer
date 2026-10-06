@@ -110,3 +110,40 @@ def migrate_legacy_names(engine) -> int:
             break
     log.info("ФИО перенесено в nickname: %d, устаревшие колонки удалены", copied)
     return copied
+
+
+def backfill_user_fields() -> int:
+    """Дозаполняет поля пользователей, появившиеся позже самих аккаунтов (нужен app context).
+
+    * color — случайный цвет тем, у кого его ещё нет;
+    * display_style — старые значения (username/both) заменяются на «Никнейм»;
+    * avatar_url — ссылка на аватар, загруженный до появления этой колонки.
+
+    Идемпотентно: повторный запуск ничего не меняет. Возвращает число изменённых записей.
+    """
+    from sqlalchemy import and_, or_, select
+
+    from .avatars import avatar_link
+    from .models import DISPLAY_STYLE_LABELS, DisplayStyle, User, random_color
+
+    users = db.session.scalars(
+        select(User).where(
+            or_(
+                User.color.is_(None),
+                User.color == "",
+                User.display_style.not_in(list(DISPLAY_STYLE_LABELS)),
+                and_(User.avatar_updated_at.is_not(None), User.avatar_url.is_(None)),
+            )
+        )
+    ).all()
+    for user in users:
+        if not user.color:
+            user.color = random_color()
+        if user.display_style not in DISPLAY_STYLE_LABELS:
+            user.display_style = DisplayStyle.NICKNAME
+        if user.avatar_updated_at is not None and not user.avatar_url:
+            user.avatar_url = avatar_link(user.id, user.avatar_version)
+    if users:
+        db.session.commit()
+        log.info("Дозаполнены поля пользователей (цвет, стиль имени, ссылка на аватар): %d", len(users))
+    return len(users)

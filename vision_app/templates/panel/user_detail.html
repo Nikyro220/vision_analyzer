@@ -1,8 +1,9 @@
 {% extends "base.html" %}
+{% from "partials/avatar.html" import avatar %}
 {% block title %}{{ target.username }}{% endblock %}
 {% block content %}
 <div class="page-header">
-    <h1>{{ target.username }}</h1>
+    <h1 class="user-heading">{{ avatar(target, 'avatar-md') }}{{ target.username }}</h1>
     <p class="page-sub">{{ target.email or "Email не указан" }} · зарегистрирован {{ target.created_at|localdt }}</p>
 </div>
 
@@ -13,10 +14,13 @@
             <dt>Логин</dt><dd>{{ target.username }}</dd>
             <dt>Роль</dt><dd><span class="role-badge role-{{ target.role }}">{{ target.role_display_ru }}</span></dd>
             <dt>Email</dt><dd>{{ target.email or "—" }}</dd>
-            <dt>Никнейм</dt><dd>{{ target.nickname or "—" }}</dd>
-            <dt>Показывается как</dt><dd>{{ target.display_name }}</dd>
+            <dt>Название аккаунта</dt><dd>{{ target.nickname or "—" }}</dd>
+            <dt>Никнейм</dt><dd>{{ target.display_name }}</dd>
+            <dt>ФИО</dt><dd>{{ target.full_name or "—" }}</dd>
+            <dt>Цвет</dt><dd><span class="color-chip" style="background: {{ target.color_hex }}"></span> {{ target.color_hex }}</dd>
             <dt>Дата регистрации</dt><dd>{{ target.created_at|localdt }}</dd>
         </dl>
+        {% include "partials/user_stats.html" %}
     </div>
 
     <div class="card">
@@ -61,7 +65,7 @@
         <details class="danger-zone">
             <summary>Удалить аккаунт</summary>
             <div class="danger-zone-body">
-                <p class="danger-zone-hint">Это необратимо: аккаунт и вся история анализов пользователя «{{ target.username }}» будут удалены. Для подтверждения введите команду ниже вручную (скопировать её нельзя):</p>
+                <p class="danger-zone-hint">Это необратимо: аккаунт и вся история анализов пользователя «{{ target.username }}» будут удалены. Для подтверждения введите вручную команду ниже — с логином этого пользователя (скопировать её нельзя):</p>
                 <code class="sql-prompt no-select">{{ delete_sql }}</code>
                 <form method="post" action="{{ url_for('panel.user_delete', pk=target.id) }}" class="form"
                       onsubmit="return confirm('Точно удалить аккаунт «{{ target.username }}»? Это нельзя отменить.')">

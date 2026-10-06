@@ -17,6 +17,7 @@ from PIL import Image
 from sqlalchemy import func, select
 from wtforms import BooleanField, HiddenField, IntegerField, PasswordField, SelectField, StringField, TextAreaField
 from wtforms.fields import EmailField
+from wtforms.widgets import ColorInput
 from wtforms.validators import (
     DataRequired,
     Email,
@@ -31,7 +32,7 @@ from wtforms.validators import (
 from . import examples_codec
 from .config import conf
 from .extensions import db
-from .models import CATEGORY_NAME_RE, DISPLAY_STYLE_CHOICES, Category, User
+from .models import CATEGORY_NAME_RE, COLOR_RE, DISPLAY_STYLE_CHOICES, Category, User
 
 # Небольшой встроенный список самых частых паролей (аналог CommonPasswordValidator).
 COMMON_PASSWORDS = {
@@ -113,6 +114,10 @@ class LoginForm(FlaskForm):
     )
 
 
+def _squash_spaces(value):
+    return " ".join((value or "").split())
+
+
 class AccountForm(FlaskForm):
     """Редактирование данных аккаунта: свой профиль или (для админа) карточка пользователя."""
 
@@ -130,16 +135,40 @@ class AccountForm(FlaskForm):
         validators=[Optional(), Email("Введите корректный адрес электронной почты."), Length(max=254)],
         render_kw={"placeholder": "you@example.com", "autocomplete": "email"},
     )
-    nickname = StringField(
-        "Никнейм",
+    family_name = StringField(
+        "Фамилия",
         validators=[Length(max=150, message="Не более 150 символов.")],
-        filters=[lambda v: " ".join((v or "").split())],  # лишние пробелы и переводы строк -> один пробел
-        render_kw={"placeholder": "Необязательно: как вас называть", "autocomplete": "nickname"},
+        filters=[_squash_spaces],
+        render_kw={"placeholder": "Необязательно", "autocomplete": "family-name"},
+    )
+    given_name = StringField(
+        "Имя",
+        validators=[Length(max=150, message="Не более 150 символов.")],
+        filters=[_squash_spaces],
+        render_kw={"placeholder": "Необязательно", "autocomplete": "given-name"},
+    )
+    middle_name = StringField(
+        "Отчество",
+        validators=[Length(max=150, message="Не более 150 символов.")],
+        filters=[_squash_spaces],
+        render_kw={"placeholder": "Необязательно", "autocomplete": "additional-name"},
+    )
+    nickname = StringField(
+        "Название аккаунта",
+        validators=[Length(max=150, message="Не более 150 символов.")],
+        filters=[_squash_spaces],  # лишние пробелы и переводы строк -> один пробел
+        render_kw={"placeholder": "Необязательно: как называется ваш аккаунт", "autocomplete": "nickname"},
     )
     display_style = SelectField(
         "Как показывать моё имя",
         choices=DISPLAY_STYLE_CHOICES,
         default=DISPLAY_STYLE_CHOICES[0][0],
+    )
+    color = StringField(
+        "Цвет пользователя",
+        validators=[Optional(), Regexp(COLOR_RE, message="Цвет задаётся как #rrggbb.")],  # пусто — цвет не меняем
+        widget=ColorInput(),
+        render_kw={"title": "Красит аватар без картинки и ваши сообщения в чате"},
     )
 
     def __init__(self, *args, current_id: int | None = None, **kwargs):
@@ -160,12 +189,12 @@ ProfileForm = AccountForm
 
 
 class DeleteAccountForm(FlaskForm):
-    """Подтверждение удаления аккаунта — тупо по приколу просим вручную ввести SQL-запрос."""
+    """Подтверждение удаления аккаунта — тупо по приколу просим вручную ввести SQL-запрос с логином."""
 
     confirm_sql = StringField(
         "Подтверждение",
         validators=[DataRequired("Введите команду подтверждения.")],
-        render_kw={"placeholder": "DELETE FROM users WHERE id = ...;", "autocomplete": "off"},
+        render_kw={"placeholder": "DELETE FROM users WHERE username = '...';", "autocomplete": "off"},
     )
 
 

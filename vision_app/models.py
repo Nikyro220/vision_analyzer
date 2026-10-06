@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import colorsys
+import random
 import re
 from datetime import datetime, timezone
 
@@ -28,17 +30,27 @@ class Role:
 class DisplayStyle:
     """Как показывать имя пользователя в интерфейсе (выбирается в профиле)."""
 
-    NICKNAME = "nickname"  # «Никнейм»
-    USERNAME = "username"  # «логин»
-    BOTH = "both"  # «Никнейм (@логин)»
+    FIO = "fio"  # «Фамилия Имя Отчество»
+    FI = "fi"  # «Фамилия Имя»
+    NICKNAME = "nickname"  # «Никнейм» (поле «Название аккаунта»)
 
 
 DISPLAY_STYLE_LABELS = {
+    DisplayStyle.FIO: "ФИО",
+    DisplayStyle.FI: "Фамилия Имя",
     DisplayStyle.NICKNAME: "Никнейм",
-    DisplayStyle.USERNAME: "Логин",
-    DisplayStyle.BOTH: "Никнейм (@логин)",
 }
 DISPLAY_STYLE_CHOICES = list(DISPLAY_STYLE_LABELS.items())
+
+
+def random_color() -> str:
+    """Случайный цвет пользователя «#rrggbb». Яркость и насыщенность подобраны так, чтобы на нём
+    читался белый текст (инициалы в аватаре), а оттенок — любой."""
+    r, g, b = colorsys.hls_to_rgb(random.random(), random.uniform(0.38, 0.5), random.uniform(0.5, 0.7))
+    return f"#{round(r * 255):02x}{round(g * 255):02x}{round(b * 255):02x}"
+
+
+COLOR_RE = re.compile(r"^#[0-9a-fA-F]{6}$")
 
 
 ROLE_LABELS = {
@@ -101,6 +113,11 @@ class User(UserMixin, db.Model):
     # (не уникальное); как именно показывать имя, решает display_style (DisplayStyle).
     # server_default нужен, чтобы колонки автоматически добавились в уже существующую базу.
     nickname = db.Column(db.String(150), nullable=False, default="", server_default="")
+    # Настоящее имя. Названия колонок не first_name/last_name: так звались старые колонки, которые
+    # schema.migrate_legacy_names переносит в nickname и удаляет, — пересечение стёрло бы данные.
+    family_name = db.Column(db.String(150), nullable=False, default="", server_default="")
+    given_name = db.Column(db.String(150), nullable=False, default="", server_default="")
+    middle_name = db.Column(db.String(150), nullable=False, default="", server_default="")
     display_style = db.Column(
         db.String(16), nullable=False, default=DisplayStyle.NICKNAME, server_default=DisplayStyle.NICKNAME
     )
@@ -111,6 +128,10 @@ class User(UserMixin, db.Model):
     # Когда загружен аватар (NULL — аватара нет, показываем инициалы). Файл лежит в
     # UPLOAD_FOLDER/avatars/<id>.webp (см. avatars.py); время идёт в ?v= для сброса кэша браузера.
     avatar_updated_at = db.Column(db.DateTime, nullable=True)
+    # Ссылка на файл аватара (/accounts/avatar/<id>/?v=...): по ней его видят и другие пользователи.
+    avatar_url = db.Column(db.String(500), nullable=True)
+    # Цвет пользователя «#rrggbb»: случайный при регистрации. Красит аватар без картинки и сообщения в чате.
+    color = db.Column(db.String(7), nullable=False, default=random_color, server_default="")
 
     # --- пароль ---
     def set_password(self, raw_password: str) -> None:
@@ -143,21 +164,47 @@ class User(UserMixin, db.Model):
         return self.role == Role.HEAD_ADMIN
 
     @property
+    def full_name(self) -> str:
+        """«Фамилия Имя Отчество» из заполненных частей (пусто, если ничего не указано)."""
+        return " ".join(p.strip() for p in (self.family_name, self.given_name, self.middle_name) if (p or "").strip())
+
+    @property
+    def short_name(self) -> str:
+        """«Фамилия Имя»."""
+        return " ".join(p.strip() for p in (self.family_name, self.given_name) if (p or "").strip())
+
+    @property
     def display_name(self) -> str:
-        """Имя для интерфейса по выбранному стилю. Без никнейма всегда показываем логин."""
-        nick = (self.nickname or "").strip()
-        if not nick or self.display_style == DisplayStyle.USERNAME:
-            return self.username
-        if self.display_style == DisplayStyle.BOTH and nick.casefold() != self.username.casefold():
-            return f"{nick} (@{self.username})"
-        return nick
+        """Имя для интерфейса по выбранному стилю. Если нужных данных нет — «Название аккаунта»,
+        а без него — логин. Старые значения стиля (username/both) считаются «Никнеймом»."""
+        if self.display_style == DisplayStyle.FIO and self.full_name:
+            return self.full_name
+        if self.display_style == DisplayStyle.FI and self.short_name:
+            return self.short_name
+        return (self.nickname or "").strip() or self.username
 
     @property
     def initials(self) -> str:
-        """Буквы для аватара: первые буквы первых двух слов никнейма, иначе первая буква логина."""
-        words = (self.nickname or "").split()[:2]
-        letters = "".join(w[0] for w in words)
-        return (letters or self.username[:1] or "?").upper()
+        """Буквы для аватара: первые буквы первых двух слов показываемого имени, иначе первая буква логина."""
+        words = self.display_name.split()[:2]
+        return "".join(w[0] for w in words).upper() or (self.username[:1] or "?").upper()
+
+    @property
+    def color_hex(self) -> str:
+        """Цвет пользователя; у записей без цвета (до миграции) — стабильный цвет по id."""
+        if COLOR_RE.match(self.color or ""):
+            return self.color.lower()
+        r, g, b = colorsys.hls_to_rgb(((self.id or 0) * 0.61803398875) % 1.0, 0.44, 0.6)
+        return f"#{round(r * 255):02x}{round(g * 255):02x}{round(b * 255):02x}"
+
+    @property
+    def color_fg(self) -> str:
+        """Цвет текста на фоне color_hex (чёрный или белый — что контрастнее)."""
+        h = self.color_hex
+        r, g, b = (int(h[i : i + 2], 16) / 255 for i in (1, 3, 5))
+        lin = [c / 12.92 if c <= 0.04045 else ((c + 0.055) / 1.055) ** 2.4 for c in (r, g, b)]
+        lum = 0.2126 * lin[0] + 0.7152 * lin[1] + 0.0722 * lin[2]
+        return "#111111" if lum > 0.35 else "#ffffff"
 
     @property
     def has_avatar(self) -> bool:
@@ -166,6 +213,20 @@ class User(UserMixin, db.Model):
     @property
     def avatar_version(self) -> str:
         return self.avatar_updated_at.strftime("%Y%m%d%H%M%S") if self.avatar_updated_at else ""
+
+    @property
+    def avatar_src(self) -> str:
+        """Ссылка на аватар: из БД, а у аватаров, загруженных до появления колонки, — вычисленная."""
+        if not self.has_avatar:
+            return ""
+        from .avatars import avatar_link
+
+        return self.avatar_url or avatar_link(self.id, self.avatar_version)
+
+    @property
+    def delete_command(self) -> str:
+        """Что нужно набрать вручную, чтобы подтвердить удаление этого аккаунта."""
+        return f"DELETE FROM users WHERE username = '{self.username}';"
 
     @property
     def role_display_ru(self) -> str:
