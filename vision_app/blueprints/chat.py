@@ -23,6 +23,7 @@ from sqlalchemy import func, or_, select, update
 from .. import chat_images, chat_jobs
 from ..chat_tools import ChatImage, attachment_note, delivery_message, run_chat_turn
 from ..chat_tools import manage as chat_manage
+from ..chat_tools.categories import is_category_action
 from ..config import conf
 from ..extensions import db
 from ..models import ChatAction, ChatActionStatus, ChatMessage, ChatRole, ChatSession, utcnow
@@ -455,10 +456,14 @@ def _message_payload(message: ChatMessage, attachments: dict[int, list[dict]]) -
 
 
 def _own_action(action_id: int) -> ChatAction:
-    """Заявка текущего главного администратора; чужая или несуществующая — 404 (не раскрываем, что она есть)."""
-    if not current_user.is_head_admin:
+    """Заявка текущего администратора панели; чужая или несуществующая — 404 (не раскрываем, что она есть).
+    Какие действия ему доступны, решает сама заявка: над пользователями — только главный администратор
+    (manage.check_allowed), над категориями — любой администратор панели (categories.check_allowed)."""
+    if not current_user.is_panel_staff:
         abort(403)
     row = db.session.get(ChatAction, action_id)
+    if row is not None and not is_category_action(row.action) and not current_user.is_head_admin:
+        abort(403)  # заявки над пользователями — только главному администратору, как и раньше
     if row is None or row.admin_id != current_user.id:
         abort(404)
     return row

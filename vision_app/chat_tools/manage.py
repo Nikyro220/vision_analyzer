@@ -210,6 +210,10 @@ def _describe(target: User, action: str, params: dict) -> tuple[str, list[str]]:
 def action_card(a: ChatAction) -> dict:
     """Карточка заявки (рисует static/js/chat.js по kind == "action"). Содержит текущий статус;
     фронт при отображении перезапрашивает его по state_url, чтобы старые карточки не врали."""
+    from . import categories  # отложенный импорт: categories сам импортирует отсюда хелперы
+
+    if categories.is_category_action(a.action):
+        return categories.action_card(a)
     target = db.session.get(User, a.target_id)
     params = a.params or {}
     if target is not None and a.status == ChatActionStatus.PENDING:
@@ -348,7 +352,10 @@ def cancel_action(admin: User, a: ChatAction) -> tuple[bool, str]:
 def confirm_action(admin: User, a: ChatAction, typed_text: str = "") -> tuple[bool, str]:
     """Выполняет заявку. Возвращает (успех, сообщение). Права и параметры проверяются заново."""
     from ..history import delete_user_account
+    from . import categories
 
+    if categories.is_category_action(a.action):  # заявки на категории выполняет их собственный модуль
+        return categories.confirm_action(admin, a, typed_text)
     if a.admin_id != admin.id:
         return False, "заявка принадлежит другому администратору"
     if a.status == ChatActionStatus.PENDING and _aware(a.expires_at) < utcnow():

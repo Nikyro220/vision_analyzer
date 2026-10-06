@@ -376,7 +376,7 @@
         link.target = "_blank";
         link.rel = "noopener noreferrer";
         link.className = "chat-action-link";
-        link.textContent = "страница пользователя";
+        link.textContent = ref.target_link_label || "страница пользователя";
         head.appendChild(link);
       }
       card.appendChild(head);
@@ -401,7 +401,7 @@
           input = document.createElement("input");
           input.type = "text";
           input.className = "input input-mono chat-action-input";
-          input.placeholder = "Для удаления введите логин: " + ref.type_to_confirm;
+          input.placeholder = (ref.confirm_hint || "Для удаления введите логин: ") + ref.type_to_confirm;
           input.autocomplete = "off";
           card.appendChild(input);
         }

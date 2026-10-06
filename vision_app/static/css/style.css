@@ -878,7 +878,7 @@ textarea.input {
 .chat-action-title { font-family: var(--font-mono); font-size: 0.8rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: .04em; }
 .chat-action-link { font-size: 0.7333rem; }
 .chat-action-summary { font-size: 0.9rem; color: var(--text); }
-.chat-action-details { margin: 0; padding-left: 18px; font-size: 0.8rem; color: var(--text-muted); }
+.chat-action-details { margin: 0; padding-left: 18px; font-size: 0.8rem; color: var(--text-muted); white-space: pre-wrap; overflow-wrap: anywhere; }
 .chat-action-buttons { display: flex; gap: 8px; margin-top: 2px; }
 .chat-action-input { width: 100%; }
 .chat-action-note, .chat-action-status { font-size: 0.75rem; color: var(--text-dim); }
