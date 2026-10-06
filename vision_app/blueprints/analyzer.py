@@ -339,6 +339,34 @@ def delete_result(pk: int):
     return _redirect_back("analyzer.history")
 
 
+RENAME_MAX_LEN = 255  # длина колонки AnalysisResult.original_name
+
+
+@bp.route("/result/<int:pk>/rename/", methods=["POST"])
+@login_required
+def rename_result(pk: int):
+    """Изменить название записи (original_name). Автор — свои, админы — любые."""
+    result = db.get_or_404(AnalysisResult, pk)
+    if not _can_view(result):
+        abort(404)  # чужую запись обычному пользователю не раскрываем
+    if not result.can_rename(current_user):
+        abort(403)
+
+    # Схлопываем переводы строк/табы в пробелы: имя показывается в одну строку.
+    name = " ".join(request.form.get("name", "").split())
+    if not name:
+        flash("Название не может быть пустым.", "error")
+    elif len(name) > RENAME_MAX_LEN:
+        flash(f"Название слишком длинное: максимум {RENAME_MAX_LEN} символов.", "error")
+    elif name == result.original_name:
+        flash("Название не изменилось.", "info")
+    else:
+        result.original_name = name
+        db.session.commit()
+        flash("Название изменено.", "success")
+    return redirect(url_for("analyzer.result_detail", pk=pk))
+
+
 def _normalize_signals(raw) -> list[dict]:
     """Приводим сигналы к списку словарей category/detail (модель может вернуть что угодно)."""
     if not isinstance(raw, list):

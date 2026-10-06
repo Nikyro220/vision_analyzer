@@ -13,8 +13,8 @@
             <dt>Логин</dt><dd>{{ target.username }}</dd>
             <dt>Роль</dt><dd><span class="role-badge role-{{ target.role }}">{{ target.role_display_ru }}</span></dd>
             <dt>Email</dt><dd>{{ target.email or "—" }}</dd>
-            <dt>Имя</dt><dd>{{ target.first_name or "—" }}</dd>
-            <dt>Фамилия</dt><dd>{{ target.last_name or "—" }}</dd>
+            <dt>Никнейм</dt><dd>{{ target.nickname or "—" }}</dd>
+            <dt>Показывается как</dt><dd>{{ target.display_name }}</dd>
             <dt>Дата регистрации</dt><dd>{{ target.created_at|localdt }}</dd>
         </dl>
     </div>

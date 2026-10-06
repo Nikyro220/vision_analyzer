@@ -1,14 +1,15 @@
 """Регистрация, вход/выход, страница блокировки, профиль."""
 
-from flask import Blueprint, flash, redirect, render_template, request, session, url_for
+from flask import Blueprint, abort, flash, jsonify, redirect, render_template, request, send_file, session, url_for
 from flask_login import current_user, login_required, login_user, logout_user
 from sqlalchemy import func, select
 
+from .. import avatars
 from ..config import conf
 from ..extensions import db
 from ..forms import AccountForm, DeleteAccountForm, LoginForm, RegisterForm
 from ..history import delete_user_account
-from ..models import AnalysisResult, Role, Status, User
+from ..models import AnalysisResult, Role, Status, User, utcnow
 from ..utils import is_safe_next
 
 bp = Blueprint("accounts", __name__, url_prefix="/accounts")
@@ -113,8 +114,8 @@ def profile():
     if form.validate_on_submit():
         current_user.username = form.username.data.strip()
         current_user.email = (form.email.data or "").strip()
-        current_user.first_name = (form.first_name.data or "").strip()
-        current_user.last_name = (form.last_name.data or "").strip()
+        current_user.nickname = form.nickname.data or ""
+        current_user.display_style = form.display_style.data
         db.session.commit()
         flash("Данные аккаунта обновлены.", "success")
         return redirect(url_for("accounts.profile"))
@@ -155,4 +156,52 @@ def delete_own_account():
         return redirect(url_for("accounts.login"))
 
     flash("Команда подтверждения введена неверно. Аккаунт не удалён.", "error")
+    return redirect(url_for("accounts.profile"))
+
+
+# ----------------------------------------------------------------------------
+# Аватар
+# ----------------------------------------------------------------------------
+@bp.route("/avatar/<int:user_id>/")
+@login_required
+def avatar(user_id: int):
+    """Файл аватара. Видит владелец и админы (как и остальные данные профиля)."""
+    if user_id != current_user.id and not current_user.is_panel_staff:
+        abort(404)
+    target = db.session.get(User, user_id)
+    path = avatars.avatar_file(user_id)
+    if target is None or not target.has_avatar or not path.is_file():
+        abort(404)
+    return send_file(path, mimetype="image/webp", max_age=conf("AVATAR_CACHE_SECONDS"))
+
+
+@bp.route("/avatar/", methods=["POST"])
+@login_required
+def avatar_upload():
+    """Принимает отредактированный в браузере аватар (поле `avatar`), отвечает JSON."""
+    upload = request.files.get("avatar")
+    if upload is None:
+        return jsonify(ok=False, error="Файл не выбран."), 400
+    limit = conf("AVATAR_MAX_UPLOAD_BYTES")
+    raw = upload.stream.read(limit + 1)  # читаем не больше лимита, а не весь запрос
+    try:
+        data = avatars.process_avatar(raw)
+    except avatars.AvatarError as exc:
+        return jsonify(ok=False, error=str(exc)), 400
+
+    avatars.save_avatar(current_user.id, data)
+    current_user.avatar_updated_at = utcnow()
+    db.session.commit()
+    flash("Аватар обновлён.", "success")
+    return jsonify(ok=True, url=url_for("accounts.avatar", user_id=current_user.id, v=current_user.avatar_version))
+
+
+@bp.route("/avatar/delete/", methods=["POST"])
+@login_required
+def avatar_delete():
+    if current_user.has_avatar:
+        avatars.remove_avatar(current_user.id)
+        current_user.avatar_updated_at = None
+        db.session.commit()
+        flash("Аватар удалён.", "success")
     return redirect(url_for("accounts.profile"))

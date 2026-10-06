@@ -154,7 +154,7 @@ def delete_user_account(user: User) -> None:
     Записей «от имени» удалённого пользователя не остаётся: в истории админа не бывает анализов
     без указания, чей он.
     """
-    from . import chat_images
+    from . import avatars, chat_images
 
     user_id = user.id
     paths, chat_paths, _, _ = _purge_owned(AnalysisResult.user_id == user_id, ChatSession.user_id == user_id)
@@ -164,6 +164,7 @@ def delete_user_account(user: User) -> None:
 
     remove_image_files(paths)
     chat_images.remove_files(chat_paths)
+    avatars.remove_avatar(user_id)
 
 
 def purge_orphans() -> dict[str, int]:

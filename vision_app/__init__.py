@@ -15,7 +15,7 @@ from .config import Config, conf
 from .extensions import csrf, db, login_manager, migrate
 from .models import ROLE_CHOICES, ROLE_LABELS, RISK_LABELS, Role, User
 from .queue_worker import ensure_worker, worker_enabled
-from .schema import ensure_schema
+from .schema import ensure_schema, migrate_legacy_names
 from .themes import theme_presets, themes_css, themes_version
 from . import settings_store
 from . import image_dedup, vector_search
@@ -148,6 +148,7 @@ def create_app(config: dict | None = None) -> Flask:
         with app.app_context():
             db.create_all()
             ensure_schema(db.engine)  # добавляет новые колонки в уже существующие таблицы
+            migrate_legacy_names(db.engine)  # разово: ФИО -> nickname, старые колонки удаляются
             seed_default_categories()  # на пустой БД — стартовый набор категорий оценивания
             normalize_legacy_wrappers()  # разово приводит старые записи к новому формату полей
 

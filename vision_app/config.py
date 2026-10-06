@@ -159,6 +159,11 @@ class Config:
     UPLOADS_DIR = "uploads"  # загрузки анализа: uploads/ГГГГ/ММ/ДД/<uuid>.<ext>
     THUMBS_DIR = "thumbs"  # кэш миниатюр, повторяет структуру uploads/
     CHAT_UPLOADS_DIR = "chat_uploads"  # вложения чата
+    AVATARS_DIR = "avatars"  # аватары пользователей: avatars/<id>.webp
+    AVATAR_SIZE = 256  # px; итоговая сторона квадратного аватара
+    AVATAR_MAX_UPLOAD_BYTES = 2 * 1024 * 1024  # браузер присылает уже отрисованный 256x256, запас большой
+    AVATAR_MAX_SIDE = 2048  # px; больше — отклоняем (защита от «бомб» распаковки)
+    AVATAR_CACHE_SECONDS = 24 * 3600  # Cache-Control; в URL есть ?v=<время изменения>
 
     THUMB_SIZE = 96  # px; в интерфейсе показываем 36-44 px, запас под retina-экраны
     THUMB_QUALITY = 80

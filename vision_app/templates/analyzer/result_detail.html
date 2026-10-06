@@ -3,7 +3,9 @@
 {% block head_extra %}{% if result.is_pending %}<meta http-equiv="refresh" content="4">{% endif %}{% endblock %}
 {% block content %}
 <div class="page-header">
-    <h1>{{ result.original_name or "Результат анализа" }} <span class="id-tag id-tag-lg" title="Номер анализа — по нему можно найти запись в истории и в чате">№{{ result.id }}</span></h1>
+    {% set can_rename = result.can_rename(current_user) %}
+    <h1>{% if can_rename %}<span id="result-title" class="result-title-editable" title="Двойной клик — изменить название">{{ result.original_name or "Результат анализа" }}</span><input type="text" id="result-title-input" name="name" form="rename-form" class="input" value="{{ result.original_name }}" maxlength="255" required hidden aria-label="Название">{% else %}{{ result.original_name or "Результат анализа" }}{% endif %} <span class="id-tag id-tag-lg" title="Номер анализа — по нему можно найти запись в истории и в чате">№{{ result.id }}</span></h1>
+    {% if can_rename %}<form id="rename-form" method="post" action="{{ url_for('analyzer.rename_result', pk=result.id) }}" hidden><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"></form>{% endif %}
     <p class="page-sub">Загружено {{ result.created_at|localdt }}{% if result.user_id != current_user.id %} · пользователь {{ result.owner_label }}{% endif %}{% if result.source_url %} · источник: <a href="{{ result.source_url }}" target="_blank" rel="noopener noreferrer nofollow">{{ result.source_url|truncate(60) }}</a>{% endif %}</p>
 </div>
 
@@ -93,6 +95,35 @@
 </div>
 {% endblock %}
 {% block scripts_extra %}
+<script>
+/* Двойной клик по названию -> поле ввода. Enter сохраняет, Esc / потеря фокуса отменяют. */
+(function () {
+    var title = document.getElementById("result-title");
+    var input = document.getElementById("result-title-input");
+    var form = document.getElementById("rename-form");
+    if (!title || !input || !form) return;
+    var original = input.value, submitting = false;
+    function open() {
+        title.hidden = true; input.hidden = false;
+        input.focus(); input.select();
+    }
+    function close() {
+        input.value = original;
+        input.hidden = true; title.hidden = false;
+    }
+    title.addEventListener("dblclick", open);
+    input.addEventListener("keydown", function (e) {
+        if (e.key === "Escape") { e.preventDefault(); close(); }
+        else if (e.key === "Enter") {
+            e.preventDefault();
+            if (!input.value.trim() || input.value.trim() === original) { close(); return; }
+            submitting = true;
+            form.requestSubmit();
+        }
+    });
+    input.addEventListener("blur", function () { if (!submitting) close(); });
+})();
+</script>
 <script>
 /* Высота карточки с картинкой = высоте текста, но не ниже нижней границы окна. */
 (function () {

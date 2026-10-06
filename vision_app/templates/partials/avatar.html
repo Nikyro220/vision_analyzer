@@ -1,0 +1,8 @@
+{# Аватар: загруженная картинка или инициалы. cls — класс-обёртка (размер задаётся в CSS). #}
+{% macro avatar(user, cls='account-avatar') -%}
+<span class="{{ cls }}" aria-hidden="true">
+    {%- if user.has_avatar -%}
+    <img src="{{ url_for('accounts.avatar', user_id=user.id, v=user.avatar_version) }}" alt="" width="256" height="256">
+    {%- else -%}{{ user.initials }}{%- endif -%}
+</span>
+{%- endmacro %}

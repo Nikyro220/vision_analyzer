@@ -1,3 +1,4 @@
+{% from "partials/avatar.html" import avatar %}
 {% macro flashes(extra_class='') %}
 {% with msgs = get_flashed_messages(with_categories=true) %}
 {% if msgs %}
@@ -31,12 +32,13 @@
 {% set ep = request.endpoint %}
 <div class="shell">
     <aside class="sidebar">
-        <div class="brand">
+        <a class="brand" href="{{ url_for('analyzer.dashboard') }}">
             <span class="brand-mark">◈</span>
             <span class="brand-name">Vision&nbsp;Triage</span>
-        </div>
+        </a>
 
         <nav class="nav">
+            <div class="nav-divider">Анализ</div>
             <a class="nav-link {% if ep == 'analyzer.dashboard' %}is-active{% endif %}" href="{{ url_for('analyzer.dashboard') }}">
                 <span class="nav-ic">▣</span> Новый анализ
             </a>
@@ -73,17 +75,24 @@
         </nav>
 
         <div class="sidebar-footer">
-            <a class="nav-link" href="{{ url_for('accounts.profile') }}">
-                <span class="nav-ic">●</span> {{ current_user.username }}
-            </a>
             <a class="nav-link {% if ep == 'accounts.appearance' %}is-active{% endif %}" href="{{ url_for('accounts.appearance') }}">
                 <span class="nav-ic">◑</span> Оформление
             </a>
-            <span class="role-badge role-{{ current_user.role }}">{{ current_user.role_display_ru }}</span>
-            <form method="post" action="{{ url_for('accounts.logout') }}" class="logout-form">
-                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                <button type="submit" class="logout-link">Выйти</button>
-            </form>
+            <div class="account-card">
+                <a class="account-main {% if ep == 'accounts.profile' %}is-active{% endif %}" href="{{ url_for('accounts.profile') }}" title="Профиль">
+                    {{ avatar(current_user) }}
+                    <span class="account-info">
+                        <span class="account-name" title="{{ current_user.display_name }}">{{ current_user.display_name }}</span>
+                        <span class="account-role role-{{ current_user.role }}">{{ current_user.role_display_ru }}</span>
+                    </span>
+                </a>
+                <form method="post" action="{{ url_for('accounts.logout') }}" class="logout-form">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <button type="submit" class="account-logout" title="Выйти" aria-label="Выйти">
+                        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/></svg>
+                    </button>
+                </form>
+            </div>
         </div>
     </aside>
 

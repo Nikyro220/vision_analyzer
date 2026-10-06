@@ -25,6 +25,22 @@ class Role:
     HEAD_ADMIN = "head_admin"
 
 
+class DisplayStyle:
+    """Как показывать имя пользователя в интерфейсе (выбирается в профиле)."""
+
+    NICKNAME = "nickname"  # «Никнейм»
+    USERNAME = "username"  # «логин»
+    BOTH = "both"  # «Никнейм (@логин)»
+
+
+DISPLAY_STYLE_LABELS = {
+    DisplayStyle.NICKNAME: "Никнейм",
+    DisplayStyle.USERNAME: "Логин",
+    DisplayStyle.BOTH: "Никнейм (@логин)",
+}
+DISPLAY_STYLE_CHOICES = list(DISPLAY_STYLE_LABELS.items())
+
+
 ROLE_LABELS = {
     Role.BLOCKED: "Заблокирован",
     Role.USER: "Пользователь",
@@ -81,12 +97,20 @@ class User(UserMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(150), unique=True, nullable=False, index=True)
     email = db.Column(db.String(254), nullable=False, default="")
-    first_name = db.Column(db.String(150), nullable=False, default="")
-    last_name = db.Column(db.String(150), nullable=False, default="")
+    # username — логин для входа, уникальный. nickname — необязательное отображаемое имя
+    # (не уникальное); как именно показывать имя, решает display_style (DisplayStyle).
+    # server_default нужен, чтобы колонки автоматически добавились в уже существующую базу.
+    nickname = db.Column(db.String(150), nullable=False, default="", server_default="")
+    display_style = db.Column(
+        db.String(16), nullable=False, default=DisplayStyle.NICKNAME, server_default=DisplayStyle.NICKNAME
+    )
     password_hash = db.Column(db.String(256), nullable=False)
     active = db.Column(db.Boolean, nullable=False, default=True)
     role = db.Column(db.String(20), nullable=False, default=Role.USER)
     created_at = db.Column(db.DateTime, nullable=False, default=utcnow)
+    # Когда загружен аватар (NULL — аватара нет, показываем инициалы). Файл лежит в
+    # UPLOAD_FOLDER/avatars/<id>.webp (см. avatars.py); время идёт в ?v= для сброса кэша браузера.
+    avatar_updated_at = db.Column(db.DateTime, nullable=True)
 
     # --- пароль ---
     def set_password(self, raw_password: str) -> None:
@@ -117,6 +141,31 @@ class User(UserMixin, db.Model):
     @property
     def is_head_admin(self) -> bool:
         return self.role == Role.HEAD_ADMIN
+
+    @property
+    def display_name(self) -> str:
+        """Имя для интерфейса по выбранному стилю. Без никнейма всегда показываем логин."""
+        nick = (self.nickname or "").strip()
+        if not nick or self.display_style == DisplayStyle.USERNAME:
+            return self.username
+        if self.display_style == DisplayStyle.BOTH and nick.casefold() != self.username.casefold():
+            return f"{nick} (@{self.username})"
+        return nick
+
+    @property
+    def initials(self) -> str:
+        """Буквы для аватара: первые буквы первых двух слов никнейма, иначе первая буква логина."""
+        words = (self.nickname or "").split()[:2]
+        letters = "".join(w[0] for w in words)
+        return (letters or self.username[:1] or "?").upper()
+
+    @property
+    def has_avatar(self) -> bool:
+        return self.avatar_updated_at is not None
+
+    @property
+    def avatar_version(self) -> str:
+        return self.avatar_updated_at.strftime("%Y%m%d%H%M%S") if self.avatar_updated_at else ""
 
     @property
     def role_display_ru(self) -> str:
@@ -203,6 +252,13 @@ class AnalysisResult(db.Model):
         if self.user is not None:
             return self.user.username
         return f"удалённый пользователь (id {self.user_id})"
+
+    def can_rename(self, user) -> bool:
+        """Переименовать запись может её автор или администратор (admin / head_admin)."""
+        return bool(
+            getattr(user, "is_authenticated", False)
+            and (self.user_id == user.id or user.is_panel_staff)
+        )
 
     @property
     def is_error(self) -> bool:

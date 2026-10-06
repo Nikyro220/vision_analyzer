@@ -31,7 +31,7 @@ from wtforms.validators import (
 from . import examples_codec
 from .config import conf
 from .extensions import db
-from .models import CATEGORY_NAME_RE, Category, User
+from .models import CATEGORY_NAME_RE, DISPLAY_STYLE_CHOICES, Category, User
 
 # Небольшой встроенный список самых частых паролей (аналог CommonPasswordValidator).
 COMMON_PASSWORDS = {
@@ -117,7 +117,7 @@ class AccountForm(FlaskForm):
     """Редактирование данных аккаунта: свой профиль или (для админа) карточка пользователя."""
 
     username = StringField(
-        "Ник",
+        "Логин",
         validators=[
             DataRequired("Введите логин."),
             Length(max=150, message="Не более 150 символов."),
@@ -130,11 +130,16 @@ class AccountForm(FlaskForm):
         validators=[Optional(), Email("Введите корректный адрес электронной почты."), Length(max=254)],
         render_kw={"placeholder": "you@example.com", "autocomplete": "email"},
     )
-    first_name = StringField(
-        "Имя", validators=[Length(max=150)], render_kw={"placeholder": "Имя"}
+    nickname = StringField(
+        "Никнейм",
+        validators=[Length(max=150, message="Не более 150 символов.")],
+        filters=[lambda v: " ".join((v or "").split())],  # лишние пробелы и переводы строк -> один пробел
+        render_kw={"placeholder": "Необязательно: как вас называть", "autocomplete": "nickname"},
     )
-    last_name = StringField(
-        "Фамилия", validators=[Length(max=150)], render_kw={"placeholder": "Фамилия"}
+    display_style = SelectField(
+        "Как показывать моё имя",
+        choices=DISPLAY_STYLE_CHOICES,
+        default=DISPLAY_STYLE_CHOICES[0][0],
     )
 
     def __init__(self, *args, current_id: int | None = None, **kwargs):

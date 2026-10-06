@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "partials/avatar.html" import avatar %}
 {% block title %}Профиль{% endblock %}
 {% block content %}
 <div class="page-header">
@@ -11,6 +12,8 @@
         <h2 class="card-title">Данные аккаунта</h2>
         <dl class="def-list">
             <dt>Логин</dt><dd>{{ current_user.username }}</dd>
+            <dt>Никнейм</dt><dd>{{ current_user.nickname or "—" }}</dd>
+            <dt>Показывается как</dt><dd>{{ current_user.display_name }}</dd>
             <dt>Роль</dt><dd><span class="role-badge role-{{ current_user.role }}">{{ current_user.role_display_ru }}</span></dd>
             <dt>Дата регистрации</dt><dd>{{ current_user.created_at|localdt }}</dd>
         </dl>
@@ -18,6 +21,55 @@
 
     <div class="card">
         <h2 class="card-title">Изменить данные</h2>
+        <section class="avatar-section" id="avatar-card"
+             data-upload-url="{{ url_for('accounts.avatar_upload') }}" data-csrf="{{ csrf_token() }}">
+            <h3 class="subtitle">Аватар</h3>
+            <div class="avatar-current">
+                {{ avatar(current_user, 'avatar-lg') }}
+                <div class="avatar-actions">
+                    <label class="btn btn-sm" for="avatar-file">Загрузить фото</label>
+                    <input type="file" id="avatar-file" accept="image/png,image/jpeg,image/webp,image/gif,image/bmp" hidden>
+                    {% if current_user.has_avatar %}
+                    <form method="post" action="{{ url_for('accounts.avatar_delete') }}"
+                          onsubmit="return confirm('Удалить аватар?')">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <button type="submit" class="btn btn-sm btn-danger">Удалить</button>
+                    </form>
+                    {% endif %}
+                </div>
+            </div>
+            <p class="avatar-hint">PNG, JPEG, WebP, GIF или BMP. Перед сохранением фото можно подвинуть, увеличить, повернуть, растянуть и перекрасить.</p>
+
+            <div class="avatar-editor" id="avatar-editor" hidden>
+                <div class="avatar-stage">
+                    <canvas id="avatar-canvas" width="256" height="256" aria-label="Предпросмотр аватара"></canvas>
+                    <div class="avatar-guide" aria-hidden="true"></div>
+                </div>
+                <p class="avatar-hint">Тяните мышью или пальцем — сдвиг. Колесо мыши — масштаб. В кружке — то, как аватар виден в меню.</p>
+                <div class="avatar-controls">
+                    <label>Масштаб <output></output><input type="range" data-k="zoom" min="0.2" max="5" step="0.01" value="1"></label>
+                    <label>Растяжение по X <output></output><input type="range" data-k="sx" min="0.2" max="3" step="0.01" value="1"></label>
+                    <label>Растяжение по Y <output></output><input type="range" data-k="sy" min="0.2" max="3" step="0.01" value="1"></label>
+                    <label>Поворот <output></output><input type="range" data-k="rot" min="-180" max="180" step="1" value="0"></label>
+                    <label>Оттенок <output></output><input type="range" data-k="hue" min="-180" max="180" step="1" value="0"></label>
+                    <label>Насыщенность <output></output><input type="range" data-k="sat" min="0" max="2" step="0.01" value="1"></label>
+                    <label>Яркость <output></output><input type="range" data-k="bri" min="0" max="2" step="0.01" value="1"></label>
+                    <label>Контраст <output></output><input type="range" data-k="con" min="0" max="2" step="0.01" value="1"></label>
+                </div>
+                <div class="avatar-toolbar">
+                    <button type="button" class="btn btn-sm" data-act="rotate-left" title="Повернуть на 90° влево">↺ 90°</button>
+                    <button type="button" class="btn btn-sm" data-act="rotate-right" title="Повернуть на 90° вправо">↻ 90°</button>
+                    <button type="button" class="btn btn-sm" data-act="flip" title="Отразить по горизонтали">⇋ Отразить</button>
+                    <button type="button" class="btn btn-sm" data-act="reset">Сбросить</button>
+                </div>
+                <p class="avatar-error" id="avatar-error" role="alert" hidden></p>
+                <div class="avatar-toolbar">
+                    <button type="button" class="btn btn-primary" data-act="save">Сохранить аватар</button>
+                    <button type="button" class="btn" data-act="cancel">Отмена</button>
+                </div>
+            </div>
+        </section>
+
         <form method="post" action="{{ url_for('accounts.profile') }}" class="form" novalidate>
             {{ form.hidden_tag() }}
             {% include "partials/form_fields.html" %}
@@ -66,4 +118,7 @@
         {% endif %}
     </div>
 </div>
+{% endblock %}
+{% block scripts_extra %}
+<script src="{{ url_for('static', filename='js/avatar-editor.js') }}"></script>
 {% endblock %}

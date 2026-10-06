@@ -148,7 +148,7 @@ def user_history(pk: int):
 @bp.route("/users/<int:pk>/edit/", methods=["POST"])
 @staff_required
 def user_edit(pk: int):
-    """Изменение данных аккаунта (логин/email/имя/фамилия) со стороны админа."""
+    """Изменение данных аккаунта (логин/email/никнейм/стиль имени) со стороны админа."""
     target = db.get_or_404(User, pk)
 
     if not current_user.can_manage(target):
@@ -159,8 +159,8 @@ def user_edit(pk: int):
     if form.validate_on_submit():
         target.username = form.username.data.strip()
         target.email = (form.email.data or "").strip()
-        target.first_name = (form.first_name.data or "").strip()
-        target.last_name = (form.last_name.data or "").strip()
+        target.nickname = form.nickname.data or ""
+        target.display_style = form.display_style.data
         db.session.commit()
         flash(f"Данные пользователя «{target.username}» обновлены.", "success")
     else:
