@@ -509,7 +509,7 @@ def _search_semantic(user: User, args: dict, warnings: list[str]) -> ToolResult:
         payload["best_similarity"] = round(result.best_score, 2)  # ниже порога — «по смыслу ничего достаточно похожего»
     if not_indexed:
         payload["not_indexed"] = not_indexed
-        payload["note"] = f"{not_indexed} анализов ещё не проиндексированы для поиска по смыслу и в результат не вошли"
+        payload["note"] = f"{not_indexed} analyses are not indexed for meaning search yet and are not in the result"
     if warnings:
         payload["warnings"] = warnings
 
@@ -601,8 +601,8 @@ def search_analyses(user: User, raw_args) -> ToolResult:
     if raw_count > len(rows):
         payload["duplicates_merged"] = raw_count - len(rows)  # повторные анализы тех же файлов, склеены
     if raw_count >= conf("SEARCH_SCAN_LIMIT"):
-        which = "самых старых" if args["order"] == _ORDER_OLDEST else "самых свежих"
-        payload["note"] = f"учтены только {conf('SEARCH_SCAN_LIMIT')} {which} записей"
+        which = "oldest" if args["order"] == _ORDER_OLDEST else "newest"
+        payload["note"] = f"only the {conf('SEARCH_SCAN_LIMIT')} {which} records were considered"
     if warnings:
         payload["warnings"] = warnings
 

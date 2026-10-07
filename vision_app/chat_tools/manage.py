@@ -316,13 +316,13 @@ def manage_user(admin: User, raw_args, session_id: int | None = None) -> ToolRes
         "action_id": same.id,
         "summary": summary,
         "note": (
-            "НИЧЕГО ЕЩЁ НЕ ИЗМЕНЕНО. Заявка показана администратору карточкой с кнопками «Подтвердить» "
-            f"и «Отмена»; она действует {conf('CHAT_ACTION_TTL_MINUTES')} мин. Не сообщай, что действие "
-            "выполнено, — скажи, что оно подготовлено и ждёт подтверждения."
+            "NOTHING HAS BEEN CHANGED YET. The request is shown to the admin as a card with Confirm and "
+            f"Cancel buttons and stays valid for {conf('CHAT_ACTION_TTL_MINUTES')} minutes. Tell the admin "
+            "that the action is prepared and waits for confirmation."
         ),
     }
     if action == ACTION_DELETE:
-        payload["note"] += " Для удаления в карточке нужно ещё ввести логин пользователя."
+        payload["note"] += " For delete, the admin must also type the username in the card."
     if warnings:
         payload["warnings"] = warnings
     return ToolResult(json.dumps(payload, ensure_ascii=False), references=[action_card(same)])

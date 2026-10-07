@@ -66,7 +66,7 @@ def attachment_note(images: list[ChatImage]) -> str:
 def images_prompt_block(images: list[ChatImage]) -> str:
     return "\n".join(
         f"  #{img.number} — «{img.name}» "
-        + ("(ты видишь это изображение)" if img.in_context else "(вне контекста: ты его НЕ видишь)")
+        + ("(you can see this image)" if img.in_context else "(out of context: you CANNOT see it)")
         for img in images
     )
 

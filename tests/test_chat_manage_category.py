@@ -232,3 +232,20 @@ def test_phantom_card_claim_is_retried_for_category_tool(app, monkeypatch):
         turn = runner.run_chat_turn(_u("adm"), "выключи weapons", [], "b", "m")
         assert [r["action"] for r in turn.references] == ["cat_disable"]
         assert _cat("weapons").is_active is True
+
+
+def test_tool_prompt_follows_the_unified_template(app):
+    """Единый шаблон: английский текст, XML-секции <tools>/<tool>/<protocol>/<rules>, примеры вызова;
+    блоки инструментов зависят от прав, а у обычного пользователя нет ни слова про email и админские тулы."""
+    with app.test_request_context():
+        head = runner.build_tool_system_prompt(_u("head"), [])
+        adm = runner.build_tool_system_prompt(_u("adm"), [])
+        user = runner.build_tool_system_prompt(_u("alice"), [])
+    for prompt in (head, adm, user):
+        for tag in ("<tools>", "</tools>", "<protocol>", "</protocol>", "<rules>", "</rules>"):
+            assert tag in prompt
+        assert prompt.count("<tool name=") == prompt.count("</tool>")
+    assert head.count("<tool name=") == 4 and adm.count("<tool name=") == 3 and user.count("<tool name=") == 1
+    assert "You have 4 tools" in head and "You have 1 tool " in user
+    assert "email" not in user.lower() and "manage_category" not in user and "search_users" not in user
+    assert '{"tool": "manage_user"' in head and '{"tool": "manage_user"' not in adm

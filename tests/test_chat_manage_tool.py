@@ -72,16 +72,16 @@ def test_tool_exists_only_for_head_admin(app):
             assert kind == "bad" and "manage_user" not in reason
             assert "error" in _propose(who, action="block", user="bob")[0]
         head_prompt = runner.build_tool_system_prompt(_u("head"), [])
-        assert "manage_user" in head_prompt and "инструмент ничего не выполняет" in head_prompt
-        assert "  - user (строка или число)" in head_prompt  # просмотр анализов другого пользователя
-        assert "  - user (строка или число)" not in runner.build_tool_system_prompt(_u("adm"), [])
+        assert "manage_user" in head_prompt and "The tool executes nothing" in head_prompt
+        assert "  user (string or number)" in head_prompt  # просмотр анализов другого пользователя
+        assert "  user (string or number)" not in runner.build_tool_system_prompt(_u("adm"), [])
         assert runner.parse_reply(call, runner.allowed_tools(_u("head")))[0] == "call"
 
 
 def test_proposal_changes_nothing_until_confirmed(app):
     with app.test_request_context():
         payload, refs = _propose("head", action="block", user="bob")
-        assert payload["status"] == "awaiting_confirmation" and "НИЧЕГО ЕЩЁ НЕ ИЗМЕНЕНО" in payload["note"]
+        assert payload["status"] == "awaiting_confirmation" and "NOTHING HAS BEEN CHANGED YET" in payload["note"]
         assert _u("bob").role == Role.USER  # модель ничего не выполнила
         card = refs[0]
         assert card["kind"] == "action" and card["status"] == "pending" and card["danger"] is True
@@ -303,8 +303,8 @@ def test_system_prompt_contains_current_time(app, monkeypatch):
     monkeypatch.setattr(runner, "chat_with_model", fake)
     with app.test_request_context():
         runner.run_chat_turn(_u("alice"), "привет", [], "b", "m")
-    assert seen["system"].rstrip().endswith("Время называй, только если спросили.")
-    assert "Сейчас " in seen["system"] and str(datetime.now(timezone.utc).year) in seen["system"]
+    assert seen["system"].rstrip().endswith("</current_time>")
+    assert "<current_time>" in seen["system"] and str(datetime.now(timezone.utc).year) in seen["system"]
 
 
 def test_current_time_note_formatting(app):
@@ -312,4 +312,17 @@ def test_current_time_note_formatting(app):
 
     with app.app_context():
         note = runner.current_time_note(datetime(2026, 10, 6, 10, 2, tzinfo=timezone.utc))
-    assert "вторник, 6 октября 2026, 15:02 (Asia/Aqtobe, UTC+05:00)" in note
+    assert "Tuesday, 6 October 2026, 15:02 (Asia/Aqtobe, UTC+05:00)" in note
+
+
+def test_phantom_card_claim_in_english_is_retried(app, monkeypatch):
+    """Промпт английский, и модель может ответить на языке пользователя: проверка ловит и английский."""
+    for claim in ("I prepared the request, please confirm it in the card below.",
+                  "The request is prepared. Confirm the action in the card below."):
+        _scripted(monkeypatch, claim, _call("manage_user", action="block", user="bob"), "Prepared.")
+        with app.test_request_context():
+            turn = runner.run_chat_turn(_u("head"), "block bob", [], "b", "m")
+            assert [r["kind"] for r in turn.references] == ["action"], claim
+            db.session.rollback()
+            ChatAction.query.delete()
+            db.session.commit()
