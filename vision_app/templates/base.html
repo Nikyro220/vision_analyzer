@@ -1,4 +1,5 @@
 {% from "partials/avatar.html" import avatar %}
+{% from "partials/icons.html" import icon %}
 {% macro flashes(extra_class='') %}
 {% with msgs = get_flashed_messages(with_categories=true) %}
 {% if msgs %}
@@ -23,6 +24,8 @@
     {# Тема применяется до отрисовки страницы, чтобы не было вспышки; хранится локально в браузере #}
     <script>window.VT_PRESETS = {{ theme_presets()|tojson }};</script>
     <script src="{{ url_for('static', filename='js/theme.js') }}"></script>
+    {# Свёрнутость боковой панели — тоже до первой отрисовки, иначе панель «прыгает» при переходах #}
+    <script src="{{ url_for('static', filename='js/sidebar.js') }}"></script>
     {% block head_extra %}{% endblock %}
     <link rel="icon" href="data:,">
 </head>
@@ -32,51 +35,63 @@
 {% set ep = request.endpoint %}
 <div class="shell">
     <aside class="sidebar">
-        <a class="brand" href="{{ url_for('analyzer.dashboard') }}">
-            <span class="brand-mark">◈</span>
-            <span class="brand-name">Vision&nbsp;Triage</span>
-        </a>
+        <div class="sidebar-head">
+            <a class="brand" href="{{ url_for('analyzer.dashboard') }}">
+                <span class="brand-mark">{{ icon('scan-eye', 18) }}</span>
+                <span class="brand-name">Vision&nbsp;Triage</span>
+            </a>
+            <button type="button" class="sidebar-toggle" id="sidebar-toggle" aria-controls="sidebar-nav" aria-expanded="true"
+                    title="Свернуть панель" aria-label="Свернуть панель">
+                <span class="ic-collapse">{{ icon('panel-left-close') }}</span>
+                <span class="ic-expand">{{ icon('panel-left-open') }}</span>
+            </button>
+        </div>
 
-        <nav class="nav">
+        <nav class="nav" id="sidebar-nav">
             <div class="nav-divider">Анализ</div>
             <a class="nav-link {% if ep == 'analyzer.dashboard' %}is-active{% endif %}" href="{{ url_for('analyzer.dashboard') }}">
-                <span class="nav-ic">▣</span> Новый анализ
+                <span class="nav-ic">{{ icon('image-plus') }}</span> <span class="nav-label">Новый анализ</span>
             </a>
             <a class="nav-link {% if ep == 'analyzer.history' %}is-active{% endif %}" href="{{ url_for('analyzer.history') }}">
-                <span class="nav-ic">≡</span> История
-            </a>
-            <a class="nav-link {% if ep == 'analyzer.health' %}is-active{% endif %}" href="{{ url_for('analyzer.health') }}">
-                <span class="nav-ic">◐</span> Статус сервера
+                <span class="nav-ic">{{ icon('history') }}</span> <span class="nav-label">История</span>
             </a>
             <a class="nav-link {% if ep in ('chat.index', 'chat.view') %}is-active{% endif %}" href="{{ url_for('chat.index') }}">
-                <span class="nav-ic">✎</span> Чат
+                <span class="nav-ic">{{ icon('message-square') }}</span> <span class="nav-label">Чат</span>
             </a>
 
             {% if current_user.is_panel_staff %}
             <div class="nav-divider">Панель управления</div>
             {% if current_user.is_head_admin %}
             <a class="nav-link {% if ep == 'panel.stats' %}is-active{% endif %}" href="{{ url_for('panel.stats') }}">
-                <span class="nav-ic">◆</span> Обзор
-            </a>
-            <a class="nav-link {% if ep == 'panel.settings' %}is-active{% endif %}" href="{{ url_for('panel.settings') }}">
-                <span class="nav-ic">⚙</span> Настройки
+                <span class="nav-ic">{{ icon('layout-dashboard') }}</span> <span class="nav-label">Обзор</span>
             </a>
             {% endif %}
             <a class="nav-link {% if ep in ('panel.users_list', 'panel.user_detail') %}is-active{% endif %}" href="{{ url_for('panel.users_list') }}">
-                <span class="nav-ic">◎</span> Пользователи
+                <span class="nav-ic">{{ icon('users') }}</span> <span class="nav-label">Пользователи</span>
             </a>
             <a class="nav-link {% if ep == 'panel.analyses_list' %}is-active{% endif %}" href="{{ url_for('panel.analyses_list') }}">
-                <span class="nav-ic">▤</span> Все анализы
+                <span class="nav-ic">{{ icon('list-checks') }}</span> <span class="nav-label">Все анализы</span>
             </a>
             <a class="nav-link {% if ep in ('panel.categories_list', 'panel.category_new', 'panel.category_edit', 'panel.chat_prompt_save') %}is-active{% endif %}" href="{{ url_for('panel.categories_list') }}">
-                <span class="nav-ic">✚</span> Промпты
+                <span class="nav-ic">{{ icon('file-text') }}</span> <span class="nav-label">Промпты</span>
+            </a>
+            {% endif %}
+
+            {# «Система» видна всем: статус сервера открыт любому пользователю, настройки — только главному админу #}
+            <div class="nav-divider">Система</div>
+            <a class="nav-link {% if ep == 'analyzer.health' %}is-active{% endif %}" href="{{ url_for('analyzer.health') }}">
+                <span class="nav-ic">{{ icon('activity') }}</span> <span class="nav-label">Статус сервера</span>
+            </a>
+            {% if current_user.is_head_admin %}
+            <a class="nav-link {% if ep == 'panel.settings' %}is-active{% endif %}" href="{{ url_for('panel.settings') }}">
+                <span class="nav-ic">{{ icon('settings') }}</span> <span class="nav-label">Настройки</span>
             </a>
             {% endif %}
         </nav>
 
         <div class="sidebar-footer">
             <a class="nav-link {% if ep == 'accounts.appearance' %}is-active{% endif %}" href="{{ url_for('accounts.appearance') }}">
-                <span class="nav-ic">◑</span> Оформление
+                <span class="nav-ic">{{ icon('palette') }}</span> <span class="nav-label">Оформление</span>
             </a>
             <div class="account-card">
                 <a class="account-main {% if ep == 'accounts.profile' %}is-active{% endif %}" href="{{ url_for('accounts.profile') }}" title="Профиль">
@@ -89,7 +104,7 @@
                 <form method="post" action="{{ url_for('accounts.logout') }}" class="logout-form">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <button type="submit" class="account-logout" title="Выйти" aria-label="Выйти">
-                        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/></svg>
+                        {{ icon('log-out') }}
                     </button>
                 </form>
             </div>

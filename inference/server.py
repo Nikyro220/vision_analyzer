@@ -36,6 +36,7 @@ POST /chat — свободный диалог с моделью (текст + �
 
 import asyncio
 import logging
+import time
 
 import aiohttp
 from aiohttp import web
@@ -90,9 +91,38 @@ def _visible_providers() -> list[providers.Provider]:
     return [p for p in providers.all_providers() if p.is_configured() or p.name == config.BACKEND]
 
 
+# {(имя, endpoint): (время_устаревания, результат ping)} — только для локальных провайдеров.
+# endpoint в ключе: POST /config меняет адрес, и старый результат автоматически не подходит.
+_health_cache: dict[tuple[str, str], tuple[float, dict]] = {}
+
+
+async def _ping_bounded(p: providers.Provider) -> dict:
+    """ping() с жёстким потолком по времени и (для локальных бэкендов) коротким кэшем.
+
+    Без этого /health ждал самый медленный бэкенд: недоступный хост без отказа в
+    соединении (пакеты молча дропаются) держал запрос до DISCOVERY_TIMEOUT.
+    Облачные провайдеры не кэшируем: их результат зависит от ключа API текущего запроса.
+    """
+    cacheable = p.credential is None
+    key = (p.name, p.endpoint)
+    now = time.monotonic()
+    if cacheable:
+        hit = _health_cache.get(key)
+        if hit and hit[0] > now:
+            return hit[1]
+    try:
+        st = await asyncio.wait_for(p.ping(), timeout=config.HEALTH_PROBE_TIMEOUT)
+    except asyncio.TimeoutError:
+        st = {"ok": False, "endpoint": p.endpoint, "error": config._t("error.backend_timeout")}
+    if cacheable:
+        ttl = config.HEALTH_CACHE_OK_TTL if st.get("ok") else config.HEALTH_CACHE_FAIL_TTL
+        _health_cache[key] = (time.monotonic() + ttl, st)
+    return st
+
+
 async def handle_health(request: web.Request) -> web.Response:
     shown = _visible_providers()
-    statuses = await asyncio.gather(*(p.ping() for p in shown))
+    statuses = await asyncio.gather(*(_ping_bounded(p) for p in shown))
     backends_status = {p.name: st for p, st in zip(shown, statuses)}
 
     overall_ok = any(st["ok"] for st in backends_status.values())
@@ -230,6 +260,7 @@ async def handle_config(request: web.Request) -> web.Response:
     # указывать на прежний хост/URL — сбрасываем, чтобы следующий запрос
     # заново определил всё там, куда сейчас реально указывают настройки.
     providers.reset_all_caches()
+    _health_cache.clear()
 
     logging.info(
         "Конфигурация обновлена извне: backend=%s ollama_host=%s vllm_url=%s gemini_model=%s anthropic_model=%s",

@@ -86,13 +86,21 @@ h1, h2, h3 {
     height: 100vh;
 }
 
+.sidebar-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 6px;
+    padding: 2px 2px 16px 8px;
+    margin-bottom: 8px;
+    border-bottom: 1px solid var(--border-soft);
+}
 .brand {
     display: flex;
     align-items: center;
     gap: 10px;
-    padding: 2px 8px 16px;
-    margin-bottom: 8px;
-    border-bottom: 1px solid var(--border-soft);
+    flex: 1;
+    min-width: 0;
     font-family: var(--font-mono);
     font-weight: 700;
     font-size: 1rem;
@@ -118,10 +126,11 @@ h1, h2, h3 {
     position: relative;
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: 11px;
     padding: 9px 10px;
     border-radius: var(--radius);
-    color: var(--text-muted);
+    /* чуть ярче --text-muted: пункты не сливаются с фоном (color-mix работает во всех темах) */
+    color: color-mix(in srgb, var(--text-muted) 78%, var(--text));
     font-size: 0.9333rem;
 }
 .nav-link:hover { background: var(--bg-hover); color: var(--text); text-decoration: none; }
@@ -136,20 +145,21 @@ h1, h2, h3 {
     border-radius: 0 3px 3px 0;
     background: var(--accent-strong);
 }
-.nav-ic { width: 16px; text-align: center; font-size: 0.8667rem; opacity: 0.85; }
+.nav-ic { flex: none; display: inline-flex; align-items: center; justify-content: center; width: 18px; height: 18px; }
+.icon { display: block; flex: none; }
 
 .nav-divider {
     display: flex;
     align-items: center;
     gap: 8px;
-    margin: 14px 10px 6px;
+    margin: 22px 10px 8px;
     font-size: 0.7rem;
     text-transform: uppercase;
     letter-spacing: 0.1em;
-    color: var(--text-dim);
+    /* --text-dim сам по себе слишком тусклый для подписей: подтягиваем к --text-muted */
+    color: color-mix(in srgb, var(--text-dim) 55%, var(--text-muted));
     font-family: var(--font-mono);
 }
-.nav-divider::after { content: ""; flex: 1; height: 1px; background: var(--border-soft); }
 .nav > .nav-divider:first-child { margin-top: 4px; }
 
 .sidebar-footer {
@@ -218,6 +228,79 @@ h1, h2, h3 {
     cursor: pointer;
 }
 .account-logout:hover { color: var(--danger-strong); background: color-mix(in srgb, var(--danger) 12%, transparent); }
+
+/* ---------------- Сворачиваемая боковая панель ----------------
+   Состояние — атрибут data-sidebar="collapsed" на <html> (sidebar.js, хранится в localStorage).
+   Ширина свёрнутой панели задаётся напрямую, а не через --sidebar-w: эту переменную
+   пользователь меняет в настройках оформления (theme.js, inline-стиль на <html>). */
+
+.sidebar-toggle {
+    flex: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 30px;
+    height: 30px;
+    padding: 0;
+    background: none;
+    border: 0;
+    border-radius: var(--radius);
+    color: var(--text-dim);
+    cursor: pointer;
+}
+.sidebar-toggle:hover { color: var(--text); background: var(--bg-hover); }
+.sidebar-toggle:focus-visible { outline: 2px solid var(--accent-strong); outline-offset: 1px; }
+.sidebar-toggle > span { display: inline-flex; }
+.sidebar-toggle .ic-expand { display: none; }
+
+html.sb-ready .sidebar { transition: width 0.16s ease; }
+
+@media (min-width: 881px) {
+    :root[data-sidebar="collapsed"] .sidebar { width: 68px; padding-left: 10px; padding-right: 10px; }
+
+    :root[data-sidebar="collapsed"] .sidebar-toggle .ic-collapse { display: none; }
+    :root[data-sidebar="collapsed"] .sidebar-toggle .ic-expand { display: inline-flex; }
+
+    :root[data-sidebar="collapsed"] .sidebar-head {
+        flex-direction: column;
+        justify-content: center;
+        gap: 10px;
+        padding: 2px 0 14px;
+    }
+    :root[data-sidebar="collapsed"] .brand { flex: none; }
+
+    /* Текст прячем визуально, но оставляем в дереве доступности (имя пункта для скринридеров). */
+    :root[data-sidebar="collapsed"] .brand-name,
+    :root[data-sidebar="collapsed"] .nav-label,
+    :root[data-sidebar="collapsed"] .account-info {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        margin: -1px;
+        padding: 0;
+        overflow: hidden;
+        clip-path: inset(50%);
+        white-space: nowrap;
+        border: 0;
+    }
+
+    :root[data-sidebar="collapsed"] .nav-link { justify-content: center; padding: 9px 0; }
+    :root[data-sidebar="collapsed"] .nav-link.is-active::before { left: -10px; }
+
+    /* Заголовки разделов превращаются в тонкие разделители. */
+    :root[data-sidebar="collapsed"] .nav-divider {
+        height: 0;
+        margin: 12px 6px;
+        padding: 0;
+        overflow: hidden;
+        font-size: 0;
+        border-top: 1px solid var(--border-soft);
+    }
+    :root[data-sidebar="collapsed"] .nav > .nav-divider:first-child { display: none; }
+
+    :root[data-sidebar="collapsed"] .account-card { flex-direction: column; gap: 2px; padding: 6px 0; }
+    :root[data-sidebar="collapsed"] .account-main { flex: none; justify-content: center; }
+}
 
 .content {
     flex: 1;
@@ -576,6 +659,8 @@ input:focus, select:focus {
 /* ---------------- Responsive ---------------- */
 
 @media (max-width: 880px) {
+    .sidebar-toggle { display: none; }
+    .sidebar-head { border-bottom: 0; margin-bottom: 0; padding-bottom: 0; }
     .shell { flex-direction: column; }
     .sidebar { width: 100%; height: auto; position: static; flex-direction: row; flex-wrap: wrap; }
     .nav { flex-direction: row; flex-wrap: wrap; }

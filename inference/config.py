@@ -282,3 +282,13 @@ SAMPLING_DEFAULTS = {
 
 REQUEST_TIMEOUT = aiohttp.ClientTimeout(total=500)
 DISCOVERY_TIMEOUT = aiohttp.ClientTimeout(total=10)
+
+# /health: жёсткий потолок на опрос ОДНОГО провайдера, сек. Недоступный локальный
+# бэкенд (выключенный хост, дропающий пакеты файрвол/VPN) иначе держит TCP-connect
+# до DISCOVERY_TIMEOUT (10 с) — столько же, сколько ждёт клиент, и /health «виснет».
+# Должен быть заметно меньше VISION_API_HEALTH_TIMEOUT клиента.
+HEALTH_PROBE_TIMEOUT = float(os.environ.get("VISION_ANALYZER_HEALTH_PROBE_TIMEOUT", "3"))
+# /health: сколько секунд помнить результат опроса ЛОКАЛЬНОГО провайдера (без API-ключа).
+# Недоступный — дольше, чтобы каждое открытие страницы статуса не ждало таймаут заново.
+HEALTH_CACHE_OK_TTL = float(os.environ.get("VISION_ANALYZER_HEALTH_CACHE_OK_TTL", "3"))
+HEALTH_CACHE_FAIL_TTL = float(os.environ.get("VISION_ANALYZER_HEALTH_CACHE_FAIL_TTL", "15"))
