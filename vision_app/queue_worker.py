@@ -29,7 +29,7 @@ import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 
-from sqlalchemy import or_, select, update
+from sqlalchemy import func, or_, select, update
 
 from . import image_dedup, vector_search
 from .categories_store import build_categories_payload
@@ -57,6 +57,26 @@ _MIME_BY_EXT = {
     ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png", ".gif": "image/gif",
     ".webp": "image/webp", ".bmp": "image/bmp", ".tif": "image/tiff", ".tiff": "image/tiff",
 }
+
+
+def queue_limit_hit(user_id: int, adding: int = 1) -> tuple[str, int, int] | None:
+    """Лимиты очереди перед постановкой ``adding`` задач.
+
+    None — можно. Иначе (``"user"`` | ``"total"``, сколько_сейчас, лимит): ``user`` — упёрлись в
+    лимит самого пользователя (QUEUE_MAX_PENDING_PER_USER), ``total`` — в общий потолок очереди
+    (QUEUE_MAX_PENDING_TOTAL). Считаются незавершённые задачи (status != done)."""
+    per_user = get_runtime_setting("QUEUE_MAX_PENDING_PER_USER")
+    total_limit = get_runtime_setting("QUEUE_MAX_PENDING_TOTAL")
+    unfinished = AnalysisResult.status != Status.DONE
+    mine = db.session.scalar(
+        select(func.count(AnalysisResult.id)).where(AnalysisResult.user_id == user_id, unfinished)
+    )
+    if mine + adding > per_user:
+        return "user", mine, per_user
+    total = db.session.scalar(select(func.count(AnalysisResult.id)).where(unfinished))
+    if total + adding > total_limit:
+        return "total", total, total_limit
+    return None
 
 
 # ----------------------------------------------------------------------------

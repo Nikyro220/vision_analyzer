@@ -79,17 +79,13 @@ def enqueue(user, session_id: int, image, caption: str = "") -> dict:
             return status_payload(row, existing, repeated=True)
         # задачу успели отменить из очереди — ниже поставим заново
 
-    from .queue_worker import wake_worker
-    from .settings_store import get_runtime_setting
+    from .queue_worker import queue_limit_hit, wake_worker
 
-    limit = get_runtime_setting("QUEUE_MAX_PENDING_PER_USER")
-    pending_now = db.session.scalar(
-        select(func.count(AnalysisResult.id)).where(
-            AnalysisResult.user_id == user.id, AnalysisResult.status != Status.DONE
-        )
-    )
-    if pending_now + 1 > limit:
-        raise JobError(f"очередь пользователя заполнена ({pending_now} из {limit}) — попробуйте позже")
+    hit = queue_limit_hit(user.id)
+    if hit:
+        scope, now_count, limit = hit
+        who = "очередь пользователя заполнена" if scope == "user" else "общая очередь заполнена"
+        raise JobError(f"{who} ({now_count} из {limit}) — попробуйте позже")
 
     data = chat_images.read_bytes(image.path)
     if data is None:

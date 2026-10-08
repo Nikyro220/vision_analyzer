@@ -94,6 +94,10 @@ class Config:
     QUEUE_POLL_SECONDS = float(os.environ.get("QUEUE_POLL_SECONDS", "5"))
     QUEUE_MAX_FILES_PER_UPLOAD = int(os.environ.get("QUEUE_MAX_FILES_PER_UPLOAD", "20"))
     QUEUE_MAX_PENDING_PER_USER = int(os.environ.get("QUEUE_MAX_PENDING_PER_USER", "30"))
+    # Общий потолок очереди (в очереди + в обработке) на всех пользователей вместе.
+    # Держите его не меньше, чем лимит на пользователя × число активных пользователей —
+    # иначе несколько человек с полными очередями займут всё место.
+    QUEUE_MAX_PENDING_TOTAL = int(os.environ.get("QUEUE_MAX_PENDING_TOTAL", "200"))
 
     # Допустимые границы для настроек выше — их проверяют /panel/settings/ (settings_store.py)
     # и сам обработчик очереди (потолок числа потоков защищает от опечатки в 100 потоков).
@@ -101,6 +105,7 @@ class Config:
     QUEUE_POLL_SECONDS_MIN, QUEUE_POLL_SECONDS_MAX = 1, 300
     QUEUE_MAX_FILES_PER_UPLOAD_MIN, QUEUE_MAX_FILES_PER_UPLOAD_MAX = 1, 500
     QUEUE_MAX_PENDING_PER_USER_MIN, QUEUE_MAX_PENDING_PER_USER_MAX = 1, 1000
+    QUEUE_MAX_PENDING_TOTAL_MIN, QUEUE_MAX_PENDING_TOTAL_MAX = 1, 10000
     VISION_API_TIMEOUT_MIN, VISION_API_TIMEOUT_MAX = 5, 3600
     SETTING_STR_MAX_LEN = 300  # длина строковых настроек в /panel/settings/
 

@@ -138,19 +138,16 @@ def queue_snapshot() -> dict:
 
 def _enqueue_uploads(form: ImageUploadForm):
     """Кладёт проверенные файлы в очередь и сразу возвращает пользователя на страницу."""
-    from ..settings_store import get_runtime_setting
+    from ..queue_worker import queue_limit_hit
 
-    limit = get_runtime_setting("QUEUE_MAX_PENDING_PER_USER")
-    pending_now = db.session.scalar(
-        select(func.count(AnalysisResult.id)).where(
-            AnalysisResult.user_id == current_user.id, AnalysisResult.status != Status.DONE 
-        )
-    )
-    if pending_now + len(form.accepted) + len(form.link_urls) > limit:
-        flash(
-            f"В вашей очереди уже {pending_now}, максимум — {limit}. Дождитесь обработки и повторите.",
-            "error",
-        )
+    hit = queue_limit_hit(current_user.id, len(form.accepted) + len(form.link_urls))
+    if hit:
+        scope, now_count, limit = hit
+        if scope == "user":
+            msg = f"В вашей очереди уже {now_count}, максимум — {limit}. Дождитесь обработки и повторите."
+        else:
+            msg = f"Общая очередь заполнена ({now_count} из {limit}). Повторите позже."
+        flash(msg, "error")
         return redirect(url_for("analyzer.dashboard"))
 
     now = datetime.now(timezone.utc)
