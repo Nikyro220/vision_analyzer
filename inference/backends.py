@@ -18,7 +18,7 @@ health-пинг, контекстное окно) живёт в providers/ — �
     какой именно system/user-промпт подставить, решает этот модуль
     (см. prompt.py), провайдер лишь шлёт system+user+картинку и
     возвращает сырой текст
-  - фолбэк на другой бэкенд при недоступности (Provider.fallback)
+  - фолбэк на другой бэкенд при недоступности/5xx (цепочка — см. fallback.py)
   - разбор разовых категорий запроса (_parse_categories_json)
   - постобработка отчёта (_finalize_report)
 
@@ -31,10 +31,9 @@ import json
 import logging
 import re
 
-import aiohttp
-
 import categories
 import config
+import fallback
 import providers
 
 
@@ -248,35 +247,27 @@ async def _analyze_image(
     caption: str | None = None,
     overlay: "categories.CategoryOverlay | None" = None,
 ) -> tuple[dict, str]:
-    try:
-        provider = providers.get(backend)  # ValueError для неизвестного бэкенда
-        resolved_model = model or await provider.discover_model()
-        resolved_lang = lang or config._current_lang()
+    resolved_lang = lang or config._current_lang()
+
+    async def call(name: str, is_fallback: bool) -> tuple[str, str, str]:
+        provider = providers.get(name)  # ValueError для неизвестного бэкенда
+        # На запасном бэкенде модель исходного провайдера бессмысленна — автоопределение.
+        resolved_model = (None if is_fallback else model) or await provider.discover_model()
 
         selected = await _select_categories(
-            image_b64, image_mime, backend, resolved_model, caption, overlay,
+            image_b64, image_mime, name, resolved_model, caption, overlay,
         )
-        used_fallback = selected is None  # None = проход 1 исчерпал попытки
+        used_compact = selected is None  # None = проход 1 исчерпал попытки
 
         system_prompt = config.prompt.get_system_prompt(
-            resolved_lang, categories=selected, compact=used_fallback, overlay=overlay,
+            resolved_lang, categories=selected, compact=used_compact, overlay=overlay,
         )
         user_prompt = config.prompt.get_user_prompt(resolved_lang, caption)
 
         content = await provider.analyze(image_b64, image_mime, resolved_model, system_prompt, user_prompt)
-    except aiohttp.ClientConnectorError:
-        fallback_backend = providers.get(backend).fallback
-        if not allow_fallback or not fallback_backend:
-            raise
-        logging.warning(
-            "Бэкенд %r недоступен по подключению, пробую фолбэк на %r",
-            backend, fallback_backend,
-        )
-        return await _analyze_image(
-            image_b64, image_mime,
-            backend=fallback_backend, model=None, allow_fallback=False, lang=lang,
-            caption=caption, overlay=overlay,
-        )
+        return content, name, resolved_model
+
+    content, backend, resolved_model = await fallback.run(backend, call, allow_fallback)
 
     try:
         report = json.loads(content)

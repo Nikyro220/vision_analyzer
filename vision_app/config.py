@@ -74,6 +74,10 @@ class Config:
     VISION_API_EMBED_TIMEOUT = 30  # POST /embeddings, сек
     VISION_API_ERROR_CHARS = 300  # сколько символов текста ошибки сервера показываем
     VISION_API_RAW_TEXT_CHARS = 2000  # усечение «сырого» ответа модели без валидного JSON
+    # Автофолбэк на другой бэкенд при недоступности/5xx (в т.ч. когда бэкенд выбран вручную).
+    # Выключено — запрос идёт строго на выбранный бэкенд. Облачные бэкенды в цепочку попадают
+    # только при VISION_ANALYZER_CLOUD_FALLBACK=1 на сервере анализа и заданном ключе.
+    VISION_API_FALLBACK = os.environ.get("VISION_API_FALLBACK", "1") == "1"
     VISION_API_BACKEND_NAME_CHARS = 32
     VISION_API_MODEL_NAME_CHARS = 120
 

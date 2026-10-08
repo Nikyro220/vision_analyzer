@@ -35,10 +35,18 @@
                 <strong>ни на чём</strong>: ни один бэкенд сейчас не доступен, анализы завершатся ошибкой
             {% endif %}
         </p>
+        <p class="field-hint">
+            Чат отвечает на:
+            {% if chat_separate %}
+                <strong>{{ chat_backend }}</strong>, модель: <strong>{{ chat_model or 'авто' }}</strong> (выбрано отдельно от анализов)
+            {% else %}
+                тот же бэкенд и модель, что и анализы
+            {% endif %}
+        </p>
         {% if target_down %}
         <div class="field-error">
-            Выбранный вручную бэкенд «{{ target_backend }}» недоступен. При явном выборе сервер
-            не переключается на другой бэкенд — анализы будут завершаться ошибкой.
+            Выбранный вручную бэкенд «{{ target_backend }}» недоступен.
+            {% if conf("VISION_API_FALLBACK") %}Включён фолбэк — запросы уйдут на другой доступный бэкенд, если сервер сможет.{% else %}Фолбэк выключен — анализы будут завершаться ошибкой.{% endif %}
             {% if can_configure %}Нажмите «Сбросить к настройкам сервера», чтобы вернуть автоматический выбор.{% else %}Обратитесь к администратору.{% endif %}
         </div>
         {% endif %}
@@ -69,6 +77,12 @@
             <button type="submit" class="btn btn-secondary">Сбросить к настройкам сервера</button>
         </form>
         {% endif %}
+        {% if can_configure and chat_separate %}
+        <form method="post" action="{{ url_for('analyzer.reset_chat_target') }}" class="form-inline">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button type="submit" class="btn btn-secondary">Чат — как анализы</button>
+        </form>
+        {% endif %}
         {% if can_configure and sampling_error %}
         <div class="field-error">Не удалось получить параметры генерации: {{ sampling_error }}</div>
         {% endif %}
@@ -85,12 +99,14 @@
                 {% if card.available %}<span class="tag tag-accent">Используется для анализа{% if card.via_fallback %} (фолбэк){% endif %}</span>
                 {% else %}<span class="tag tag-warn">Выбран, но недоступен</span>{% endif %}
             {% endif %}
+            {% if card.chat_active %}<span class="tag tag-accent">Используется для чата</span>{% endif %}
         </div>
 
         <dl class="def-list">
             <dt>Адрес</dt><dd>{{ card.info.get('endpoint', '—') }}</dd>
             {% if card.info.get('model') %}<dt>Модель (авто)</dt><dd>{{ card.info.get('model') }}</dd>{% endif %}
             {% if card.is_active %}<dt>Модель для анализа</dt><dd>{{ card.active_model or 'авто' }}</dd>{% endif %}
+            {% if card.chat_active %}<dt>Модель для чата</dt><dd>{{ card.chat_model or 'авто' }}</dd>{% endif %}
             {% if card.info.get('error') %}<dt>Ошибка</dt><dd>{{ card.info.get('error') }}</dd>{% endif %}
         </dl>
 
@@ -159,7 +175,26 @@
                 {% endif %}
                 <button type="submit" class="btn btn-primary">Использовать для анализа</button>
             </form>
-            <div class="field-hint">При явном выборе сервер не переключается на другой бэкенд, если этот перестанет отвечать. «Сбросить к настройкам сервера» возвращает автоматический выбор и фолбэк.</div>
+            <form method="post" action="{{ url_for('analyzer.save_chat_model', name=card.name) }}" class="form form-inline form-wrap">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                {% if card.models %}
+                <select name="model" class="input input-grow" aria-label="Модель чата {{ card.title }}">
+                    <option value="">Авто (определяет сервер)</option>
+                    {% for m in card.models %}
+                    <option value="{{ m }}" {% if m == card.chat_model %}selected{% endif %}>{{ m }}</option>
+                    {% endfor %}
+                </select>
+                {% else %}
+                <input type="text" name="model" class="input input-grow" maxlength="{{ conf("MODEL_NAME_MAX_LEN") }}"
+                       value="{{ card.chat_model }}" placeholder="ID модели (пусто — авто)" aria-label="Модель чата {{ card.name }}">
+                {% endif %}
+                <button type="submit" class="btn btn-primary">Использовать для чата</button>
+            </form>
+            <div class="field-hint">
+                {% if conf("VISION_API_FALLBACK") %}Если выбранный бэкенд недоступен или отвечает 5xx, сервер пробует следующий: локальные, затем облачные (при заданном ключе). Отключается настройкой «Фолбэк на другой бэкенд при сбое».
+                {% else %}Фолбэк выключен: запрос идёт строго на выбранный бэкенд.{% endif %}
+                Выбор для чата не влияет на анализы; пока он не задан, чат использует бэкенд и модель анализов.
+            </div>
             {% if card.models_error %}
             <div class="field-error">Не удалось получить список моделей: {{ card.models_error }}. Введите ID модели вручную.</div>
             {% elif not card.models and card.credential_status and card.credential_status.stored %}

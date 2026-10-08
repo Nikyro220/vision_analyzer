@@ -6,7 +6,7 @@ chat_backends.py — модельный слой POST /chat: свободный 
 
 Отсюда:
   - разбор/валидация 'history' (_parse_history_json) — формат бэкенд-агностичный
-  - обёртка chat() с фолбэком между бэкендами (Provider.fallback)
+  - обёртка chat() с цепочкой фолбэка между бэкендами (см. fallback.py)
 
 Всё, что зависит от конкретного бэкенда — конвертация истории в его формат,
 защитная обрезка под контекст vLLM, сам HTTP-запрос без format=json/
@@ -22,9 +22,8 @@ from __future__ import annotations
 import json
 import logging
 
-import aiohttp
-
 import config
+import fallback
 import providers
 
 
@@ -91,22 +90,11 @@ async def chat(
     images = images or []
     history = history or []
 
-    try:
-        provider = providers.get(backend)  # ValueError для неизвестного бэкенда
-        resolved_model = model or await provider.discover_model()
+    async def call(name: str, is_fallback: bool) -> tuple[str, str, str]:
+        provider = providers.get(name)  # ValueError для неизвестного бэкенда
+        # На запасном бэкенде модель исходного провайдера бессмысленна — автоопределение.
+        resolved_model = (None if is_fallback else model) or await provider.discover_model()
         content = await provider.chat(resolved_model, system, history, message, images)
-    except aiohttp.ClientConnectorError as e:
-        fallback_backend = providers.get(backend).fallback
-        if not allow_fallback or not fallback_backend:
-            e.chat_backend = backend
-            raise
-        logging.warning(
-            "chat: бэкенд %r недоступен по подключению, пробую фолбэк на %r",
-            backend, fallback_backend,
-        )
-        return await chat(
-            message, images, backend=fallback_backend, model=None, system=system,
-            history=history, allow_fallback=False,
-        )
+        return content, name, resolved_model
 
-    return content, backend, resolved_model
+    return await fallback.run(backend, call, allow_fallback)

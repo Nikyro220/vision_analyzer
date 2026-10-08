@@ -99,6 +99,16 @@ def _auth_headers(backend: str = "") -> dict[str, str]:
         return {}
 
 
+def _fallback_enabled() -> bool:
+    return bool(conf("VISION_API_FALLBACK"))
+
+
+def _request_auth_headers(backend: str) -> dict[str, str]:
+    """Ключи для /analyze и /chat. Если разрешён фолбэк — ключи ВСЕХ провайдеров: сервер сам
+    решает, на какого уйти при сбое, и без их ключей облачные в цепочку не попадут."""
+    return _auth_headers("" if _fallback_enabled() else backend)
+
+
 def check_health() -> dict:
     """Опрашивает /health. Возвращает словарь статуса или бросает VisionApiError."""
     try:
@@ -161,10 +171,13 @@ def analyze_image(
             payload["model"] = model
         if caption:
             payload["caption"] = caption
-        request_kwargs = {"json": payload, "headers": _auth_headers(backend)}
+        payload["fallback"] = _fallback_enabled()
+        request_kwargs = {"json": payload, "headers": _request_auth_headers(backend)}
     else:
-        headers = {"Content-Type": mime_type or "image/jpeg", **_auth_headers(backend)}
-        params = {"lang": lang} if lang else {}
+        headers = {"Content-Type": mime_type or "image/jpeg", **_request_auth_headers(backend)}
+        params = {"fallback": int(_fallback_enabled())}
+        if lang:
+            params["lang"] = lang
         if backend:
             params["backend"] = backend
         if model:
@@ -635,9 +648,10 @@ def chat_with_model(
         payload["system"] = system
     if system_mode:
         payload["system_mode"] = system_mode
+    payload["fallback"] = _fallback_enabled()
 
     try:
-        resp = requests.post(url, json=payload, headers=_auth_headers(backend), timeout=_timeout())
+        resp = requests.post(url, json=payload, headers=_request_auth_headers(backend), timeout=_timeout())
     except requests.exceptions.ConnectionError as exc:
         raise VisionApiError(
             "Не удалось подключиться к серверу анализа изображений. "

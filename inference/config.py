@@ -194,6 +194,10 @@ ANTHROPIC_VERSION = os.environ.get("VISION_ANALYZER_ANTHROPIC_VERSION", "2023-06
 # Токены размышлений входят в этот лимит, поэтому значение с запасом.
 ANTHROPIC_MAX_TOKENS = int(os.environ.get("VISION_ANALYZER_ANTHROPIC_MAX_TOKENS", "16000"))
 
+# Автофолбэк (см. fallback.py) может уйти на облачный бэкенд (Gemini/Anthropic), если в
+# запросе есть его ключ. 0 — фолбэк только между локальными бэкендами: картинки не покидают контур.
+CLOUD_FALLBACK = os.environ.get("VISION_ANALYZER_CLOUD_FALLBACK", "1") == "1"
+
 SERVER_HOST = "0.0.0.0"
 SERVER_PORT = 6769
 

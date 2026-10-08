@@ -41,7 +41,10 @@ from ..services import (
     set_default_backend,
     set_sampling,
 )
-from ..settings_store import clear_analysis_target, get_analysis_target, set_analysis_target
+from ..settings_store import (
+    clear_analysis_target, clear_chat_target, get_analysis_target, get_chat_target, has_chat_target,
+    set_analysis_target, set_chat_target,
+)
 from ..thumbs import ensure_thumb
 from ..utils import is_safe_next, local_dt, paginate, plural, query_to_id
 
@@ -520,6 +523,8 @@ def _render_health(bound_forms: dict | None = None, status_code: int = 200):
     cards = []
     sampling_error = None
     target_backend, target_model = get_analysis_target()
+    chat_backend, chat_model = get_chat_target()
+    chat_separate = has_chat_target()
     fallbacks = {p.name: p.fallback for p in providers}
     effective_backend, via_fallback = _effective_backend(status, target_backend, fallbacks) if status else ("", False)
     target_down = bool(
@@ -558,6 +563,8 @@ def _render_health(bound_forms: dict | None = None, status_code: int = 200):
                 "is_active": name == effective_backend,
                 "via_fallback": via_fallback and name == effective_backend,
                 "active_model": target_model if target_backend == name else "",
+                "chat_active": chat_separate and chat_backend == name,
+                "chat_model": chat_model if chat_separate and chat_backend == name else "",
                 "sampling_keys": provider.sampling_keys,
                 "models": [],
                 "models_error": None,
@@ -597,6 +604,9 @@ def _render_health(bound_forms: dict | None = None, status_code: int = 200):
         sampling_error=sampling_error,
         target_backend=target_backend,
         target_model=target_model,
+        chat_backend=chat_backend,
+        chat_model=chat_model,
+        chat_separate=chat_separate,
         effective_backend=effective_backend,
         via_fallback=via_fallback,
         target_down=target_down,
@@ -634,18 +644,17 @@ def _backend_is_available(name: str) -> bool:
     return True
 
 
-@bp.route("/health/backend/<name>/model", methods=["POST"])
-@staff_required
-def save_model(name: str):
-    """Выбрать бэкенд и модель, на которых будут выполняться анализы. Пустая модель = авто."""
+def _validated_model(name: str) -> str | None:
+    """Модель из формы, проверенная для бэкенда name; None — отказ (flash уже показан).
+    Пустая модель = авто."""
     _require_backend(name)
     model = request.form.get("model", "").strip()
 
     if len(model) > conf("MODEL_NAME_MAX_LEN"):
         flash("Слишком длинное название модели.", "error")
-        return redirect(url_for("analyzer.health"))
+        return None
     if not _backend_is_available(name):
-        return redirect(url_for("analyzer.health"))
+        return None
 
     if model:
         try:
@@ -656,13 +665,45 @@ def save_model(name: str):
             known = []  # список недоступен — не блокируем, сервер сам отклонит неизвестную модель
         if known and model not in known:
             flash(f"Модель «{model}» не найдена у бэкенда «{name}».", "error")
-            return redirect(url_for("analyzer.health"))
+            return None
+    return model
+
+
+@bp.route("/health/backend/<name>/model", methods=["POST"])
+@staff_required
+def save_model(name: str):
+    """Выбрать бэкенд и модель, на которых будут выполняться анализы. Пустая модель = авто."""
+    model = _validated_model(name)
+    if model is None:
+        return redirect(url_for("analyzer.health"))
 
     set_analysis_target(name, model)
     flash(
         f"Анализы будут выполняться на «{name}», модель: {model or 'авто (определяет сервер)'}.",
         "success",
     )
+    return redirect(url_for("analyzer.health"))
+
+
+@bp.route("/health/backend/<name>/chat-model", methods=["POST"])
+@staff_required
+def save_chat_model(name: str):
+    """Выбрать бэкенд и модель для чата — независимо от анализов. Пустая модель = авто."""
+    model = _validated_model(name)
+    if model is None:
+        return redirect(url_for("analyzer.health"))
+
+    set_chat_target(name, model)
+    flash(f"Чат будет отвечать на «{name}», модель: {model or 'авто (определяет сервер)'}.", "success")
+    return redirect(url_for("analyzer.health"))
+
+
+@bp.route("/health/reset-chat-target", methods=["POST"])
+@staff_required
+def reset_chat_target():
+    """Чат снова использует тот же бэкенд и модель, что и анализы."""
+    clear_chat_target()
+    flash("Чат снова использует тот же бэкенд и модель, что и анализы.", "success")
     return redirect(url_for("analyzer.health"))
 
 

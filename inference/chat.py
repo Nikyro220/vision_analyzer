@@ -27,6 +27,7 @@ from aiohttp import web
 
 import chat_backends
 import config
+import fallback
 import providers
 from analyze import _BodyError, _json, _prepare_image
 from config import locales, prompt
@@ -46,6 +47,9 @@ def _query_overrides(request: web.Request) -> dict[str, Any]:
         "model": request.query.get("model"),
         "lang": request.query.get("lang"),
         "system_mode": request.query.get("system_mode"),
+        # 1/0 — разрешить/запретить автофолбэк на другой бэкенд (см. fallback.py).
+        # Не задан: фолбэк только если backend не указан явно.
+        "fallback": request.query.get("fallback"),
     }
 
 
@@ -104,7 +108,7 @@ async def _parse_multipart_body(request: web.Request, overrides: dict) -> tuple[
     images: list[str] = []
     text_fields = {
         "message": False, "system": False, "history": True, "backend": True, "model": True, "lang": True,
-        "system_mode": True,
+        "system_mode": True, "fallback": True,
     }
 
     async for part in reader:
@@ -179,7 +183,7 @@ async def handle_chat(request: web.Request) -> web.Response:
     except ValueError:
         return _json({"error": config._t("error.invalid_history", lang=resolved_lang)}, status=400)
 
-    backend_was_explicit = bool(overrides["backend"])
+    allow_fallback = fallback.parse_flag(overrides["fallback"], default=not overrides["backend"])
 
     # system_mode: "append" (по умолчанию) — поле 'system' ДОБАВЛЯЕТСЯ к базовому промпту
     # сервера; "replace" — базовый промпт не подставляется, модель получает только 'system'.
@@ -217,7 +221,7 @@ async def handle_chat(request: web.Request) -> web.Response:
         reply, actual_backend, actual_model = await chat_backends.chat(
             message, images,
             backend=backend, model=overrides["model"], system=system_prompt,
-            history=resolved_history, allow_fallback=not backend_was_explicit,
+            history=resolved_history, allow_fallback=allow_fallback,
         )
     except aiohttp.ClientConnectorError as e:
         # backend — исходно запрошенный бэкенд; если сработал фолбэк
@@ -247,6 +251,14 @@ async def handle_chat(request: web.Request) -> web.Response:
         return _json({"error": config._t("error.backend_timeout", lang=resolved_lang)}, status=504)
     except (ValueError, RuntimeError) as e:
         return _json({"error": str(e)}, status=400)
+    except aiohttp.ClientResponseError as e:
+        # Ошибка апстрима (503 у Gemini и т.п.), в том числе когда фолбэк тоже не помог.
+        failed_backend = getattr(e, "chat_backend", backend)
+        logging.error("chat: бэкенд %s вернул %s %s", failed_backend, e.status, e.message)
+        return _json(
+            {"error": f"{failed_backend}: {e.status} {e.message}"},
+            status=502 if e.status >= 500 else 400,
+        )
     except Exception as e:
         logging.exception("chat: ошибка при обращении к модели: %s", e)
         return _json({"error": config._t("error.chat_failed", lang=resolved_lang)}, status=500)

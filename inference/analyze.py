@@ -27,6 +27,7 @@ from PIL import Image
 import backends
 import categories
 import config
+import fallback
 import link_fetcher
 import providers
 from config import image_upscaler, locales
@@ -96,6 +97,9 @@ def _query_overrides(request: web.Request) -> dict[str, Any]:
         "model": request.query.get("model"),
         "lang": request.query.get("lang"),
         "caption": request.query.get("caption"),
+        # 1/0 — разрешить/запретить автофолбэк на другой бэкенд (см. fallback.py).
+        # Не задан: фолбэк только если backend не указан явно.
+        "fallback": request.query.get("fallback"),
         # Разовые категории на этот вызов (см. categories.build_overlay).
         # В отличие от остальных полей — список, а не строка: через
         # query/multipart можно передать НЕСКОЛЬКО категорий, каждую
@@ -205,7 +209,7 @@ async def _parse_json_body(request: web.Request, overrides: dict) -> tuple[list,
 # быть значимыми). 'categories' сюда не входит — она может повторяться
 # (несколько файлов за один вызов), см. _parse_multipart_body.
 _MULTIPART_TEXT_FIELDS = {
-    "backend": True, "model": True, "lang": True, "caption": False,
+    "backend": True, "model": True, "lang": True, "caption": False, "fallback": True,
 }
 
 
@@ -418,7 +422,7 @@ async def handle_analyze(request: web.Request) -> web.Response:
             status=first.status,
         )
 
-    backend_was_explicit = bool(overrides["backend"])
+    allow_fallback = fallback.parse_flag(overrides["fallback"], default=not overrides["backend"])
 
     logging.info(
         "Получено изображений в запросе: %d (%s) | backend=%s model=%s lang=%s "
@@ -432,7 +436,7 @@ async def handle_analyze(request: web.Request) -> web.Response:
             backends._analyze_image(
                 img_b64, img_mime,
                 backend=backend, model=overrides["model"],
-                allow_fallback=not backend_was_explicit,
+                allow_fallback=allow_fallback,
                 lang=resolved_lang,
                 caption=cap, overlay=category_overlay,
             )

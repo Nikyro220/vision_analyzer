@@ -66,6 +66,37 @@ def clear_analysis_target() -> None:
     db.session.commit()
 
 
+# Бэкенд/модель для /chat. Пусто — «как для анализа» (get_analysis_target).
+KEY_CHAT_BACKEND = "chat_backend"
+KEY_CHAT_MODEL = "chat_model"
+
+
+def get_chat_target() -> tuple[str, str]:
+    """(backend, model) для чата: свой выбор, а если его нет (или провайдера уже нет на
+    сервере) — тот же, что у анализа."""
+    backend = _get(KEY_CHAT_BACKEND)
+    if not backend or is_known_backend(backend) is False:
+        return get_analysis_target()
+    return backend, _get(KEY_CHAT_MODEL)
+
+
+def has_chat_target() -> bool:
+    """True, если для чата выбран отдельный бэкенд (а не «как для анализа»)."""
+    return bool(_get(KEY_CHAT_BACKEND))
+
+
+def set_chat_target(backend: str, model: str = "") -> None:
+    _set(KEY_CHAT_BACKEND, backend)
+    _set(KEY_CHAT_MODEL, model)
+    db.session.commit()
+
+
+def clear_chat_target() -> None:
+    _set(KEY_CHAT_BACKEND, "")
+    _set(KEY_CHAT_MODEL, "")
+    db.session.commit()
+
+
 # ----------------------------------------------------------------------------
 # Настройки, изменяемые главным админом на странице /panel/settings/.
 #
@@ -129,6 +160,9 @@ SETTING_GROUPS: list[tuple[str, str, list[RuntimeSetting]]] = [
            hint="Не больше 32 — столько влезает в колонку БД."),
         _s("VISION_API_MODEL_NAME_CHARS", "Длина названия модели, симв.", lo=1, hi=120,
            hint="Не больше 120 — столько влезает в колонку БД."),
+        _s("VISION_API_FALLBACK", "Фолбэк на другой бэкенд при сбое", "bool",
+           hint="Если бэкенд недоступен или отвечает 5xx — сервер пробует следующий: локальные, затем облачные "
+                "(облачные — только если разрешено на сервере и задан ключ). Работает и при ручном выборе бэкенда."),
         _s("DEFAULT_LANG", "Язык ответов модели", "choice", choices=("ru", "en"),
            hint="Передаётся серверу анализа как lang=..."),
     ]),

@@ -28,7 +28,7 @@ from ..config import conf
 from ..extensions import db
 from ..models import ChatAction, ChatActionStatus, ChatMessage, ChatRole, ChatSession, utcnow
 from ..services import VisionApiError
-from ..settings_store import get_analysis_target
+from ..settings_store import get_chat_target
 from ..thumbs import ensure_thumb
 from ..utils import local_dt
 
@@ -180,7 +180,7 @@ def index():
 def view(session_id: int):
     session_row = _get_own_session(session_id)
     sessions = _own_sessions()
-    target_backend, target_model = get_analysis_target()
+    target_backend, target_model = get_chat_target()
 
     # Модель ещё отвечает (страницу перезагрузили посреди хода): сообщение пользователя уже в БД,
     # chat.js покажет «печатает…» и дождётся ответа через GET .../state. busy_since — id, после
@@ -385,7 +385,7 @@ def _run_turn(session_row: ChatSession, message: str, saved: list[dict], progres
     # инструмент analyze_image.
     message_images = _data_urls(new_images)
 
-    target_backend, target_model = get_analysis_target()
+    target_backend, target_model = get_chat_target()
 
     # Сообщение пользователя сохраняем сразу: после перезагрузки страницы оно на месте, а ответ
     # модели дорисуется, когда будет готов (GET .../state). При сбое хода оно откатывается (_abort_turn).
@@ -557,7 +557,7 @@ def _deliver(session_row: ChatSession, job, row) -> dict:
         _apply_context_limit(all_images)
         history = _history_for_model(session_row, by_message)
         payload = json.dumps(chat_jobs.status_payload(row, job), ensure_ascii=False)
-        target_backend, target_model = get_analysis_target()
+        target_backend, target_model = get_chat_target()
         try:
             turn = run_chat_turn(
                 current_user, delivery_message(payload), history, target_backend, target_model, lang=conf("DEFAULT_LANG"),
