@@ -9,6 +9,12 @@
 <form method="get" class="filter-bar" data-filter-form onsubmit="return false;">
     <input type="search" name="q" class="input" placeholder="Поиск по имени файла или номеру…" value="{{ query }}" autocomplete="off" data-filter-field>
     <input type="search" name="user" class="input" placeholder="Поиск по пользователю…" value="{{ user_query }}" autocomplete="off" data-filter-field>
+    <select name="uid" class="input" aria-label="Пользователь" data-filter-field>
+        <option value="">Все пользователи</option>
+        {% for u in users %}
+        <option value="{{ u.id }}" {% if uid == u.id %}selected{% endif %}>{{ u.username }}</option>
+        {% endfor %}
+    </select>
     <select name="risk" class="input" data-filter-field>
         <option value="">Любой риск</option>
         <option value="low" {% if risk_filter == "low" %}selected{% endif %}>Низкий</option>

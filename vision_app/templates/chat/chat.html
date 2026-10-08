@@ -11,8 +11,13 @@
     </p>
 </div>
 
-<div class="panel-grid chat-layout">
-    <div class="card chat-sessions-card">
+<div class="chat-toolbar">
+    <button type="button" class="btn btn-secondary btn-sm" id="chat-sessions-toggle" aria-controls="chat-sessions" aria-expanded="true">Скрыть список чатов</button>
+</div>
+
+<div class="panel-grid chat-layout" id="chat-layout">
+    <script>try { if (localStorage.getItem("vt-chat-sessions-v1") === "collapsed") document.getElementById("chat-layout").setAttribute("data-sessions", "collapsed"); } catch (e) {}</script>
+    <div class="card chat-sessions-card" id="chat-sessions">
         <form method="post" action="{{ url_for('chat.new_session') }}">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <button type="submit" class="btn btn-secondary btn-block">+ Новый чат</button>
@@ -98,6 +103,24 @@
 {% endblock %}
 
 {% block scripts_extra %}
+<script>
+(function () {
+    var layout = document.getElementById("chat-layout"), btn = document.getElementById("chat-sessions-toggle");
+    if (!layout || !btn) return;
+    function sync() {
+        var hidden = layout.getAttribute("data-sessions") === "collapsed";
+        btn.textContent = hidden ? "Показать список чатов" : "Скрыть список чатов";
+        btn.setAttribute("aria-expanded", hidden ? "false" : "true");
+    }
+    sync();
+    btn.addEventListener("click", function () {
+        var hide = layout.getAttribute("data-sessions") !== "collapsed";
+        if (hide) layout.setAttribute("data-sessions", "collapsed"); else layout.removeAttribute("data-sessions");
+        try { localStorage.setItem("vt-chat-sessions-v1", hide ? "collapsed" : "expanded"); } catch (e) {}
+        sync();
+    });
+})();
+</script>
 <script src="{{ url_for('static', filename='js/markdown.js') }}"></script>
 <script src="{{ url_for('static', filename='js/chat.js') }}"></script>
 {% endblock %}

@@ -32,13 +32,13 @@ from ..services import (
     ProviderInfo,
     VisionApiError,
     check_health,
+    invalidate_health,
     get_models,
     get_providers,
     get_sampling,
     invalidate_models_cache,
     invalidate_providers,
     models_cached_at,
-    set_default_backend,
     set_sampling,
 )
 from ..settings_store import (
@@ -483,6 +483,19 @@ def _effective_backend(status: dict, target_backend: str, fallbacks: dict[str, s
     return "", False
 
 
+_TABS = ("analysis", "chat")
+
+
+def _tab() -> str:
+    """Вкладка страницы статуса: analysis (по умолчанию) или chat. Берётся из ?tab=."""
+    tab = request.values.get("tab", "")
+    return tab if tab in _TABS else "analysis"
+
+
+def _back():
+    return redirect(url_for("analyzer.health", tab=_tab()))
+
+
 def _render_health(bound_forms: dict | None = None, status_code: int = 200):
     """Страница статуса. Настройки (модель, параметры, ключ API) видны и доступны только админам.
 
@@ -493,7 +506,7 @@ def _render_health(bound_forms: dict | None = None, status_code: int = 200):
     can_configure = current_user.is_panel_staff
 
     try:
-        status = check_health()
+        status = check_health(force=request.values.get("refresh") == "1")
         error = None
     except VisionApiError as exc:
         status = None
@@ -506,32 +519,39 @@ def _render_health(bound_forms: dict | None = None, status_code: int = 200):
         except VisionApiError as exc:
             status, error = None, str(exc)
 
-    # Варианты для «Бэкенд по умолчанию на сервере»: все провайдеры, не настроенные — недоступны для выбора.
-    default_backend = (status or {}).get("default_backend", "")
+    tab = _tab()  # только какая вкладка открыта первой; переключаются они в браузере, без запросов
     health_backends = (status or {}).get("backends") or {}
-    default_options = [
-        {
-            "name": p.name,
-            "title": p.title,
-            "configured": p.configured,
-            "available": bool((health_backends.get(p.name) or {}).get("ok")),
-            "selected": p.name == default_backend,
+    fallbacks = {p.name: p.fallback for p in providers}
+
+    # Всё, что зависит от вкладки: выбранный бэкенд/модель, куда реально уйдёт запрос, варианты селекта.
+    # У чата своего выбора может не быть — тогда он идёт туда же, куда анализы (get_chat_target это делает).
+    tabs = {}
+    for name_, is_chat in (("analysis", False), ("chat", True)):
+        backend, model = get_chat_target() if is_chat else get_analysis_target()
+        follows_analysis = is_chat and not has_chat_target()
+        own_backend = "" if follows_analysis else backend
+        effective, via_fb = _effective_backend(status, backend, fallbacks) if status else ("", False)
+        tabs[name_] = {
+            "backend": backend,
+            "model": model,
+            "follows_analysis": follows_analysis,
+            "effective_backend": effective,
+            "via_fallback": via_fb,
+            "target_down": bool(status and backend and not (health_backends.get(backend) or {}).get("ok")),
+            "options": [
+                {
+                    "name": p.name,
+                    "title": p.title,
+                    "configured": p.configured,
+                    "available": bool((health_backends.get(p.name) or {}).get("ok")),
+                    "selected": p.name == own_backend,
+                }
+                for p in providers
+            ],
         }
-        for p in providers
-    ]
 
     cards = []
     sampling_error = None
-    target_backend, target_model = get_analysis_target()
-    chat_backend, chat_model = get_chat_target()
-    chat_separate = has_chat_target()
-    fallbacks = {p.name: p.fallback for p in providers}
-    effective_backend, via_fallback = _effective_backend(status, target_backend, fallbacks) if status else ("", False)
-    target_down = bool(
-        status
-        and target_backend
-        and not ((status.get("backends") or {}).get(target_backend) or {}).get("ok")
-    )
 
     if status is not None:
         sampling = {}
@@ -541,7 +561,6 @@ def _render_health(bound_forms: dict | None = None, status_code: int = 200):
             except VisionApiError as exc:
                 sampling_error = str(exc)
 
-        health_backends = status.get("backends") or {}
         for provider in providers:
             name = provider.name
             info = health_backends.get(name)
@@ -560,11 +579,14 @@ def _render_health(bound_forms: dict | None = None, status_code: int = 200):
                 "credential_status": credentials.status(name) if can_configure and provider.credential else None,
                 "credentials_available": credentials.is_available(),
                 "configurable": can_configure and available,
-                "is_active": name == effective_backend,
-                "via_fallback": via_fallback and name == effective_backend,
-                "active_model": target_model if target_backend == name else "",
-                "chat_active": chat_separate and chat_backend == name,
-                "chat_model": chat_model if chat_separate and chat_backend == name else "",
+                "by_tab": {
+                    t: {
+                        "is_active": name == ctx["effective_backend"],
+                        "via_fallback": ctx["via_fallback"] and name == ctx["effective_backend"],
+                        "active_model": ctx["model"] if ctx["backend"] == name else "",
+                    }
+                    for t, ctx in tabs.items()
+                },
                 "sampling_keys": provider.sampling_keys,
                 "models": [],
                 "models_error": None,
@@ -580,8 +602,9 @@ def _render_health(bound_forms: dict | None = None, status_code: int = 200):
                 except VisionApiError as exc:
                     card["models_error"] = str(exc)
                 # сохранённой модели может уже не быть в списке — не теряем её из виду
-                if card["active_model"] and card["models"] and card["active_model"] not in card["models"]:
-                    card["models"] = [card["active_model"], *card["models"]]
+                for t in card["by_tab"].values():
+                    m = t["active_model"]
+                    t["models"] = [m, *card["models"]] if m and card["models"] and m not in card["models"] else card["models"]
 
                 if provider.sampling_keys:
                     form_cls = sampling_form_class(provider.sampling_keys)
@@ -599,17 +622,10 @@ def _render_health(bound_forms: dict | None = None, status_code: int = 200):
         status=status,
         error=error,
         cards=cards,
-        default_options=default_options,
+        tab=tab,
+        tabs=tabs,
         can_configure=can_configure,
         sampling_error=sampling_error,
-        target_backend=target_backend,
-        target_model=target_model,
-        chat_backend=chat_backend,
-        chat_model=chat_model,
-        chat_separate=chat_separate,
-        effective_backend=effective_backend,
-        via_fallback=via_fallback,
-        target_down=target_down,
     )
     return html, status_code
 
@@ -634,7 +650,7 @@ def _require_backend(name: str) -> ProviderInfo:
 
 def _backend_is_available(name: str) -> bool:
     try:
-        info = (check_health().get("backends") or {}).get(name) or {}
+        info = (check_health(force=True).get("backends") or {}).get(name) or {}
     except VisionApiError as exc:
         flash(str(exc), "error")
         return False
@@ -672,104 +688,59 @@ def _validated_model(name: str) -> str | None:
 @bp.route("/health/backend/<name>/model", methods=["POST"])
 @staff_required
 def save_model(name: str):
-    """Выбрать бэкенд и модель, на которых будут выполняться анализы. Пустая модель = авто."""
+    """Выбрать бэкенд и модель для текущей вкладки (анализ или чат). Пустая модель = авто."""
     model = _validated_model(name)
     if model is None:
-        return redirect(url_for("analyzer.health"))
+        return _back()
 
-    set_analysis_target(name, model)
-    flash(
-        f"Анализы будут выполняться на «{name}», модель: {model or 'авто (определяет сервер)'}.",
-        "success",
-    )
-    return redirect(url_for("analyzer.health"))
+    shown = model or "авто (определяет сервер)"
+    if _tab() == "chat":
+        set_chat_target(name, model)
+        flash(f"Чат будет отвечать на «{name}», модель: {shown}.", "success")
+    else:
+        set_analysis_target(name, model)
+        flash(f"Анализы будут выполняться на «{name}», модель: {shown}.", "success")
+    return _back()
 
 
-@bp.route("/health/backend/<name>/chat-model", methods=["POST"])
+@bp.route("/health/used-backend", methods=["POST"])
 @staff_required
-def save_chat_model(name: str):
-    """Выбрать бэкенд и модель для чата — независимо от анализов. Пустая модель = авто."""
-    model = _validated_model(name)
-    if model is None:
-        return redirect(url_for("analyzer.health"))
+def save_used_backend():
+    """Выбрать используемый бэкенд для текущей вкладки (анализ или чат).
 
-    set_chat_target(name, model)
-    flash(f"Чат будет отвечать на «{name}», модель: {model or 'авто (определяет сервер)'}.", "success")
-    return redirect(url_for("analyzer.health"))
+    Пустое значение — сброс: у анализа бэкенд снова выбирает сервер, а чат идёт туда же, куда
+    анализы. Модель сохраняется, если бэкенд тот же, и сбрасывается на «авто», если он сменился —
+    конкретную модель выбирают на карточке бэкенда."""
+    chat = _tab() == "chat"
+    name = request.form.get("backend", "").strip().lower()
 
+    if not name:
+        if chat:
+            clear_chat_target()
+            flash("Чат снова использует тот же бэкенд и модель, что и анализы.", "success")
+        else:
+            clear_analysis_target()
+            flash("Выбор сброшен: бэкенд выбирает сервер, модель — авто.", "success")
+        return _back()
 
-@bp.route("/health/reset-chat-target", methods=["POST"])
-@staff_required
-def reset_chat_target():
-    """Чат снова использует тот же бэкенд и модель, что и анализы."""
-    clear_chat_target()
-    flash("Чат снова использует тот же бэкенд и модель, что и анализы.", "success")
-    return redirect(url_for("analyzer.health"))
-
-
-@bp.route("/health/reset-target", methods=["POST"])
-@staff_required
-def reset_target():
-    """Вернуться к выбору сервера: бэкенд по умолчанию и автоопределение модели."""
-    clear_analysis_target()
-    flash("Выбор сброшен: используется бэкенд и модель по умолчанию на сервере.", "success")
-    return redirect(url_for("analyzer.health"))
-
-
-@bp.route("/health/default-backend", methods=["POST"])
-@staff_required
-def save_default_backend():
-    """Сменить бэкенд по умолчанию на сервере анализа (POST /config на сервере).
-
-    Это не то же самое, что выбор бэкенда и модели на карточке («Использовать для анализа»):
-    тот выбор действует только для панели и важнее умолчания, а умолчание общее для сервера —
-    его используют все запросы без явного ?backend= и от него считается автоматический фолбэк.
-
-    Побеждает ПОСЛЕДНИЙ явный выбор пользователя: если на карточке раньше был закреплён другой
-    бэкенд, он сбрасывается — иначе панель продолжала бы молча работать на старом выборе, хотя
-    человек только что выбрал новый (в том числе когда он выбрал тот же бэкенд, что уже стоит
-    по умолчанию на сервере). Закреплённая модель того же бэкенда не трогается."""
-    provider = _require_backend(request.form.get("backend", "").strip().lower())
-
+    provider = _require_backend(name)
     if not provider.configured:
         flash(f"«{provider.title}» не настроен — сначала введите данные подключения (API-ключ) на его карточке.", "error")
-        return redirect(url_for("analyzer.health"))
+        return _back()
+
+    current_backend, current_model = (get_chat_target() if has_chat_target() else ("", "")) if chat else get_analysis_target()
+    model = current_model if current_backend == name else ""
+    (set_chat_target if chat else set_analysis_target)(name, model)
+    flash(f"{'Чат отвечает' if chat else 'Анализы выполняются'} на «{provider.title}».", "success")
 
     try:
-        current = check_health()
-    except VisionApiError as exc:
-        flash(str(exc), "error")
-        return redirect(url_for("analyzer.health"))
-
-    # Бэкенд, закреплённый на карточке, но отличающийся от выбранного сейчас: он перекрывал бы
-    # умолчание (см. settings_store.get_analysis_target), поэтому его снимаем.
-    pinned = get_analysis_target()[0]
-    pinned_elsewhere = bool(pinned) and pinned != provider.name
-    pinned_title = next((p.title for p in get_providers() if p.name == pinned), pinned) if pinned_elsewhere else ""
-
-    if current.get("default_backend") == provider.name:
-        if pinned_elsewhere:
-            clear_analysis_target()
-            flash(f"Панель теперь использует «{provider.title}» — бэкенд по умолчанию на сервере "
-                  f"(выбор «{pinned_title}» на карточке сброшен).", "success")
-        else:
-            flash(f"«{provider.title}» уже является бэкендом по умолчанию.", "info")
-        return redirect(url_for("analyzer.health"))
-
-    try:
-        set_default_backend(provider.name)
-    except VisionApiError as exc:
-        flash(str(exc), "error")
-        return redirect(url_for("analyzer.health"))
-
-    flash(f"Бэкенд по умолчанию на сервере: «{provider.title}».", "success")
-    if pinned_elsewhere:
-        clear_analysis_target()
-        flash(f"Выбор «{pinned_title}» на карточке сброшен — панель использует «{provider.title}».", "info")
-    if not ((current.get("backends") or {}).get(provider.name) or {}).get("ok"):
-        flash(f"«{provider.title}» сейчас недоступен — пока он не заработает, запросы без явного выбора будут падать "
-              "(или уйдут на его фолбэк, если он задан).", "info")
-    return redirect(url_for("analyzer.health"))
+        ok = ((check_health().get("backends") or {}).get(name) or {}).get("ok")
+    except VisionApiError:
+        ok = True  # статус неизвестен — не пугаем
+    if not ok:
+        flash(f"«{provider.title}» сейчас недоступен — запросы будут завершаться ошибкой "
+              "(или уйдут на другой бэкенд, если включён фолбэк).", "info")
+    return _back()
 
 
 @bp.route("/health/backend/<name>/sampling", methods=["POST"])
@@ -787,17 +758,17 @@ def save_sampling(name: str):
 
     if not form.values:
         flash("Нечего сохранять: все поля пустые (пустое поле означает «не менять»).", "info")
-        return redirect(url_for("analyzer.health"))
+        return _back()
 
     try:
         set_sampling(form.values)
     except VisionApiError as exc:
         flash(str(exc), "error")
-        return redirect(url_for("analyzer.health"))
+        return _back()
 
     changed = ", ".join(f"{k}={v}" for k, v in form.values.items())
     flash(f"Параметры генерации обновлены на сервере: {changed}.", "success")
-    return redirect(url_for("analyzer.health"))
+    return _back()
 
 
 @bp.route("/health/backend/<name>/settings", methods=["POST"])
@@ -817,6 +788,7 @@ def save_provider_settings(name: str):
         removed = credentials.clear_key(name)
         invalidate_models_cache(name)
         invalidate_providers()
+        invalidate_health()
         flash(f"Ключ «{provider.title}» удалён." if removed else "Ключ и так не был задан.", "success" if removed else "info")
         if removed:
             try:
@@ -825,38 +797,39 @@ def save_provider_settings(name: str):
                 is_default = False
             if is_default:
                 flash(f"«{provider.title}» — бэкенд по умолчанию на сервере, а ключа больше нет: запросы без явного выбора "
-                      "будут падать. Выберите другой бэкенд по умолчанию в блоке «Общий статус».", "error")
-        return redirect(url_for("analyzer.health"))
+                      "будут падать. Выберите другой бэкенд в блоке «Используемый бэкенд».", "error")
+        return _back()
 
     raw = request.form.get("credential", "")
     if not raw.strip():
         flash("Нечего сохранять: поле пустое (пустое поле означает «не менять»).", "info")
-        return redirect(url_for("analyzer.health"))
+        return _back()
 
     try:
         credentials.set_key(name, raw, user_id=current_user.id)
     except credentials.CredentialsError as exc:
         flash(str(exc), "error")
-        return redirect(url_for("analyzer.health"))
+        return _back()
     finally:
         raw = ""  # не держим значение дольше нужного
 
     invalidate_models_cache(name)  # кэш относился к прежнему ключу
     invalidate_providers()
+    invalidate_health()
 
     # Проверяем ключ реальным запросом (/health теперь шлёт его в заголовке).
     try:
-        probe = (check_health().get("backends") or {}).get(name) or {}
+        probe = (check_health(force=True).get("backends") or {}).get(name) or {}
     except VisionApiError as exc:
         flash(f"Ключ «{provider.title}» сохранён, но проверить его не удалось: {exc}", "error")
-        return redirect(url_for("analyzer.health"))
+        return _back()
 
     if probe.get("ok"):
         flash(f"Ключ «{provider.title}» сохранён — бэкенд отвечает. Список моделей можно загрузить кнопкой «Обновить список».", "success")
     else:
         reason = probe.get("error") or "нет ответа"
         flash(f"Ключ «{provider.title}» сохранён, но бэкенд не отвечает: {reason}", "error")
-    return redirect(url_for("analyzer.health"))
+    return _back()
 
 
 @bp.route("/health/backend/<name>/models/refresh", methods=["POST"])
@@ -865,11 +838,11 @@ def refresh_models(name: str):
     """Обновить кэш списка моделей провайдера (живой запрос — может занять время)."""
     provider = _require_backend(name)
     if not _backend_is_available(name):
-        return redirect(url_for("analyzer.health"))
+        return _back()
     try:
         models = get_models(name, force=True)
     except VisionApiError as exc:
         flash(f"Не удалось получить список моделей «{provider.title}»: {exc}", "error")
-        return redirect(url_for("analyzer.health"))
+        return _back()
     flash(f"Список моделей «{provider.title}» обновлён: {len(models)}.", "success")
-    return redirect(url_for("analyzer.health"))
+    return _back()

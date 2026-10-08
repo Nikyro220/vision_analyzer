@@ -783,6 +783,9 @@ textarea.input {
  * выше по файлу — здесь он просто становится основным языком чата.
  */
 
+.chat-toolbar { display: flex; justify-content: flex-end; margin-bottom: 8px; }
+.chat-layout[data-sessions="collapsed"] { grid-template-columns: 1fr; }
+.chat-layout[data-sessions="collapsed"] .chat-sessions-card { display: none; }
 .chat-layout { grid-template-columns: 260px 1fr; align-items: stretch; height: 74vh; min-height: 480px; }
 
 .chat-card { display: flex; flex-direction: column; padding: 0; overflow: hidden; height: 100%; }
@@ -1223,6 +1226,9 @@ textarea.input {
     margin-bottom: -1px;
     cursor: pointer;
 }
+a.tab { text-decoration: none; }
+.health-page[data-tab="analysis"] [data-tab-only="chat"],
+.health-page[data-tab="chat"] [data-tab-only="analysis"] { display: none; }
 .tab:hover { color: var(--text); background: var(--bg-hover); }
 .tab.is-active { color: var(--accent-strong); border-bottom-color: var(--accent); }
 .tab:focus-visible, .vs-swatch:focus-visible {

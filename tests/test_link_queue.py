@@ -95,9 +95,9 @@ def test_clear_credential(client):
     provs = [services.ProviderInfo(name="gemini", label="Gemini", credential=services.CredentialField(label="Ключ"))]
     health = {"ok": True, "default_backend": "gemini", "backends": {"gemini": {"ok": True}}}
     with mock.patch("vision_app.blueprints.analyzer.get_providers", lambda: provs), \
-         mock.patch("vision_app.blueprints.analyzer.check_health", lambda: health), \
+         mock.patch("vision_app.blueprints.analyzer.check_health", lambda force=False: health), \
          mock.patch("vision_app.services.get_providers", lambda: provs), \
-         mock.patch("vision_app.services.check_health", lambda: health):
+         mock.patch("vision_app.services.check_health", lambda force=False: health):
         html = client.get("/health/").get_data(as_text=True)
         assert "input-locked" in html and "Стереть" in html
         client.post("/health/backend/gemini/settings", data={"clear_credential": "1"})

@@ -48,8 +48,9 @@
     <input type="hidden" name="review" value="{{ request.args.get('review', '') }}" data-filter-mirror="review">
     <input type="hidden" name="q" value="{{ request.args.get('q', '') }}" data-filter-mirror="q">
     <input type="hidden" name="user" value="{{ request.args.get('user', '') }}" data-filter-mirror="user">
+    <input type="hidden" name="uid" value="{{ request.args.get('uid', '') }}" data-filter-mirror="uid">
     <button type="submit" class="btn btn-danger">Удалить все найденные ({{ page.total }})</button>
-    <span class="field-hint" data-filtered-hint>{% if request.args.get('risk') or request.args.get('review') or request.args.get('q') or request.args.get('user') %}По текущему фильтру, со всех страниц.{% else %}Фильтр не задан — будет удалена вся история системы.{% endif %}</span>
+    <span class="field-hint" data-filtered-hint>{% if request.args.get('risk') or request.args.get('review') or request.args.get('q') or request.args.get('user') or request.args.get('uid') %}По текущему фильтру, со всех страниц.{% else %}Фильтр не задан — будет удалена вся история системы.{% endif %}</span>
 </form>
 {% endif %}
 

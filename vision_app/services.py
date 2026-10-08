@@ -109,8 +109,33 @@ def _request_auth_headers(backend: str) -> dict[str, str]:
     return _auth_headers("" if _fallback_enabled() else backend)
 
 
-def check_health() -> dict:
-    """Опрашивает /health. Возвращает словарь статуса или бросает VisionApiError."""
+_health_lock = threading.Lock()
+_health_state: dict = {"data": None, "at": 0.0}
+
+
+def check_health(force: bool = False) -> dict:
+    """Статус сервера анализа (GET /health) или VisionApiError.
+
+    Ответ кэшируется на VISION_API_HEALTH_CACHE_TTL секунд, чтобы страница статуса и сводка
+    не дёргали сервер (а он — бэкенды) на каждое открытие. force=True — свежий опрос
+    (кнопка «Обновить статус», проверка после смены ключа). Ошибки не кэшируются."""
+    ttl = conf("VISION_API_HEALTH_CACHE_TTL")
+    now = time.monotonic()
+    with _health_lock:
+        st = _health_state
+        if not force and ttl > 0 and st["data"] is not None and now - st["at"] < ttl:
+            return dict(st["data"])
+        data = _fetch_health()
+        st.update(data=data, at=now)
+        return dict(data)
+
+
+def invalidate_health() -> None:
+    with _health_lock:
+        _health_state.update(data=None, at=0.0)
+
+
+def _fetch_health() -> dict:
     try:
         resp = requests.get(
             f"{_base_url()}/health", headers=_auth_headers(), timeout=conf("VISION_API_HEALTH_TIMEOUT"),
@@ -777,9 +802,20 @@ def _pick_sampling(data) -> dict:
     return {key: data[key] for key in SAMPLING_KEYS if key in data}
 
 
+_sampling_cache: dict = {"data": None, "at": 0.0}
+
+
 def get_sampling() -> dict:
-    """Текущие параметры генерации сервера (GET /sampling). Общие для всех бэкендов."""
-    return _pick_sampling(_call("get", "/sampling"))
+    """Текущие параметры генерации сервера (GET /sampling). Общие для всех бэкендов.
+    Кэшируется на VISION_API_HEALTH_CACHE_TTL секунд; set_sampling обновляет кэш сам."""
+    ttl = conf("VISION_API_HEALTH_CACHE_TTL")
+    now = time.monotonic()
+    c = _sampling_cache
+    if ttl > 0 and c["data"] is not None and now - c["at"] < ttl:
+        return dict(c["data"])
+    data = _pick_sampling(_call("get", "/sampling"))
+    c.update(data=data, at=now)
+    return dict(data)
 
 
 def set_sampling(values: dict) -> dict:
@@ -788,7 +824,9 @@ def set_sampling(values: dict) -> dict:
     payload = {k: v for k, v in values.items() if k in SAMPLING_KEYS}
     if not payload:
         raise VisionApiError("Нет параметров для сохранения.")
-    return _pick_sampling(_call("post", "/sampling", json=payload))
+    data = _pick_sampling(_call("post", "/sampling", json=payload))
+    _sampling_cache.update(data=data, at=time.monotonic())
+    return data
 
 def set_default_backend(name: str) -> dict:
     """Меняет бэкенд по умолчанию на сервере анализа (POST /config, поле backend).

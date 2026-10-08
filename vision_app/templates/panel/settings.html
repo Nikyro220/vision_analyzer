@@ -204,6 +204,20 @@ document.addEventListener("DOMContentLoaded", () => {
     const toggleAll = document.getElementById("settings-toggle-all");
     let savedOpen = null;
 
+    // Какие разделы развёрнуты — помним в браузере между заходами. Во время поиска (разделы
+    // раскрываются сами) и при сохранении настроек не трогаем: пишем только ручные действия.
+    const OPEN_KEY = "vt-settings-open-v1";
+    const isSearching = () => { const f = document.getElementById("settings-filter"); return !!(f && f.value.trim()); };
+    const saveOpen = () => {
+        if (isSearching()) return;
+        try { localStorage.setItem(OPEN_KEY, JSON.stringify(groups.filter((g) => g.open).map((g) => g.id))); } catch (e) { /* приватный режим */ }
+    };
+    try {
+        const stored = JSON.parse(localStorage.getItem(OPEN_KEY) || "[]");
+        if (Array.isArray(stored)) groups.forEach((g) => { g.open = stored.includes(g.id); });
+    } catch (e) { /* битое значение — остаёмся со свёрнутыми */ }
+    groups.forEach((g) => g.addEventListener("toggle", saveOpen));
+
     const syncToggleLabel = () => {
         if (!toggleAll) return;
         const allOpen = groups.length > 0 && groups.filter((g) => !g.hidden).every((g) => g.open);

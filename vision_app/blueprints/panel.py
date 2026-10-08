@@ -249,6 +249,12 @@ def user_toggle_block(pk: int):
     return redirect(_safe_referrer(url_for("panel.users_list")))
 
 
+def _analysis_uid() -> int | None:
+    """Точный фильтр по пользователю из выпадающего списка (?uid=)."""
+    raw = request.args.get("uid", request.form.get("uid", "")).strip()
+    return int(raw) if raw.isdigit() else None
+
+
 def _analysis_filters() -> tuple[list, str, bool, str, str]:
     """Условия фильтра для «Все анализы» (только завершённые) + значения для формы.
 
@@ -268,6 +274,9 @@ def _analysis_filters() -> tuple[list, str, bool, str, str]:
         conditions.append(AnalysisResult.original_name.icontains(query, autoescape=True))
     if user_query:
         conditions.append(AnalysisResult.user.has(User.username.icontains(user_query, autoescape=True)))
+    uid = _analysis_uid()
+    if uid is not None:
+        conditions.append(AnalysisResult.user_id == uid)
     return conditions, risk_filter, review_only, query, user_query
 
 
@@ -296,6 +305,8 @@ def analyses_list():
         review_only=review_only,
         query=query,
         user_query=user_query,
+        uid=_analysis_uid(),
+        users=db.session.execute(select(User.id, User.username).order_by(User.username)).all(),
     )
 
 
@@ -313,6 +324,7 @@ def analyses_delete_filtered():
             review="1" if review_only else None,
             q=query or None,
             user=user_query or None,
+            uid=_analysis_uid(),
         )
     )
 
