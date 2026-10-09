@@ -17,15 +17,22 @@
     <p class="report-error-text">{{ error }}</p>
 </div>
 {% else %}
-<div class="panel-grid">
-    <div class="card">
-        <p class="field-hint"><a href="{{ url_for('analyzer.health', tab=tab, refresh=1) }}" data-keep-tab>Обновить статус</a> — состояние бэкендов хранится в кэше, вкладки переключаются без запросов к серверу.</p>
-        {% if not status.get('ok') %}<p><span class="tag tag-warn">Сервер недоступен</span></p>{% endif %}
+<div class="health-toolbar">
+    <p class="field-hint">Состояние бэкендов хранится в кэше, вкладки переключаются без запросов к серверу.</p>
+    {% if not status.get('ok') %}<span class="tag tag-warn">Сервер недоступен</span>{% endif %}
+    <a class="btn btn-secondary btn-sm health-refresh" href="{{ url_for('analyzer.health', tab=tab, refresh=1) }}" data-keep-tab>
+        <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.6-5.9"/><path d="M20 4v5h-5"/></svg>
+        Обновить статус
+    </a>
+</div>
+
+<div class="card health-summary">
+    <div class="health-summary-body">
         {% for t, ctx in tabs.items() %}
         {% set is_chat = t == 'chat' %}
         <div data-tab-only="{{ t }}">
         <h2 class="card-title">Используемый бэкенд — {{ 'чат' if is_chat else 'анализ' }}</h2>
-        <p>
+        <p class="health-current">
             {% if ctx.follows_analysis %}
                 Как для анализов: <strong>{{ ctx.backend or ctx.effective_backend or '—' }}</strong>, модель: <strong>{{ ctx.model or 'авто' }}</strong>
             {% elif ctx.backend %}
@@ -71,7 +78,7 @@
 
 <div class="backend-list">
     {% for card in cards %}
-    <div class="card backend-card">
+    <div class="card backend-card{% if not card.available %} is-down{% endif %}">
         <div class="backend-head">
             <h2 class="card-title">{{ card.title }}</h2>
             {% if card.available %}<span class="tag tag-ok">Работает</span>{% elif not card.configured %}<span class="tag tag-warn">Не настроен</span>{% else %}<span class="tag tag-warn">Недоступен</span>{% endif %}
@@ -85,7 +92,7 @@
             <dt>Адрес</dt><dd>{{ card.info.get('endpoint', '—') }}</dd>
             {% if card.info.get('model') %}<dt>Модель (авто)</dt><dd>{{ card.info.get('model') }}</dd>{% endif %}
             {% for t, st in card.by_tab.items() %}{% if st.is_active %}<dt data-tab-only="{{ t }}">Выбранная модель</dt><dd data-tab-only="{{ t }}">{{ st.active_model or 'авто' }}</dd>{% endif %}{% endfor %}
-            {% if card.info.get('error') %}<dt>Ошибка</dt><dd>{{ card.info.get('error') }}</dd>{% endif %}
+            {% if card.info.get('error') %}<dt>Ошибка</dt><dd class="is-error">{{ card.info.get('error') }}</dd>{% endif %}
         </dl>
 
         {% if card.credential %}

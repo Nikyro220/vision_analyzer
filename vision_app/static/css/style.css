@@ -1592,7 +1592,7 @@ input[type="checkbox"]:disabled { opacity: 0.5; cursor: not-allowed; }
    ============================================================ */
 
 .chat-layout {
-    --chat-r: clamp(14px, calc(var(--radius) * 2.5), 22px);
+    --chat-r: min(calc(var(--radius) * 4 + 2px), calc(var(--radius) * 1.2 + 10.4px));
     --chat-r-sm: calc(var(--chat-r) * 0.6);
     --chat-bubble-bot: color-mix(in srgb, var(--bg-elevated) 80%, var(--bg-panel));
     --chat-text-soft: color-mix(in srgb, var(--text) 88%, var(--bg-panel));
@@ -1829,13 +1829,370 @@ input[type="checkbox"]:disabled { opacity: 0.5; cursor: not-allowed; }
 /* Нижний отступ страницы нужен остальным разделам; чату он лишний */
 .content:has(.chat-layout) { padding-bottom: 24px; }
 .chat-layout {
+    position: relative;
     /* шапка страницы + отступы ≈ 150px; запас на случай, если подзаголовок перенесётся */
-    height: calc(100dvh - 150px);
-    min-height: 480px;
-    /* даже при «Контент на всю ширину» диалог не растягивается шире комфортного */
-    max-width: 1180px;
+    height: var(--chat-h, calc(100dvh - 150px));
+    min-height: 360px;
+    /* даже при «Контент на всю ширину» диалог не растягивается шире комфортного;
+       --chat-h / --chat-w выставляет ручка изменения размера (chat.html) */
+    max-width: var(--chat-w, 1180px);
 }
 @media (max-width: 860px) {
     .content:has(.chat-layout) { padding-bottom: 32px; }
     .chat-layout { height: auto; max-width: none; }
+    .chat-resize { display: none; }
+}
+
+/* ============================================================
+   Страница результата анализа — мягкий вид.
+   Скругление зависит от «Скругление углов» (та же формула, что у чата).
+   Цвет вердикта задаётся уровнем риска (--risk-*), так что
+   работает со всеми темами.
+   ============================================================ */
+
+.result-layout {
+    --res-r: min(calc(var(--radius) * 4 + 2px), calc(var(--radius) * 1.2 + 10.4px));
+    --res-r-sm: calc(var(--res-r) * 0.6);
+    max-width: 1240px;
+    gap: 20px;
+}
+.result-layout .card { border-radius: var(--res-r); }
+
+/* ---------- Картинка ---------- */
+.result-image-card { padding: 12px; background: color-mix(in srgb, var(--bg) 55%, var(--bg-panel)); }
+.result-image {
+    inset: 12px;
+    width: calc(100% - 24px);
+    height: calc(100% - 24px);
+    border-radius: var(--res-r-sm);
+}
+
+/* ---------- Карточка отчёта ---------- */
+.result-report-card { padding: 22px 26px 24px; }
+
+/* Заголовки разделов: обычным шрифтом, без капса и разрядки */
+.result-report-card .card-title {
+    margin: 0 0 6px;
+    font-family: var(--font-body);
+    font-size: 0.82rem;
+    font-weight: 600;
+    text-transform: none;
+    letter-spacing: 0;
+    color: var(--text-muted);
+}
+.report-section { padding: 16px 0; border-top: 1px solid color-mix(in srgb, var(--border-soft) 75%, transparent); }
+.report-section:first-of-type { border-top: none; }
+.result-report-card .report-text {
+    max-width: 78ch;
+    font-size: 0.93rem;
+    line-height: 1.7;
+    color: color-mix(in srgb, var(--text) 90%, var(--bg-panel));
+}
+
+/* ---------- Блок вердикта: уровень риска + что делать ---------- */
+.verdict {
+    --verdict: var(--text-dim);
+    margin-bottom: 8px;
+    padding: 16px 18px;
+    border: 1px solid color-mix(in srgb, var(--verdict) 38%, var(--border-soft));
+    border-radius: var(--res-r);
+    background: color-mix(in srgb, var(--verdict) 10%, var(--bg-panel));
+}
+.verdict-high { --verdict: var(--risk-high); }
+.verdict-medium { --verdict: var(--risk-medium); }
+.verdict-low { --verdict: var(--risk-low); }
+.verdict .risk-header { margin-bottom: 0; gap: 8px; }
+.verdict .risk-pill-lg { font-size: 0.9rem; padding: 6px 16px; }
+.verdict-action { margin-top: 14px; padding-top: 12px; border-top: 1px solid color-mix(in srgb, var(--verdict) 22%, transparent); }
+.verdict-action .report-text { font-weight: 500; color: var(--text); }
+
+/* Теги в шапке отчёта — «таблетки», а не прямоугольники */
+.result-report-card .tag { border-radius: 999px; padding: 3px 12px; }
+.tag-quiet { border-color: transparent; background: color-mix(in srgb, var(--text-dim) 18%, transparent); }
+
+/* ---------- Текст на изображении — цитата ---------- */
+.report-quote {
+    margin: 2px 0 0;
+    padding: 10px 14px;
+    border-radius: var(--res-r-sm);
+    background: color-mix(in srgb, var(--bg) 40%, var(--bg-panel));
+    border: 1px solid color-mix(in srgb, var(--border-soft) 80%, transparent);
+    font-size: 0.93rem;
+    line-height: 1.6;
+    white-space: pre-wrap;
+}
+
+/* ---------- Сигналы: по карточке на сигнал ---------- */
+.signal-list { list-style: none; margin: 4px 0 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.signal {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 12px 14px;
+    border-radius: var(--res-r-sm);
+    background: color-mix(in srgb, var(--bg) 40%, var(--bg-panel));
+    border: 1px solid color-mix(in srgb, var(--border-soft) 80%, transparent);
+}
+.signal-cat {
+    align-self: flex-start;
+    padding: 2px 10px;
+    border-radius: 999px;
+    font-family: var(--font-mono);
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: var(--accent-strong);
+    background: var(--accent-soft);
+    overflow-wrap: anywhere;
+}
+.signal-detail { font-size: 0.9rem; line-height: 1.6; color: color-mix(in srgb, var(--text) 88%, var(--bg-panel)); }
+
+/* ---------- Заметки: контекст от пользователя, ожидание, ошибка ---------- */
+.caption-note, .pending-note, .report-error {
+    margin-bottom: 14px;
+    padding: 14px 16px;
+    border-radius: var(--res-r);
+    background: color-mix(in srgb, var(--bg) 40%, var(--bg-panel));
+    border: 1px solid color-mix(in srgb, var(--border-soft) 80%, transparent);
+}
+.report-error {
+    background: color-mix(in srgb, var(--danger) 9%, var(--bg-panel));
+    border-color: color-mix(in srgb, var(--danger) 40%, transparent);
+}
+.raw-block { border-radius: var(--res-r-sm); }
+
+/* ---------- Удаление ---------- */
+.result-delete { margin-top: 8px; padding-top: 18px; border-top: 1px solid color-mix(in srgb, var(--border-soft) 75%, transparent); }
+.result-delete .btn { border-radius: 999px; padding: 9px 20px; font-size: 0.88rem; }
+
+/* ---------- Шапка страницы ---------- */
+.page-header .id-tag { vertical-align: middle; }
+
+@media (max-width: 880px) {
+    .result-layout { max-width: none; }
+    .result-report-card { padding: 18px 16px 20px; }
+}
+
+/* ---------- Запасной вид: ответ модели не удалось разобрать ---------- */
+.verdict-note {
+    margin: 12px 0 0;
+    padding-top: 12px;
+    border-top: 1px solid color-mix(in srgb, var(--verdict) 22%, transparent);
+    font-size: 0.88rem;
+    line-height: 1.6;
+    color: var(--text-muted);
+}
+/* длинный сырой ответ прокручивается внутри блока, а не раздувает страницу */
+.result-report-card .raw-block {
+    margin: 4px 0 0;
+    max-height: 420px;
+    overflow: auto;
+    padding: 14px 16px;
+    line-height: 1.6;
+    background: color-mix(in srgb, var(--bg) 40%, var(--bg-panel));
+    border-color: color-mix(in srgb, var(--border-soft) 80%, transparent);
+}
+.result-report-card .raw-block:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* ---------- Ручка изменения размера окна чата ---------- */
+.chat-resize {
+    position: absolute;
+    right: 6px;
+    bottom: 6px;
+    z-index: 2;
+    width: 26px;
+    height: 26px;
+    padding: 0;
+    display: flex;
+    align-items: flex-end;
+    justify-content: flex-end;
+    border: none;
+    border-radius: 8px;
+    background: transparent;
+    color: var(--text-dim);
+    cursor: nwse-resize;
+    touch-action: none;
+    opacity: .55;
+    transition: opacity .12s ease, color .12s ease, background .12s ease;
+}
+.chat-resize svg { display: block; margin: 0 4px 4px 0; }
+.chat-resize:hover, .chat-resize:focus-visible, .chat-layout.is-resizing .chat-resize {
+    opacity: 1;
+    color: var(--accent-strong);
+    background: var(--accent-soft);
+}
+.chat-resize:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+/* во время перетаскивания не выделяется текст и не мешает прокрутка */
+.chat-layout.is-resizing { user-select: none; -webkit-user-select: none; }
+.chat-layout.is-resizing .chat-log { scroll-behavior: auto; }
+
+/* ============================================================
+   Сервер анализа (страница статуса) — спокойный вид.
+   Все правила ниже действуют только внутри .health-page, поэтому
+   общие .card-title / .tag / .tabs на других страницах не меняются.
+   Скругление зависит от «Скругление углов» (та же формула, что у чата).
+   ============================================================ */
+
+.health-page {
+    --hp-r: min(calc(var(--radius) * 4 + 2px), calc(var(--radius) * 1.2 + 10.4px));
+    --hp-r-sm: calc(var(--hp-r) * 0.65);
+    --hp-soft: color-mix(in srgb, var(--border-soft) 75%, transparent);
+    --hp-hint: color-mix(in srgb, var(--text-dim) 45%, var(--text-muted));
+    max-width: 980px;
+}
+
+/* ---------- Вкладки «Анализ / Чат» — переключатель-таблетка ---------- */
+.health-page .tabs {
+    display: inline-flex;
+    gap: 2px;
+    padding: 4px;
+    margin: 0 0 18px;
+    border: 1px solid var(--hp-soft);
+    border-radius: 999px;
+    background: var(--bg-panel);
+}
+.health-page .tab {
+    margin: 0;
+    padding: 7px 20px;
+    border: none;
+    border-radius: 999px;
+    font-family: var(--font-body);
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--text-muted);
+}
+.health-page .tab.is-active { background: var(--accent-soft); color: var(--accent-strong); }
+.health-page .tab:hover:not(.is-active) { background: var(--bg-hover); }
+
+/* ---------- Панель «Обновить статус» ---------- */
+.health-toolbar { display: flex; align-items: center; gap: 12px; margin: 0 0 14px; flex-wrap: wrap; }
+.health-toolbar .field-hint { margin: 0; flex: 1 1 280px; }
+.health-refresh { gap: 8px; }
+.health-page .btn-sm { padding: 7px 14px; min-height: 36px; }
+
+/* ---------- Карточки ---------- */
+.health-page .card {
+    border-radius: var(--hp-r);
+    border-color: var(--hp-soft);
+    padding: 22px 26px;
+}
+.health-page .card-title {
+    margin: 0;
+    font-family: var(--font-body);
+    font-size: 0.82rem;
+    font-weight: 600;
+    text-transform: none;
+    letter-spacing: 0;
+    color: var(--text-muted);
+}
+
+/* Верхняя карточка: что используется сейчас */
+.health-current { margin: 6px 0 16px; font-size: 1.1rem; line-height: 1.5; }
+.health-current strong { font-weight: 600; }
+.health-summary [data-tab-only] + [data-tab-only] { margin-top: 0; }
+
+/* Карточки бэкендов */
+.backend-list { gap: 14px; margin-top: 14px; }
+.backend-head { gap: 10px; margin-bottom: 14px; }
+.health-page .backend-head .card-title {
+    font-size: 1.05rem;
+    font-weight: 600;
+    color: var(--text);
+}
+/* недоступный бэкенд — тише, чтобы работающие бросались в глаза первыми */
+.backend-card.is-down { background: color-mix(in srgb, var(--bg-panel) 55%, transparent); }
+.backend-card.is-down .backend-head .card-title { color: var(--text-muted); }
+
+/* ---------- Статусы: таблетки с точкой, без острых рамок ---------- */
+.health-page .tag {
+    display: inline-flex;
+    align-items: center;
+    padding: 3px 12px;
+    border: none;
+    border-radius: 999px;
+    font-size: 0.78rem;
+    font-weight: 600;
+    background: color-mix(in srgb, var(--text-dim) 20%, transparent);
+    color: var(--text-muted);
+}
+.health-page .tag-ok   { background: color-mix(in srgb, var(--risk-low) 16%, transparent);    color: var(--risk-low); }
+.health-page .tag-warn { background: color-mix(in srgb, var(--risk-medium) 16%, transparent); color: var(--risk-medium); }
+.health-page .tag-accent { background: var(--accent-soft); color: var(--accent-strong); }
+.health-page .backend-head .tag-ok::before,
+.health-page .backend-head .tag-warn::before {
+    content: "";
+    width: 7px;
+    height: 7px;
+    margin-right: 7px;
+    border-radius: 50%;
+    background: currentColor;
+}
+
+/* ---------- Список «подпись — значение»: колонка подписей одной ширины во всех карточках ---------- */
+.health-page .def-list { grid-template-columns: 9.5rem minmax(0, 1fr); gap: 8px 16px; }
+.health-page .def-list dt { font-size: 0.85rem; color: var(--text-muted); padding-top: 1px; }
+.health-page .def-list dd { font-size: 0.92rem; overflow-wrap: anywhere; }
+.health-page .def-list dd.is-error { color: var(--danger-strong); }
+
+/* ---------- Разделы внутри карточки ---------- */
+.health-page .backend-section {
+    margin-top: 20px;
+    padding-top: 18px;
+    border-top: 1px solid var(--hp-soft);
+}
+.health-page .section-title {
+    margin: 0 0 12px;
+    font-family: var(--font-body);
+    font-size: 0.95rem;
+    font-weight: 600;
+    letter-spacing: 0;
+    text-transform: none;
+    color: var(--text);
+}
+
+/* ---------- Подсказки: крупнее и контрастнее, строка не бесконечная ---------- */
+.health-page .field-hint {
+    margin: 10px 0 0;
+    max-width: 72ch;
+    font-size: 0.82rem;
+    line-height: 1.6;
+    color: var(--hp-hint);
+}
+.health-page .field > label { font-size: 0.85rem; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+
+/* ---------- Поля и кнопки: одна высота, одно скругление ---------- */
+.health-page input[type="text"],
+.health-page input[type="password"],
+.health-page select,
+.health-page .input {
+    min-height: 42px;
+    padding: 9px 14px;
+    border-radius: var(--hp-r-sm);
+    border-color: color-mix(in srgb, var(--border) 85%, transparent);
+    font-size: 0.92rem;
+}
+.health-page .btn { min-height: 42px; border-radius: var(--hp-r-sm); }
+.health-page .btn.btn-sm { min-height: 36px; }
+.health-page .form-inline { gap: 10px; margin-top: 8px; }
+.health-page .input-locked { color: var(--text-muted); letter-spacing: 0.08em; }
+
+/* Ошибки и предупреждения — мягкая плашка вместо голого красного текста */
+.health-page .field-error {
+    margin-top: 10px;
+    padding: 10px 14px;
+    border-radius: var(--hp-r-sm);
+    background: color-mix(in srgb, var(--danger) 9%, transparent);
+    border: 1px solid color-mix(in srgb, var(--danger) 32%, transparent);
+    font-size: 0.85rem;
+    line-height: 1.55;
+}
+.health-page .sampling-grid .field-error { margin: 0; padding: 0; background: none; border: none; }
+.health-page .field-error code { border-radius: 6px; }
+
+.health-page .sampling-grid { gap: 14px; }
+.health-page .report-error-text { font-size: 0.92rem; }
+
+@media (max-width: 640px) {
+    .health-page .card { padding: 18px 16px; }
+    .health-page .def-list { grid-template-columns: 1fr; gap: 2px 0; }
+    .health-page .def-list dd { margin-bottom: 10px; }
 }

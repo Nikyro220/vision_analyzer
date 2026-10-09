@@ -12,7 +12,10 @@
 </div>
 
 <div class="panel-grid chat-layout" id="chat-layout">
-    <script>try { if (localStorage.getItem("vt-chat-sessions-v1") === "collapsed") document.getElementById("chat-layout").setAttribute("data-sessions", "collapsed"); } catch (e) {}</script>
+    <script>try { if (localStorage.getItem("vt-chat-sessions-v1") === "collapsed") document.getElementById("chat-layout").setAttribute("data-sessions", "collapsed"); } catch (e) {}
+    try { var sz = JSON.parse(localStorage.getItem("vt-chat-size-v1") || "null"), lay = document.getElementById("chat-layout");
+          if (sz && sz.h > 0) lay.style.setProperty("--chat-h", sz.h + "px");
+          if (sz && sz.w > 0) lay.style.setProperty("--chat-w", sz.w + "px"); } catch (e) {}</script>
     <div class="card chat-sessions-card" id="chat-sessions">
         <form method="post" action="{{ url_for('chat.new_session') }}">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
@@ -101,6 +104,12 @@
             <p class="chat-error" id="chat-error" hidden></p>
         </div>
     </div>
+
+    <button type="button" class="chat-resize" id="chat-resize"
+            title="Потяните, чтобы изменить размер. Двойной клик — сбросить"
+            aria-label="Изменить размер окна чата (стрелки — изменить, Home — сбросить)">
+        <svg viewBox="0 0 12 12" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><path d="M11 3L3 11M11 7L7 11"/></svg>
+    </button>
 </div>
 {% endblock %}
 
@@ -122,6 +131,75 @@
         if (hide) layout.setAttribute("data-sessions", "collapsed"); else layout.removeAttribute("data-sessions");
         try { localStorage.setItem("vt-chat-sessions-v1", hide ? "collapsed" : "expanded"); } catch (e) {}
         sync();
+    });
+})();
+</script>
+<script>
+/* Изменение размера окна чата: тянем ручку в правом нижнем углу. Размер запоминается. */
+(function () {
+    var layout = document.getElementById("chat-layout"), handle = document.getElementById("chat-resize");
+    if (!layout || !handle) return;
+    var KEY = "vt-chat-size-v1", MIN_H = 360, MAX_H = 3000, MIN_W = 640;
+    var drag = null;
+
+    function availWidth() {
+        var p = layout.parentElement, cs = getComputedStyle(p);
+        return p.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
+    }
+    function clamp(v, lo, hi) { return Math.min(Math.max(v, lo), hi); }
+    function apply(h, w) {
+        h = clamp(Math.round(h), MIN_H, MAX_H);
+        w = clamp(Math.round(w), MIN_W, Math.max(MIN_W, Math.floor(availWidth())));
+        layout.style.setProperty("--chat-h", h + "px");
+        layout.style.setProperty("--chat-w", w + "px");
+        return { h: h, w: w };
+    }
+    function save(size) { try { localStorage.setItem(KEY, JSON.stringify(size)); } catch (e) {} }
+    function reset() {
+        layout.style.removeProperty("--chat-h");
+        layout.style.removeProperty("--chat-w");
+        try { localStorage.removeItem(KEY); } catch (e) {}
+    }
+    function current() { var r = layout.getBoundingClientRect(); return { h: r.height, w: r.width }; }
+
+    handle.addEventListener("pointerdown", function (e) {
+        if (e.button !== undefined && e.button !== 0) return;
+        var c = current();
+        drag = { x: e.clientX, y: e.clientY, h: c.h, w: c.w, last: null };
+        handle.setPointerCapture(e.pointerId);
+        layout.classList.add("is-resizing");
+        e.preventDefault();
+    });
+    handle.addEventListener("pointermove", function (e) {
+        if (!drag) return;
+        drag.last = apply(drag.h + (e.clientY - drag.y), drag.w + (e.clientX - drag.x));
+    });
+    function stop(e) {
+        if (!drag) return;
+        if (drag.last) save(drag.last);
+        drag = null;
+        layout.classList.remove("is-resizing");
+        try { handle.releasePointerCapture(e.pointerId); } catch (err) {}
+    }
+    handle.addEventListener("pointerup", stop);
+    handle.addEventListener("pointercancel", stop);
+    handle.addEventListener("dblclick", reset);
+
+    /* с клавиатуры: стрелки — шаг 20px (с Shift — 80px), Home — сброс */
+    handle.addEventListener("keydown", function (e) {
+        var step = e.shiftKey ? 80 : 20, c = current(), dx = 0, dy = 0;
+        if (e.key === "ArrowRight") dx = step; else if (e.key === "ArrowLeft") dx = -step;
+        else if (e.key === "ArrowDown") dy = step; else if (e.key === "ArrowUp") dy = -step;
+        else if (e.key === "Home") { e.preventDefault(); reset(); return; }
+        else return;
+        e.preventDefault();
+        save(apply(c.h + dy, c.w + dx));
+    });
+
+    /* окно стало уже, чем сохранённая ширина — max-width и так обрежет, но обновим значение */
+    window.addEventListener("resize", function () {
+        var v = layout.style.getPropertyValue("--chat-w");
+        if (v && parseFloat(v) > availWidth()) layout.style.setProperty("--chat-w", Math.floor(availWidth()) + "px");
     });
 })();
 </script>
