@@ -52,9 +52,46 @@ _FALLBACK_PAUSE = 60  # сек; только если не удалось даж
 # ----------------------------------------------------------------------------
 # Текст и (де)сериализация векторов
 # ----------------------------------------------------------------------------
-def embedding_text(description: str | None, caption: str | None) -> str:
-    """Что именно эмбеддим. Пустая строка — эмбеддить нечего."""
-    parts = [(description or "").strip(), (caption or "").strip()]
+def _report_parts(raw_report) -> tuple[list[str], str, list[str]]:
+    """(body_marks, text_on_image, детали сигналов) из raw_report. Терпимо к чужой форме данных:
+    у старых анализов этих ключей нет, а ответ модели может нарушить схему."""
+    if not isinstance(raw_report, dict):
+        return [], "", []
+    marks: list[str] = []
+    check = raw_report.get("body_marks_check")  # результат точечной проверки по картинке (chat_tools/body_marks.py)
+    for source in (raw_report.get("body_marks"), check.get("body_marks") if isinstance(check, dict) else None):
+        if isinstance(source, str):
+            source = [source]
+        for m in source if isinstance(source, list) else []:
+            m = str(m).strip()
+            if m and m not in marks:
+                marks.append(m)
+    on_image = raw_report.get("text_on_image")
+    on_image = on_image.strip() if isinstance(on_image, str) else ""
+    signals = raw_report.get("signals")
+    details = [
+        str(s["detail"]).strip()
+        for s in (signals if isinstance(signals, list) else [])
+        if isinstance(s, dict) and str(s.get("detail") or "").strip()
+    ]
+    return marks, on_image, details
+
+
+def searchable_text(description: str | None, caption: str | None, raw_report=None) -> str:
+    """Весь текст анализа, по которому ищем ключевые слова: описание, подпись, метки на теле,
+    текст на изображении и детали сигналов. Без усечения. Порядок здесь не важен — для эмбеддинга
+    он важен, см. embedding_text()."""
+    marks, on_image, details = _report_parts(raw_report)
+    parts = [(description or "").strip(), (caption or "").strip(), *marks, on_image, *details]
+    return "\n".join(p for p in parts if p)
+
+
+def embedding_text(description: str | None, caption: str | None, raw_report=None) -> str:
+    """Что именно эмбеддим. Пустая строка — эмбеддить нечего. Окно модели ограничено (~384 токена),
+    поэтому короткие и ценные части (метки на теле, текст на изображении) идут ПЕРЕД длинным
+    описанием: иначе усечение отрежет именно их."""
+    marks, on_image, details = _report_parts(raw_report)
+    parts = [*marks, on_image, (description or "").strip(), (caption or "").strip(), *details]
     return "\n".join(p for p in parts if p)[:int(conf("EMBEDDING_MAX_TEXT_CHARS"))]
 
 
@@ -115,12 +152,12 @@ def index_analysis(analysis_id: int) -> bool:
     нечего эмбеддить); недостающее потом добьёт backfill. Нужен app context."""
     try:
         row = db.session.execute(
-            select(AnalysisResult.description, AnalysisResult.caption, AnalysisResult.status)
+            select(AnalysisResult.description, AnalysisResult.caption, AnalysisResult.raw_report, AnalysisResult.status)
             .where(AnalysisResult.id == analysis_id)
         ).one_or_none()
         if row is None or row.status != Status.DONE:
             return False
-        text = embedding_text(row.description, row.caption)
+        text = embedding_text(row.description, row.caption, row.raw_report)
         if not text:
             return False
         vectors, model = services.embed_texts([text])
@@ -173,7 +210,7 @@ def backfill(*, everything: bool = False, max_batches: int | None = None) -> Bac
     total, batches, last_id = 0, 0, 0
     while max_batches is None or batches < max_batches:
         stmt = (
-            select(AnalysisResult.id, AnalysisResult.description, AnalysisResult.caption)
+            select(AnalysisResult.id, AnalysisResult.description, AnalysisResult.caption, AnalysisResult.raw_report)
             .outerjoin(AnalysisEmbedding, AnalysisEmbedding.analysis_id == AnalysisResult.id)
             .where(
                 AnalysisResult.id > last_id,
@@ -192,7 +229,7 @@ def backfill(*, everything: bool = False, max_batches: int | None = None) -> Bac
             break
         last_id = rows[-1].id
 
-        items = [(r.id, embedding_text(r.description, r.caption)) for r in rows]
+        items = [(r.id, embedding_text(r.description, r.caption, r.raw_report)) for r in rows]
         items = [(aid, text) for aid, text in items if text]  # сервер выкидывает пустые -> порядок бы поплыл
         if items:
             try:
@@ -392,7 +429,7 @@ def semantic_search(
     dim = int(query_vector.shape[0])
     # С кэшем blob'ы из БД не читаем: SQL отдаёт только id кандидатов (права и фильтры — те же).
     cols = [AnalysisEmbedding.analysis_id] if use_cache else [AnalysisEmbedding.analysis_id, AnalysisEmbedding.vector]
-    if raw_report_filter is not None:
+    if raw_report_filter is not None or text_filter is not None:
         cols.append(AnalysisResult.raw_report)
     if text_filter is not None:
         cols += [AnalysisResult.description, AnalysisResult.caption]
@@ -415,7 +452,7 @@ def semantic_search(
             continue
         if raw_report_filter is not None and not raw_report_filter(row.raw_report or {}):
             continue
-        if text_filter is not None and not text_filter(f"{row.description or ''}\n{row.caption or ''}"):
+        if text_filter is not None and not text_filter(searchable_text(row.description, row.caption, row.raw_report)):
             continue
         ids.append(row.analysis_id)
         if not use_cache:

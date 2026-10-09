@@ -245,7 +245,7 @@ def test_tool_prompt_follows_the_unified_template(app):
         for tag in ("<tools>", "</tools>", "<protocol>", "</protocol>", "<rules>", "</rules>"):
             assert tag in prompt
         assert prompt.count("<tool name=") == prompt.count("</tool>")
-    assert head.count("<tool name=") == 5 and adm.count("<tool name=") == 4 and user.count("<tool name=") == 2
-    assert "You have 5 tools" in head and "You have 2 tools" in user
+    assert head.count("<tool name=") == 6 and adm.count("<tool name=") == 5 and user.count("<tool name=") == 3
+    assert "You have 6 tools" in head and "You have 3 tools" in user
     assert "email" not in user.lower() and "manage_category" not in user and "search_users" not in user
     assert '{"tool": "manage_user"' in head and '{"tool": "manage_user"' not in adm

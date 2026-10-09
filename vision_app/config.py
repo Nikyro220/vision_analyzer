@@ -230,6 +230,11 @@ class Config:
     SEARCH_MAX_QUERY_CHARS = 300
     SEARCH_MAX_KEYWORDS = 8
 
+    # Инструмент check_body_marks (chat_tools/body_marks.py): VLM смотрит сами картинки.
+    BODY_MARKS_CHECK_DEFAULT_LIMIT = 4  # сколько картинок проверяем за один вызов, если модель не указала
+    BODY_MARKS_CHECK_MAX_LIMIT = 8
+    BODY_MARKS_CHECK_TIME_BUDGET = 120  # сек на один вызов: остальное остаётся на следующий раз
+
     # Инструмент search_users (chat_tools/users.py).
     USER_SEARCH_DEFAULT_LIMIT = 10
     USER_SEARCH_MAX_LIMIT = 25

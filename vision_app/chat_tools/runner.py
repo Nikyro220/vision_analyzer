@@ -37,6 +37,8 @@ from .analyses import TOOL_NAME, ToolResult, active_categories, default_limit, m
 from .categories import TOOL_NAME as CATEGORY_TOOL_NAME
 from .categories import WRITE_ACTIONS as CATEGORY_WRITE_ACTIONS
 from .categories import manage_category
+from .body_marks import TOOL_NAME as BODY_MARKS_TOOL_NAME
+from .body_marks import check_body_marks
 from .images import TOOL_NAME as IMAGE_TOOL_NAME
 from .manage import ACTIONS as MANAGE_ACTIONS
 from .manage import TOOL_NAME as MANAGE_TOOL_NAME
@@ -187,6 +189,26 @@ def build_tool_system_prompt(user=None, images: list[ChatImage] | None = None) -
 """
     image_example = "\n" + call_example(IMAGE_TOOL_NAME, {"image": 1} if images else {"url": "https://example.com/post/1"})
 
+    body_marks_tool_block = f"""
+<tool name="{BODY_MARKS_TOOL_NAME}">
+<purpose>Looks at the stored pictures of finished analyses for tattoos, scars and piercings and remembers the answer. Older analyses were written without any data about such marks, so a text search cannot find a mark there; this tool checks the picture itself.</purpose>
+<args>
+  all optional
+  ids (list of numbers): analysis numbers to check, taken from earlier results; omit it to check the newest analyses that were never checked
+  limit (number 1..{conf('BODY_MARKS_CHECK_MAX_LIMIT')}, default {conf('BODY_MARKS_CHECK_DEFAULT_LIMIT')}): how many pictures to check in one call
+  since_days, risk_level, needs_review, own_only: the same filters as in {TOOL_NAME}
+</args>
+<result>checked (how many pictures were looked at), with_marks, skin_not_visible, failed, remaining_unchecked (how many analyses in scope still were not checked), results (per analysis: skin_visible and body_marks). Cards of the analyses with marks appear under your reply.</result>
+<workflow>
+  1. The question is about tattoos, scars or piercings, and {TOOL_NAME} reported body_marks_unknown above 0 or found nothing: call this tool without asking permission first, then answer with the marks found.
+  2. Every call takes time (one model request per picture). Say how many pictures were checked and how many remain (remaining_unchecked); when some remain and the user wants a complete answer, offer to continue and call the tool again on request.
+  3. skin_visible=false means the picture shows no bare skin: say that the picture does not allow a judgment, never that there is no mark. Say nothing about analyses that were not in results.
+</workflow>
+<when_to_call>Only for questions about tattoos, scars, piercings or other marks on the body. For anything else use {TOOL_NAME}.</when_to_call>
+</tool>
+"""
+    body_marks_example = "\n" + call_example(BODY_MARKS_TOOL_NAME, {"limit": 4})
+
     image_attach_rules = (
         "- A message marked [Прикреплено изображение: …] contains the image itself: examine it and answer by "
         "what is really visible; when something is unclear, say so. You see nothing in an image marked out of "
@@ -275,7 +297,7 @@ def build_tool_system_prompt(user=None, images: list[ChatImage] | None = None) -
         else ""
     )
 
-    tools_total = 2 + 2 * int(is_staff) + int(is_head)  # поиск + analyze_image; staff: пользователи + категории
+    tools_total = 3 + 2 * int(is_staff) + int(is_head)  # поиск + analyze_image + check_body_marks; staff: пользователи + категории
     tools_count = f"{tools_total} tool" + ("" if tools_total == 1 else "s")
 
     return (
@@ -307,7 +329,7 @@ def build_tool_system_prompt(user=None, images: list[ChatImage] | None = None) -
         "  keywords (list of strings): EXACT filter on words in the description text: an analysis stays when at "
         "least one of the words occurs. Use it only for SPECIFIC objects and features that a description names "
         "directly (\"кепка\", \"нож\", \"рюкзак\"): base forms and synonyms, 2-6 words, for example "
-        "[\"кепка\", \"бейсболка\", \"шапка\", \"шляпа\", \"капюшон\"]. For broad topics (religion, weapons, "
+        "[\"кепка\", \"бейсболка\", \"шапка\", \"шляпа\", \"капюшон\"]; for tattoos and body marks [\"татуировка\", \"тату\", \"наколка\", \"шрам\", \"пирсинг\"]. For broad topics (religion, weapons, "
         "violence, extremism, symbols, danger) use categories (when the topic matches a category below) and/or "
         "query, because the full set of words for such a topic cannot be guessed and the filter would drop "
         "matching snapshots. Combined with query: keywords selects, query sorts. An empty result with keywords "
@@ -322,6 +344,7 @@ def build_tool_system_prompt(user=None, images: list[ChatImage] | None = None) -
         f"{manage_tool_block}"
         f"{category_tool_block}"
         f"{image_tool_block}"
+        f"{body_marks_tool_block}"
         "</tools>\n"
         "\n"
         "<protocol>\n"
@@ -331,7 +354,8 @@ def build_tool_system_prompt(user=None, images: list[ChatImage] | None = None) -
         f"{users_example}"
         f"{manage_example}"
         f"{category_example}"
-        f"{image_example}\n"
+        f"{image_example}"
+        f"{body_marks_example}\n"
         "The system runs the request and sends the result in the next message, which starts with "
         "[TOOL RESULT]. After it, answer the user in plain text (not JSON).\n"
         "</protocol>\n"
@@ -345,8 +369,11 @@ def build_tool_system_prompt(user=None, images: list[ChatImage] | None = None) -
         "exact words, the result is approximate: say so.\n"
         "- Records from a meaning search are CANDIDATES, not confirmed matches: descriptions of one topic get "
         "almost the same similarity, which proves nothing by itself. Before answering, compare each record's "
-        "description with the request and name as matching only those that really mention the feature; leave "
-        "the rest out.\n"
+        "description and body_marks with the request and name as matching only those that really mention the "
+        "feature; leave the rest out. A body mark found by a keyword may be written only in body_marks, "
+        "not in the description.\n"
+        "- When a search result has body_marks_unknown, part of the analyses has no data about tattoos, scars "
+        "and piercings: for questions about such marks, never answer \"there are none\" from that result.\n"
         "- A record with same_image_analyses holds repeated analyses of the SAME file: speak of one snapshot "
         "and mention that it was analysed several times (with the numbers). duplicates_merged is how many "
         "repeats were merged.\n"
@@ -367,10 +394,10 @@ def build_tool_system_prompt(user=None, images: list[ChatImage] | None = None) -
 # ---------------------------------------------------------------------------
 
 _FENCE_RE = re.compile(r"^```(?:json)?\s*|\s*```$", re.IGNORECASE)
-_PUBLIC_TOOLS = frozenset({TOOL_NAME, IMAGE_TOOL_NAME})
+_PUBLIC_TOOLS = frozenset({TOOL_NAME, IMAGE_TOOL_NAME, BODY_MARKS_TOOL_NAME})
 _STAFF_TOOLS = frozenset({USERS_TOOL_NAME, CATEGORY_TOOL_NAME})  # категории — как в панели, любой администратор
 _HEAD_TOOLS = frozenset({MANAGE_TOOL_NAME})  # менять пользователей — только главный администратор
-_DATA_TOOLS = frozenset({TOOL_NAME, USERS_TOOL_NAME, IMAGE_TOOL_NAME})  # их результаты содержат чужой текст
+_DATA_TOOLS = frozenset({TOOL_NAME, USERS_TOOL_NAME, IMAGE_TOOL_NAME, BODY_MARKS_TOOL_NAME})  # их результаты содержат чужой текст
 
 
 def allowed_tools(user) -> frozenset[str]:
@@ -507,6 +534,8 @@ def _execute(
             return search_users(user, call.args)
         if call.name == IMAGE_TOOL_NAME:
             return analyze_chat_image(user, call.args, images, session_id)
+        if call.name == BODY_MARKS_TOOL_NAME:
+            return check_body_marks(user, call.args)
         return search_analyses(user, call.args)
     except Exception:  # noqa: BLE001
         current_app.logger.exception("chat_tools: сбой инструмента %s", call.name)

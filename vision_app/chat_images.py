@@ -169,6 +169,13 @@ def to_data_url(rel: str, mime: str = "") -> str | None:
     data = read_bytes(rel)
     if data is None:
         return None
+    return bytes_to_data_url(data, mime, rel)
+
+
+def bytes_to_data_url(data: bytes, mime: str = "", label: str = "") -> str | None:
+    """Байты картинки -> data-URL для модели (правила перекодирования — в to_data_url). None — не
+    открывается как изображение. label — только для лога. Нужна и тем, кто читает файл сам (из
+    uploads/, а не из chat_uploads/, как read_bytes)."""
     max_side = conf("CHAT_MODEL_MAX_SIDE")
     try:
         with Image.open(io.BytesIO(data)) as im:
@@ -192,7 +199,7 @@ def to_data_url(rel: str, mime: str = "") -> str | None:
                 im.save(out, "JPEG", quality=conf("CHAT_MODEL_JPEG_QUALITY"))
                 data, mime = out.getvalue(), "image/jpeg"
     except (OSError, ValueError, Image.DecompressionBombError) as exc:
-        log.warning("Не удалось подготовить вложение %s для модели: %s", rel, exc)
+        log.warning("Не удалось подготовить вложение %s для модели: %s", label, exc)
         return None
     return f"data:{mime or 'image/jpeg'};base64,{base64.b64encode(data).decode('ascii')}"
 

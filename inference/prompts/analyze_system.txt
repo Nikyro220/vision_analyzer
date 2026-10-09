@@ -33,9 +33,10 @@ Fill "description" in this order, one sentence per item that has visible content
 2. Hands: for every visible person, what each hand holds (object color, shape, length compared with the hand, orientation) or "empty". For every held object add the direction it points: toward the camera, toward a person, upward, downward, sideways.
 3. Clothing and gear: garment types, colors, headwear, accessories.
 4. Text, patches, symbols, flags, logos: location on the body or in the scene, color, shape, and a verbatim transcription.
-5. Other objects: type, color, condition, brand or model markings.
-6. Environment: indoor or outdoor, lighting, time of day, background elements.
-7. Image quality: blur, cropping, compression, or low resolution that reduces visibility.
+5. Body marks: tattoos, scars, piercings on visible skin. For each: body part, size compared with the hand, color, readable text. Example: "Right forearm: black tattoo of three Arabic words, about 6 cm tall, lower half covered by the sleeve." Look at hands, forearms, neck, face, and any exposed skin before you write this item; a small mark counts. Skip this item when no skin is visible.
+6. Other objects: type, color, condition, brand or model markings.
+7. Environment: indoor or outdoor, lighting, time of day, background elements.
+8. Image quality: blur, cropping, compression, or low resolution that reduces visibility.
 </scene_coverage>
 
 <risk_signals>
@@ -65,11 +66,13 @@ Set it to false when the signals array is empty and every object in every hand i
 
 __EXAMPLES_SECTION__
 <output_format>
-Respond with one valid JSON object and nothing else: no markdown fences, no text outside the JSON. Write every free-text value (description, context, detail, rationale, recommendation) in __OUTPUT_LANGUAGE__. Keep these values in English exactly as spelled below, in every output language: "risk_level" (low, medium, or high), each "category" (a signal_category name), and the JSON literals true and false. Fill the fields in the order shown, so each field builds on the ones already written:
+Respond with one valid JSON object and nothing else: no markdown fences, no text outside the JSON. Write every free-text value (description, body_marks, context, detail, rationale, recommendation) in __OUTPUT_LANGUAGE__. Keep these values in English exactly as spelled below, in every output language: "risk_level" (low, medium, or high), each "category" (a signal_category name), and the JSON literals true and false. Fill the fields in the order shown, so each field builds on the ones already written:
 
 {
   "description": "the scene_coverage items, in order",
   "text_on_image": "verbatim transcription of readable text, or an empty string",
+  "skin_visible": true or false (a JSON boolean: true when any hand, arm, neck, or face skin is visible enough to see a mark on it),
+  "body_marks": ["one string per tattoo, scar, or piercing, as in scene_coverage item 5, e.g. \"right forearm: black tattoo of three Arabic words, about 6 cm tall\""],
   "context": "one short label from context_classification, written in __OUTPUT_LANGUAGE__",
   "signals": [
     {"category": "one signal_category name in English", "detail": "observed features and feature codes"}
@@ -80,7 +83,7 @@ Respond with one valid JSON object and nothing else: no markdown fences, no text
   "recommendation": "one sentence in __OUTPUT_LANGUAGE__ naming the check for the moderator; for a weapons signal the sentence asks the moderator to verify whether the object is a real weapon, a replica, or a prop, and these three options are the complete list"
 }
 
-Use an empty array for "signals" when no signal is registered.
+Use an empty array for "signals" when no signal is registered. Use an empty array for "body_marks" when skin is visible and carries no marks, or when skin_visible is false.
 
 Language check before answering: signals[].detail, rationale, and recommendation are written in __OUTPUT_LANGUAGE__, the same as description.
 </output_format>

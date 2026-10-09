@@ -35,7 +35,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 
 from flask import current_app, url_for
-from sqlalchemy import select
+from sqlalchemy import and_, case, func, select
 
 from .. import image_dedup, vector_search
 from ..config import conf
@@ -176,7 +176,7 @@ def _keyword_matcher(stems: list[str]):
 
 
 def _row_text(row: AnalysisResult) -> str:
-    return f"{row.description or ''}\n{row.caption or ''}"
+    return vector_search.searchable_text(row.description, row.caption, row.raw_report)
 
 
 def _query_arg(value) -> str | None:
@@ -317,6 +317,47 @@ def _fetch_rows(user: User, args: dict) -> list[AnalysisResult]:
 # ---------------------------------------------------------------------------
 
 
+def body_marks_unknown_clause():
+    """SQL: про метки на теле сказать нельзя — ни анализ (skin_visible), ни точечная проверка по
+    картинке (body_marks_check) не подтвердили, что кожа видна."""
+    analysis = AnalysisResult.raw_report["skin_visible"].as_boolean()
+    check = AnalysisResult.raw_report[("body_marks_check", "skin_visible")].as_boolean()
+    return and_(analysis.is_not(True), check.is_not(True))
+
+
+def body_marks_unchecked_clause():
+    """SQL: «неизвестно» И проверка по картинке ещё не выполнялась (ключа нет). Те, у кого проверка
+    была, но кожа не видна, сюда не попадают — иначе их пересматривали бы при каждом вызове."""
+    analysis = AnalysisResult.raw_report["skin_visible"].as_boolean()
+    check = AnalysisResult.raw_report[("body_marks_check", "skin_visible")].as_boolean()
+    return and_(analysis.is_not(True), check.is_(None))
+
+
+def _body_marks_gap(conditions: list, payload: dict) -> None:
+    """Добавляет в ответ счётчик анализов, про которые «есть ли татуировка/шрам/пирсинг» сказать
+    нельзя: поле skin_visible не извлекалось (старый анализ, сбой разбора) или кожа на снимке не
+    видна. Для них пустой поиск ничего не доказывает — модель должна сказать это пользователю.
+    Считаем по тем же условиям (права и фильтры), что и поиск; best-effort: сбой не ломает ответ."""
+    try:
+        total, unknown = db.session.execute(
+            select(func.count(), func.sum(case((body_marks_unknown_clause(), 1), else_=0)))
+            .where(*conditions, AnalysisResult.description != "")
+        ).one()
+    except Exception:  # noqa: BLE001
+        current_app.logger.exception("search_analyses: не удалось посчитать анализы без данных о метках на теле")
+        return
+    total, unknown = int(total or 0), int(unknown or 0)
+    if unknown:
+        payload["body_marks_unknown"] = unknown
+        payload["analyses_in_scope"] = total
+        payload["body_marks_note"] = (
+            f"for {unknown} of {total} analyses in scope there is no usable body-marks data (an old analysis "
+            "or skin not visible): for questions about tattoos, scars or piercings, a missing match does NOT "
+            "mean there is none there; say this to the user and, when the question is about such marks, look at the "
+            "pictures themselves with check_body_marks"
+        )
+
+
 def _clean(text: str) -> str:
     """Описания генерирует модель по картинке (а значит, их содержимое может
     быть подсунуто текстом на изображении) — не даём им имитировать служебные
@@ -339,6 +380,11 @@ def _record(
         "categories": sorted(_row_categories(row)),
         "description": desc,
     }
+    marks = vector_search._report_parts(row.raw_report)[0]
+    if marks:
+        # Метки на теле лежат в raw_report, а не в description: без этого модель видит найденный
+        # анализ без единого слова про татуировку и считает совпадение ложным.
+        rec["body_marks"] = [_clean(m)[:200] for m in marks[:5]]
     if similarity is not None:
         rec["similarity"] = round(similarity, 2)
     if same_image:
@@ -510,6 +556,7 @@ def _search_semantic(user: User, args: dict, warnings: list[str]) -> ToolResult:
     if not_indexed:
         payload["not_indexed"] = not_indexed
         payload["note"] = f"{not_indexed} analyses are not indexed for meaning search yet and are not in the result"
+    _body_marks_gap(conditions, payload)
     if warnings:
         payload["warnings"] = warnings
 
@@ -603,6 +650,7 @@ def search_analyses(user: User, raw_args) -> ToolResult:
     if raw_count >= conf("SEARCH_SCAN_LIMIT"):
         which = "oldest" if args["order"] == _ORDER_OLDEST else "newest"
         payload["note"] = f"only the {conf('SEARCH_SCAN_LIMIT')} {which} records were considered"
+    _body_marks_gap(_conditions(user, args), payload)
     if warnings:
         payload["warnings"] = warnings
 
