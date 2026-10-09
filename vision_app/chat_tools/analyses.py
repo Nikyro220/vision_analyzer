@@ -188,6 +188,20 @@ def _query_arg(value) -> str | None:
     return text or None
 
 
+def _ids_arg(value) -> list[int]:
+    """Номера анализов («покажи анализ 38»): список или строка через запятую, только положительные целые."""
+    if isinstance(value, (str, int)) and not isinstance(value, bool):
+        value = str(value).replace("#", "").split(",")
+    if not isinstance(value, list):
+        return []
+    result: list[int] = []
+    for item in value[:max_limit()]:
+        number = _int_arg(str(item).strip().lstrip("#"), 1, 2_000_000_000)
+        if number is not None and number not in result:
+            result.append(number)
+    return result
+
+
 def normalize_args(raw) -> tuple[dict, list[str]]:
     """Приводит сырые аргументы от модели к безопасному виду. Возвращает
     (очищенные аргументы, список предупреждений для модели)."""
@@ -198,7 +212,7 @@ def normalize_args(raw) -> tuple[dict, list[str]]:
 
     known = {
         "limit", "since_days", "risk_level", "categories", "needs_review", "own_only", "count_only",
-        "query", "similar_to", "keywords", "order",
+        "query", "similar_to", "keywords", "order", "ids",
     }
     unknown = sorted(str(k) for k in raw if k not in known)
     if unknown:
@@ -215,6 +229,7 @@ def normalize_args(raw) -> tuple[dict, list[str]]:
         "query": _query_arg(raw.get("query")),
         "similar_to": _int_arg(raw.get("similar_to"), 1, 2_000_000_000),
         "order": _ORDER_NEWEST,
+        "ids": _ids_arg(raw.get("ids")),
     }
     order = raw.get("order")
     if order not in (None, ""):
@@ -285,6 +300,8 @@ def _conditions(user: User, args: dict) -> list:
         conditions.append(scope)
     if args.get("owner_id"):  # «анализы пользователя X»: только главный админ (см. search_analyses)
         conditions.append(AnalysisResult.user_id == args["owner_id"])
+    if args.get("ids"):  # права выше уже применены: чужой номер просто не найдётся
+        conditions.append(AnalysisResult.id.in_(args["ids"]))
     if args["risk_level"]:
         conditions.append(AnalysisResult.risk_level == args["risk_level"])
     if args["needs_review"]:
@@ -626,7 +643,10 @@ def search_analyses(user: User, raw_args) -> ToolResult:
     # выдачи (при order=newest — самый свежий анализ, при oldest — самый ранний), номера
     # остальных перечисляем в same_image_analyses.
     raw_count = len(rows)
-    rep_ids, same_image = image_dedup.dedupe_ordered([(r.id, r.image_hash) for r in rows])
+    if args["ids"]:
+        rep_ids, same_image = [r.id for r in rows], {}
+    else:
+        rep_ids, same_image = image_dedup.dedupe_ordered([(r.id, r.image_hash) for r in rows])
     by_id = {r.id: r for r in rows}
     rows = [by_id[i] for i in rep_ids]
 

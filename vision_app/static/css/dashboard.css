@@ -37,7 +37,7 @@
 .dash-page .panel-grid-uneven {
     grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
     gap: 20px;
-    align-items: start;
+    align-items: stretch; /* «Последние загрузки» тянутся до низа левой колонки (Загрузка + Очередь) */
 }
 .dash-page .stack { gap: 20px; }
 .dash-page .card {

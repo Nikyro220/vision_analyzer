@@ -1081,6 +1081,57 @@
     input.setSelectionRange(input.value.length, input.value.length);
   }
 
+  // ---------- копирование всего диалога в буфер обмена ----------
+  // Текст собирает сервер (GET .../export.txt): там сырые ответы модели, а не отрисованный markdown.
+
+  var copyBtn = document.getElementById("chat-copy-btn");
+
+  function copyToClipboard(text) {
+    if (navigator.clipboard && window.isSecureContext) return navigator.clipboard.writeText(text);
+    // http без TLS (например, по IP в локалке): Clipboard API там недоступен — старый способ
+    return new Promise(function (resolve, reject) {
+      var ta = document.createElement("textarea");
+      ta.value = text;
+      ta.setAttribute("readonly", "");
+      ta.style.position = "fixed";
+      ta.style.opacity = "0";
+      document.body.appendChild(ta);
+      ta.select();
+      var ok = false;
+      try { ok = document.execCommand("copy"); } catch (e) { ok = false; }
+      document.body.removeChild(ta);
+      if (ok) resolve(); else reject(new Error("copy failed"));
+    });
+  }
+
+  if (copyBtn) {
+    var copyTitle = copyBtn.title;
+    copyBtn.addEventListener("click", function () {
+      copyBtn.disabled = true;
+      showError("");
+      fetch(copyBtn.dataset.url, { credentials: "same-origin" })
+        .then(function (r) {
+          if (!r.ok) throw new Error("HTTP " + r.status);
+          return r.text();
+        })
+        .then(copyToClipboard)
+        .then(function () {
+          copyBtn.classList.add("is-done");
+          copyBtn.title = "Скопировано";
+          copyBtn.setAttribute("aria-label", "Скопировано");
+          setTimeout(function () {
+            copyBtn.classList.remove("is-done");
+            copyBtn.title = copyTitle;
+            copyBtn.setAttribute("aria-label", copyTitle);
+          }, 1800);
+        })
+        .catch(function () {
+          showError("Не удалось скопировать диалог. Скачайте его кнопкой экспорта в JSON.");
+        })
+        .then(function () { copyBtn.disabled = false; });
+    });
+  }
+
   resumeAfterLoad();
   if (pendingJobs > 0) pollPending(); // страницу открыли/перезагрузили, пока анализ шёл — сразу проверяем
 })();

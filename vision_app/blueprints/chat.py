@@ -11,6 +11,7 @@ from flask import (
     abort,
     current_app,
     jsonify,
+    Response,
     redirect,
     render_template,
     request,
@@ -205,6 +206,93 @@ def view(session_id: int):
         target_backend=target_backend,
         target_model=target_model,
     )
+
+
+# ---------------------------------------------------------------------------
+# Экспорт диалога: JSON-файл и простой текст (для копирования в буфер обмена)
+# ---------------------------------------------------------------------------
+
+
+def _iso_utc(value: datetime | None) -> str | None:
+    if value is None:
+        return None
+    if value.tzinfo is None:
+        value = value.replace(tzinfo=timezone.utc)
+    return value.astimezone(timezone.utc).isoformat(timespec="seconds")
+
+
+def _export_refs(refs) -> list[dict]:
+    """Карточки анализов под ответом — только то, что нужно читателю (без превью-ссылок)."""
+    keys = ("id", "label", "risk_level", "risk_label", "date", "url")
+    return [{k: r[k] for k in keys if k in r} for r in (refs or []) if isinstance(r, dict)]
+
+
+def _export_payload(session_row: ChatSession) -> dict:
+    attachments = _attachment_urls(session_row)
+    return {
+        "session": {
+            "id": session_row.id,
+            "title": session_row.display_title,
+            "created_at": _iso_utc(session_row.created_at),
+            "updated_at": _iso_utc(session_row.updated_at),
+        },
+        "exported_at": _iso_utc(utcnow()),
+        "messages": [
+            {
+                "id": m.id,
+                "role": m.role,
+                "time": _iso_utc(m.created_at),
+                "content": m.content or "",
+                "backend": m.backend or "",
+                "model": m.model or "",
+                "attachments": [a["name"] for a in attachments.get(m.id, [])],  # только имена, без файлов
+                "refs": _export_refs(m.refs),
+            }
+            for m in session_row.messages
+        ],
+    }
+
+
+def _export_text(session_row: ChatSession) -> str:
+    attachments = _attachment_urls(session_row)
+    lines = [f"Чат: {session_row.display_title}", f"Создан: {local_dt(session_row.created_at)}", ""]
+    for m in session_row.messages:
+        who = "Вы" if m.role == ChatRole.USER else "Модель"
+        meta = f" ({m.backend}{' · ' + m.model if m.model else ''})" if m.role == ChatRole.ASSISTANT and m.backend else ""
+        lines.append(f"[{local_dt(m.created_at)}] {who}{meta}:")
+        lines.append((m.content or "").strip())
+        names = [a["name"] for a in attachments.get(m.id, [])]
+        if names:
+            lines.append("Вложения: " + ", ".join(names))
+        cards = _export_refs(m.refs)
+        if cards:
+            lines.append("Анализы: " + "; ".join(
+                f"№{c.get('id')} {c.get('label', '')} ({c.get('risk_label', '')})".strip() for c in cards
+            ))
+        lines.append("")
+    return "\n".join(lines).rstrip() + "\n"
+
+
+@bp.route("/<int:session_id>/export.json")
+@login_required
+def export_json(session_id: int):
+    """Скачать весь диалог одним JSON-файлом (только свои чаты)."""
+    session_row = _get_own_session(session_id)
+    body = json.dumps(_export_payload(session_row), ensure_ascii=False, indent=2)
+    stamp = local_dt(utcnow(), "%Y%m%d-%H%M")
+    return Response(
+        body,
+        mimetype="application/json",
+        headers={"Content-Disposition": f'attachment; filename="chat-{session_row.id}-{stamp}.json"'},
+    )
+
+
+@bp.route("/<int:session_id>/export.txt")
+@login_required
+def export_text(session_id: int):
+    """Весь диалог простым текстом — его chat.js кладёт в буфер обмена."""
+    session_row = _get_own_session(session_id)
+    return Response(_export_text(session_row), mimetype="text/plain", headers={"Cache-Control": "no-store"})
 
 
 @bp.route("/<int:session_id>/attachment/<int:message_id>/<int:index>")

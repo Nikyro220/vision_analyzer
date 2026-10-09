@@ -225,7 +225,7 @@ class Config:
     SEARCH_DEFAULT_LIMIT = 5
     SEARCH_MAX_LIMIT = 15
     SEARCH_MAX_CARDS = 8  # больше карточек под одним ответом — визуальный шум
-    SEARCH_DESC_CHARS = 160
+    SEARCH_DESC_CHARS = 400  # при 160 описание режется на середине, и модель не может понять, подходит ли запись
     SEARCH_MAX_SINCE_DAYS = 365
     SEARCH_MAX_QUERY_CHARS = 300
     SEARCH_MAX_KEYWORDS = 8

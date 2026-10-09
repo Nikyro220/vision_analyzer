@@ -58,6 +58,17 @@
                 <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="3"/><path d="M9 4v16"/></svg>
             </button>
             <span class="chat-head-title" title="{{ session.display_title }}">{{ session.display_title|trunc(60) }}</span>
+            <div class="chat-head-actions">
+                <button type="button" class="chat-head-toggle" id="chat-copy-btn"
+                        data-url="{{ url_for('chat.export_text', session_id=session.id) }}"
+                        title="Скопировать весь диалог в буфер обмена" aria-label="Скопировать весь диалог в буфер обмена">
+                    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V6a2 2 0 0 1 2-2h9"/></svg>
+                </button>
+                <a class="chat-head-toggle" id="chat-export-btn" href="{{ url_for('chat.export_json', session_id=session.id) }}"
+                   download title="Экспорт диалога в JSON" aria-label="Экспорт диалога в JSON">
+                    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v11M7 11l5 5 5-5M5 20h14"/></svg>
+                </a>
+            </div>
         </div>
         <div class="chat-log" id="chat-log">
             {% for m in messages %}

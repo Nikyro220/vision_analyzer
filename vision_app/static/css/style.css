@@ -1814,6 +1814,10 @@ input[type="checkbox"]:disabled { opacity: 0.5; cursor: not-allowed; }
     transition: background .12s ease, color .12s ease;
 }
 .chat-head-toggle:hover { background: var(--bg-hover); color: var(--text); }
+.chat-head-actions { display: flex; gap: 4px; margin-left: auto; flex-shrink: 0; }
+a.chat-head-toggle { text-decoration: none; }
+.chat-head-toggle.is-done { color: var(--accent); }
+.chat-head-toggle:disabled { opacity: .6; cursor: progress; }
 .chat-head-toggle:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 .chat-head-title {
     min-width: 0;

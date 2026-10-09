@@ -55,6 +55,42 @@ from ..services import chat_with_model
 
 _FALLBACK_REPLY = "Не удалось получить данные из истории анализов. Попробуйте переформулировать вопрос."
 
+# Служебная строка в конце ответа: номера анализов, которые модель подтвердила как подходящие.
+# Карточки под ответом строятся из сырой выдачи поиска (включая кандидатов по смыслу, которые
+# модель при проверке отбросила), поэтому без этой строки текст и карточки расходятся.
+_SHOW_RE = re.compile(r"\[SHOW:\s*([^\]]*)\]", re.IGNORECASE)
+
+
+_SHOW_RULES = (
+    "<analysis_cards>\n"
+    "- Counts: total_matched and by_risk describe ALL matched analyses, but only records_shown of them are in "
+    "records. Say how many analyses matched your answer only after checking the records against the request, and "
+    "give the risk split only for those confirmed ones. Never state a number of candidates that you then leave "
+    "out, and never mention the rejected ones by count.\n"
+    "- When the search result has records, end the reply with ONE service line listing the ids of exactly those "
+    "records that you named as matching OR told the user to open and check yourself (a possible match you could "
+    "not confirm), e.g. [SHOW: 2, 16] (ids are the id fields of the records). Never discuss a record in the reply "
+    "without listing its id, or the user gets no card for it. Records you rejected are not listed. The interface "
+    "shows cards only for these ids and removes the line from the text, so the cards always agree with your "
+    "answer. If none matches, write [SHOW: ] and say that nothing was found. Do not mention this line to the "
+    "user.\n"
+    "</analysis_cards>"
+)
+
+
+def apply_show_marker(reply: str, references: list) -> tuple[str, list]:
+    """Вырезает из ответа строки [SHOW: 2, 16] и оставляет только карточки с этими номерами.
+
+    Нет строки — карточки не трогаем (модель могла её опустить; лучше лишние карточки, чем ни
+    одной). Пустая строка `[SHOW: ]` — подтверждённых нет, карточек не будет. Строка всегда
+    вырезается из текста, даже если карточек нет."""
+    markers = _SHOW_RE.findall(reply or "")
+    if not markers:
+        return reply, references
+    clean = _SHOW_RE.sub("", reply).rstrip()
+    ids = {int(n) for raw in markers for n in re.findall(r"\d+", raw)}
+    return clean, [card for card in references if card.get("id") in ids]
+
 
 @dataclass
 class ChatTurn:
@@ -334,6 +370,7 @@ def build_tool_system_prompt(user=None, images: list[ChatImage] | None = None) -
         "query, because the full set of words for such a topic cannot be guessed and the filter would drop "
         "matching snapshots. Combined with query: keywords selects, query sorts. An empty result with keywords "
         "does not mean there are no snapshots: repeat the request without keywords\n"
+        "  ids (list of numbers): show exactly these analyses by number (\"show analysis 38\" -> [38]); other filters are still applied, an unknown or inaccessible number is simply absent from the result: say so, never guess its content\n"
         "  similar_to (number): analysis number: find analyses similar to it (\"similar to analysis #42\"); do not combine with query\n"
         "</args>\n"
         "<categories>\n"
@@ -590,11 +627,12 @@ def run_chat_turn(
     # Роль ассистента (из БД, правится в панели) + промпт инструментов как есть. Серверный
     # промпт-персона отключаем (system_mode=replace): роль теперь задаём мы.
     # Дата — в самом конце: стабильная часть промпта остаётся общим префиксом между ходами.
-    system = compose_system_prompt(build_tool_system_prompt(user, images)) + "\n\n" + current_time_note()
+    system = compose_system_prompt(build_tool_system_prompt(user, images)) + "\n\n" + _SHOW_RULES + "\n\n" + current_time_note()
     permitted = allowed_tools(user)
     convo = list(history)
     current = message
     references: list = []
+    references_are_analyses = False  # id в карточках — номера анализов (а не пользователей)
     action_cards: list = []  # карточки заявок копятся: «заблокируй A и B» — две карточки, а не одна
     actions_allowed = allow_actions
     manage_attempted = False  # manage_user вызывался в этом ходе (даже если вернул ошибку)
@@ -615,6 +653,7 @@ def run_chat_turn(
                 (MANAGE_TOOL_NAME in permitted or CATEGORY_TOOL_NAME in permitted)
                 and not action_cards
                 and not manage_attempted
+                and not references  # «карточки ниже» после поиска — про карточки анализов, не про заявки
                 and not phantom_retried
                 and not is_last
                 and _CLAIMS_ACTION_RE.search(outcome.reply or "")
@@ -625,9 +664,14 @@ def run_chat_turn(
                 current_app.logger.warning("chat_tools: ответ обещает карточку без вызова инструмента действий, повтор")
                 convo.append({"role": "user", "content": current})
                 convo.append({"role": "assistant", "content": outcome.reply})
-                current = _PHANTOM_ACTION_ERROR
+                current = f"{_PHANTOM_ACTION_ERROR}\n\nThen answer the user's message again: {message}"  # иначе модель отвечает на служебную ошибку, а не пользователю
                 continue
-            return ChatTurn(outcome.reply, outcome.backend, outcome.model, references + action_cards)
+            reply, shown = outcome.reply, references
+            if references_are_analyses:
+                reply, shown = apply_show_marker(reply, references)
+            else:
+                reply = _SHOW_RE.sub("", reply).rstrip()
+            return ChatTurn(reply, outcome.backend, outcome.model, shown + action_cards)
 
         if is_last:
             # Лимит вызовов исчерпан, а модель всё ещё просит инструмент.
@@ -650,6 +694,7 @@ def run_chat_turn(
                 action_cards.extend(result.references)
             elif result.references:
                 references = result.references
+                references_are_analyses = payload.name == TOOL_NAME
             current = _tool_result_message(payload.name, result.text)
         else:
             current = (
