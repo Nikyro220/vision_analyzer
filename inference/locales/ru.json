@@ -64,6 +64,7 @@
 	"error.link_invalid": "Некорректная ссылка (нужен http/https): {url}",
 	"error.link_blocked": "Ссылка указывает на непубличный адрес и отклонена: {url}",
 	"error.link_no_image": "По ссылке не найдено изображение: {url}",
+	"error.link_placeholder": "Страница {url} отдала общую страницу-заглушку вместо поста (пост закрыт, удалён или требует входа): анализ не выполнялся.",
 	"error.link_fetch_failed": "Не удалось получить {url}: {detail}",
 	"error.link_too_large": "Изображение по ссылке {url} больше {max_mb} МБ.",
 	"error.link_disabled": "Анализ по ссылкам отключён на сервере (VISION_ANALYZER_LINKS_ENABLED=0).",

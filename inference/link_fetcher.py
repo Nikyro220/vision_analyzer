@@ -16,6 +16,14 @@ link_fetcher.py — превращает ссылку на пост в то, ч�
      Осторожно: если yt-dlp упал на платформе с логином (Instagram/Facebook без cookies),
      og:image страницы может оказаться заглушкой. Такой результат помечается в ответе
      (source.method="opengraph" + source.fallback_reason), чтобы его можно было отличить.
+     Заглушку Pinterest (общая страница вместо пина) мы узнаём сами и отклоняем ошибкой
+     placeholder — анализировать её как «пост» нельзя: результат был бы «безопасно».
+
+  Короткие ссылки (pin.it и т. п.): платформа видна только после редиректов, поэтому для
+  адреса, который не знает ни один экстрактор, страница скачивается сразу, а экстрактор
+  подбирается по конечному адресу. Pinterest отдаёт из pin.it адрес вида
+  /pin/<id>/feedback/?invite_code=… — это страница «приглашения», без входа она показывает
+  общую заглушку; поэтому адрес сводится к каноническому /pin/<id>/ (_canonical_url).
 
 Защита от SSRF (сервер ходит по ссылкам клиента): допускаются только http/https на
 публичные адреса. Адреса-литералы проверяются на каждом шаге редиректа, имена хостов —
@@ -43,7 +51,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from html.parser import HTMLParser
 from typing import NamedTuple
-from urllib.parse import urljoin, urlsplit
+from urllib.parse import unquote, urljoin, urlsplit
 
 import aiohttp
 from aiohttp import abc as aiohttp_abc
@@ -74,6 +82,9 @@ _HTML_MAX_BYTES = 2 * 1024 * 1024  # og-теги лежат в <head>, боль�
 _HTML_TYPES = {"", "text/html", "application/xhtml+xml", "text/plain"}
 _IMAGE_EXTS = {"jpg", "jpeg", "png", "webp", "gif", "bmp", "avif"}
 _DEFAULT_CAPTION_LIMIT = 2000  # как prompt._CAPTION_MAX_CHARS, если prompt недоступен
+_PINTEREST_HOST_RE = re.compile(r"(?:[\w-]+\.)*pinterest\.[a-z]{2,3}(?:\.[a-z]{2})?")
+_PINTEREST_PIN_RE = re.compile(r"/pin/(?:[\w-]+--)?(\d+)")
+_PLACEHOLDER_TITLES = {"", "pinterest"}  # og:title общей страницы-заглушки
 
 
 # ---------------------------------------------------------------------------
@@ -220,6 +231,7 @@ class _Fetched(NamedTuple):
     content_type: str   # без параметров, в нижнем регистре ("" если заголовка нет)
     charset: str | None
     data: bytes
+    chain: tuple[str, ...] = ()  # все адреса по пути (первый — запрошенный, последний — конечный)
 
 
 def _make_session() -> aiohttp.ClientSession:
@@ -243,8 +255,10 @@ async def _fetch(session: aiohttp.ClientSession, url: str, *, referer: str | Non
     HTML обрезается по _HTML_MAX_BYTES (нам нужен только <head>); всё остальное считается
     картинкой и при превышении LINKS_MAX_IMAGE_BYTES отклоняется."""
     current = url
+    hops: list[str] = []
     for _ in range(_MAX_REDIRECTS + 1):
         current = _normalize_url(current)
+        hops.append(current)
         headers = {"Referer": referer} if referer else {}
         try:
             async with session.get(current, allow_redirects=False, headers=headers) as resp:
@@ -252,7 +266,9 @@ async def _fetch(session: aiohttp.ClientSession, url: str, *, referer: str | Non
                     location = resp.headers.get("Location")
                     if not location:
                         raise LinkError("fetch_failed", 502, url=url, detail=f"HTTP {resp.status} without Location")
-                    current = urljoin(current, location)
+                    nxt = urljoin(current, location)
+                    logging.info("link_fetcher: редирект HTTP %s: %s -> %s", resp.status, current[:200], nxt[:200])
+                    current = nxt
                     continue
                 if resp.status >= 400:
                     raise LinkError(
@@ -272,7 +288,7 @@ async def _fetch(session: aiohttp.ClientSession, url: str, *, referer: str | Non
                         if not is_html:
                             raise _too_large(url)
                         break
-                return _Fetched(current, ctype, resp.charset, bytes(data))
+                return _Fetched(current, ctype, resp.charset, bytes(data), tuple(hops))
         except LinkError:
             raise
         except aiohttp.ClientConnectorError as e:
@@ -319,6 +335,8 @@ class _MetaParser(HTMLParser):
         super().__init__(convert_charrefs=True)
         self.meta: dict[str, list[str]] = {}
         self.title = ""
+        self.refresh_url: str | None = None  # <meta http-equiv="refresh" content="0; url=...">
+        self.canonical: str | None = None    # <link rel="canonical" href="...">
         self._in_title = False
 
     def handle_starttag(self, tag, attrs):
@@ -328,6 +346,14 @@ class _MetaParser(HTMLParser):
             content = a.get("content", "").strip()
             if key and content:
                 self.meta.setdefault(key, []).append(content)
+            if a.get("http-equiv", "").strip().lower() == "refresh" and not self.refresh_url:
+                m = re.search(r"url\s*=\s*['\"]?([^'\";]+)", a.get("content", ""), re.I)
+                if m:
+                    self.refresh_url = m.group(1).strip()
+        elif tag == "link":
+            a = {k.lower(): (v or "") for k, v in attrs}
+            if "canonical" in a.get("rel", "").lower().split() and a.get("href") and not self.canonical:
+                self.canonical = a["href"].strip()
         elif tag == "title":
             self._in_title = True
 
@@ -400,11 +426,84 @@ def _post_from_html(fetched: _Fetched, url: str) -> _Post:
     )
 
 
-async def _post_from_page(session: aiohttp.ClientSession, url: str) -> _Post:
-    fetched = await _fetch(session, url)
+def _post_from_fetched(fetched: _Fetched, url: str) -> _Post:
     if fetched.content_type not in _HTML_TYPES:  # прямая ссылка на картинку
         return _Post(url=url, method="direct", inline_images=[(fetched.data, fetched.url)])
     return _post_from_html(fetched, url)
+
+
+async def _post_from_page(session: aiohttp.ClientSession, url: str) -> _Post:
+    return _post_from_fetched(await _fetch(session, url), url)
+
+
+def _canonical_url(url: str) -> str:
+    """Приводит адрес поста к виду, который показывает сам пост, а не служебную страницу.
+
+    Pinterest: pin.it ведёт на /pin/<id>/feedback/?invite_code=…&sender_id=… — страницу «приглашения»,
+    которая без входа отдаёт общую заглушку (og:title «Pinterest»), а не пин. Каноническая
+    https://www.pinterest.com/pin/<id>/ — сам пин (его же понимает экстрактор yt-dlp).
+    Остальные адреса возвращаются как есть.
+    """
+    try:
+        parts = urlsplit(url)
+        host = (parts.hostname or "").lower()
+    except ValueError:
+        return url
+    if _PINTEREST_HOST_RE.fullmatch(host):
+        match = _PINTEREST_PIN_RE.match(parts.path)
+        if match:
+            return f"https://www.pinterest.com/pin/{match.group(1)}/"
+    return url
+
+
+_PIN_ID_RE = re.compile(r"/pin/(?:[\w-]+--)?(\d{6,})")
+
+
+def _html_hints(fetched: _Fetched) -> list[str]:
+    """Адреса, на которые страница намекает сама: meta refresh, canonical, og:url."""
+    if fetched.content_type not in _HTML_TYPES:
+        return []
+    parser = _MetaParser()
+    try:
+        parser.feed(_decode_html(fetched.data, fetched.charset))
+    except Exception:  # noqa: BLE001 — подсказки необязательны
+        return []
+    hints = [parser.refresh_url, parser.canonical, *parser.meta.get("og:url", [])]
+    return [urljoin(fetched.url, h) for h in hints if h]
+
+
+def _find_pinterest_pin(urls: list[str]) -> str | None:
+    """Канонический адрес пина, если id пина виден в одном из адресов (путь или параметры вроде
+    login/?next=%2Fpin%2F<id>%2F). Смотрим только адреса самого Pinterest: чужой сайт не должен
+    подсунуть нам пин. Первый подходящий адрес выигрывает — вызывающий кладёт самые надёжные первыми."""
+    for url in urls:
+        try:
+            host = (urlsplit(url).hostname or "").lower()
+        except ValueError:
+            continue
+        if not _PINTEREST_HOST_RE.fullmatch(host):
+            continue
+        match = _PIN_ID_RE.search(unquote(unquote(url)))
+        if match:
+            return f"https://www.pinterest.com/pin/{match.group(1)}/"
+    return None
+
+
+def _expanded_target(fetched: _Fetched) -> str:
+    """Полный адрес поста после раскрытия короткой ссылки: пин Pinterest из цепочки редиректов
+    (конечный адрес — первым) или подсказок страницы, иначе — конечный адрес редиректа."""
+    pin = _find_pinterest_pin([fetched.url, *reversed(fetched.chain), *_html_hints(fetched)])
+    return pin or _normalize_url(_canonical_url(fetched.url))
+
+
+def _is_placeholder(post: _Post, final_url: str) -> bool:
+    """Open Graph-разбор вернул общую страницу платформы, а не пост (сейчас — Pinterest)."""
+    if post.method != "opengraph":
+        return False
+    host = (urlsplit(final_url).hostname or "").lower()
+    if not _PINTEREST_HOST_RE.fullmatch(host):
+        return False
+    return (post.title or "").strip().lower() in _PLACEHOLDER_TITLES
 
 
 # ---------------------------------------------------------------------------
@@ -661,15 +760,35 @@ async def _resolve(
     url = _normalize_url(raw_url)
     loop = asyncio.get_running_loop()
 
+    # Адрес, по которому работаем дальше: служебные адреса Pinterest сводятся к самому пину.
+    work_url = _normalize_url(_canonical_url(url))
+    trail: list[str] = []            # все адреса, по которым прошли (для диагностики в логе)
+    fetched: _Fetched | None = None  # страница, уже скачанная для Open Graph (чтобы не качать дважды)
+    fetched_for: str | None = None   # work_url, с которого она скачана
+
+    ie_key = await loop.run_in_executor(None, _pick_extractor_key, work_url)
+    if not ie_key:
+        # Платформа может быть видна только после редиректов (pin.it и другие короткие ссылки):
+        # идём по ним и подбираем экстрактор по конечному адресу. Страница всё равно нужна
+        # для Open Graph, если экстрактора не окажется.
+        fetched, fetched_for = await _fetch(session, work_url), work_url
+        trail.extend(fetched.chain)
+        logging.info("link_fetcher: %s -> %s (цепочка: %s)", work_url[:200], fetched.url[:200],
+                     " -> ".join(u[:200] for u in fetched.chain))
+        if fetched.content_type in _HTML_TYPES:
+            target = _expanded_target(fetched)
+            if target != work_url:
+                target_key = await loop.run_in_executor(None, _pick_extractor_key, target)
+                if target_key:
+                    ie_key, work_url = target_key, target
+
     post: _Post | None = None
     ytdlp_error: str | None = None
-
-    ie_key = await loop.run_in_executor(None, _pick_extractor_key, url)
     if ie_key:
-        await _assert_public_host(urlsplit(url).hostname, url)
+        await _assert_public_host(urlsplit(work_url).hostname, work_url)
         try:
-            info = await _ytdlp_extract(url, ie_key)
-            post = _post_from_ytdlp(info, url)
+            info = await _ytdlp_extract(work_url, ie_key)
+            post = _post_from_ytdlp(info, work_url)
             if not post.image_urls:
                 ytdlp_error = "no images in extracted data"
                 post = None
@@ -677,16 +796,26 @@ async def _resolve(
             ytdlp_error = _short_error(e)
         if post is None:
             logging.info("link_fetcher: yt-dlp (%s) не дал картинок для %s: %s — пробую Open Graph",
-                         ie_key, url, ytdlp_error)
+                         ie_key, work_url, ytdlp_error)
 
     if post is None:
         try:
-            post = await _post_from_page(session, url)
+            # Уже скачанную страницу берём повторно, если она и есть страница work_url
+            # (либо редирект привёл ровно на него) — иначе качаем канонический адрес.
+            if fetched is None or (fetched_for != work_url and _normalize_url(fetched.url) != work_url):
+                fetched = await _fetch(session, work_url)
+                trail.extend(fetched.chain)
         except LinkError as e:
             if ytdlp_error and e.code == "fetch_failed":
                 e.params["detail"] = f"{e.params.get('detail')}; yt-dlp: {ytdlp_error}"
             raise
+        post = _post_from_fetched(fetched, url)
         post.fallback_reason = ytdlp_error
+        if _is_placeholder(post, fetched.url):
+            detail = "цепочка: " + " -> ".join(dict.fromkeys(trail or [fetched.url]))
+            if ytdlp_error:
+                detail += f"; yt-dlp: {ytdlp_error}"
+            raise LinkError("placeholder", 422, url=raw_url, detail=detail)
 
     images = list(post.inline_images)
     if post.image_urls:

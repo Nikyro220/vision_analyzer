@@ -5,6 +5,8 @@
 
   1. enqueue()      — копирует файл в uploads/, создаёт AnalysisResult(status=queued) и
                       ChatAnalysisJob, будит обработчик очереди. Модель получает статус «в очереди».
+     enqueue_link() — то же для ссылки на пост: файла ещё нет (image_path пуст, заполнен
+                      source_url), картинки скачивает сервер анализа при обработке очереди.
   2. Обработчик очереди (queue_worker.py) анализирует изображение как обычно, по одному,
      и сохраняет результат в AnalysisResult — он же попадает в историю анализов.
   3. claim_ready()  — когда анализ завершён, чат забирает результат (blueprints/chat.py:
@@ -39,6 +41,19 @@ log = logging.getLogger("vision_app.chat_jobs")
 
 class JobError(Exception):
     """Не удалось поставить изображение в очередь; текст можно отдать модели/пользователю."""
+
+
+# У задачи-ссылки нет вложения чата, поэтому ChatAnalysisJob.image_path (ключ против повторной
+# постановки) хранит «link:<sha256 ссылки>» — фиксированной длины, при любой длине самой ссылки.
+LINK_KEY_PREFIX = "link:"
+
+
+def link_key(url: str) -> str:
+    return LINK_KEY_PREFIX + image_dedup.sha256_bytes(url.encode("utf-8"))
+
+
+def is_link_job(job: ChatAnalysisJob) -> bool:
+    return (job.image_path or "").startswith(LINK_KEY_PREFIX)
 
 
 def _clip(value, limit: int | None = None) -> str:
@@ -129,6 +144,60 @@ def enqueue(user, session_id: int, image, caption: str = "") -> dict:
     return status_payload(row, job)
 
 
+def enqueue_link(user, session_id: int, url: str) -> dict:
+    """Ставит ссылку на пост в общую очередь анализа (как поле «Ссылки» на странице «Анализ»).
+
+    `url` уже проверен (chat_tools.images: forms.parse_links). Повторный вызов для той же ссылки
+    в том же чате новую задачу не создаёт — возвращает статус существующей.
+    Бросает JobError, если поставить не удалось.
+    """
+    key = link_key(url)
+    existing = _find_job(session_id, key)
+    if existing is not None:
+        row = db.session.get(AnalysisResult, existing.analysis_id) if existing.analysis_id else None
+        if row is not None:
+            return status_payload(row, existing, repeated=True)
+        # задачу успели отменить из очереди — ниже поставим заново
+
+    from .queue_worker import queue_limit_hit, wake_worker
+
+    hit = queue_limit_hit(user.id)
+    if hit:
+        scope, now_count, limit = hit
+        who = "очередь пользователя заполнена" if scope == "user" else "общая очередь заполнена"
+        raise JobError(f"{who} ({now_count} из {limit}) — попробуйте позже")
+
+    try:
+        # image_path пуст: картинку скачивает сервер анализа при обработке (queue_worker.process_next).
+        # image_hash="" — чтобы фоновый подсчёт хешей не принял запись за потерянный файл.
+        row = AnalysisResult(
+            user_id=user.id,
+            image_path="",
+            original_name=url[:255],
+            image_mime="",
+            image_hash="",
+            source_url=url,
+            status=Status.QUEUED,
+        )
+        db.session.add(row)
+        db.session.flush()
+        job = ChatAnalysisJob(
+            session_id=session_id,
+            analysis_id=row.id,
+            image_path=key,
+            image_name=url[:255],
+            image_number=0,
+        )
+        db.session.add(job)
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+        raise
+
+    wake_worker(current_app)
+    return status_payload(row, job)
+
+
 def cancel_for_paths(session_id: int, chat_paths: list[str]) -> None:
     """Откат: сообщение с этими вложениями не сохранилось (ход чата не удался) —
     убираем связанные задачи и, если анализ ещё не начался, сам анализ из очереди."""
@@ -201,11 +270,12 @@ def report_payload(row: AnalysisResult) -> dict:
 
 def status_payload(row: AnalysisResult, job: ChatAnalysisJob, repeated: bool = False) -> dict:
     """Что инструмент отвечает модели: статус задачи, а для завершённой — ещё и отчёт."""
-    payload: dict = {
-        "image": job.image_number,
-        "name": job.image_name,
-        "analysis_id": row.id,
-    }
+    is_link = is_link_job(job)
+    payload: dict = (
+        {"url": row.source_url or job.image_name, "analysis_id": row.id}
+        if is_link
+        else {"image": job.image_number, "name": job.image_name, "analysis_id": row.id}
+    )
     if row.status == Status.DONE:
         if row.is_error:
             payload.update({"status": "error", "error": _clip(row.error)})
@@ -215,12 +285,21 @@ def status_payload(row: AnalysisResult, job: ChatAnalysisJob, repeated: bool = F
 
     payload["status"] = "processing" if row.status == Status.PROCESSING else "queued"
     payload["ahead_in_queue"] = _queue_position(row)
-    note = (
-        "изображение поставлено в очередь анализа; результат придёт в этот чат автоматически, когда "
-        "анализ завершится — сообщи об этом пользователю и не гадай, что на картинке"
-    )
+    if is_link:
+        note = (
+            "ссылка поставлена в очередь анализа: картинку по ней скачает сервер анализа; результат придёт "
+            "в этот чат автоматически, когда анализ завершится — сообщи об этом пользователю и не гадай, "
+            "что за ссылкой"
+        )
+    else:
+        note = (
+            "изображение поставлено в очередь анализа; результат придёт в этот чат автоматически, когда "
+            "анализ завершится — сообщи об этом пользователю и не гадай, что на картинке"
+        )
     if repeated:
-        note = "это изображение уже стоит в очереди — повторно ставить не нужно; " + note
+        note = ("эта ссылка уже стоит в очереди" if is_link else "это изображение уже стоит в очереди") + (
+            " — повторно ставить не нужно; " + note
+        )
     payload["note"] = note
     return payload
 
@@ -241,11 +320,12 @@ def card(row: AnalysisResult) -> dict:
 def fallback_text(job: ChatAnalysisJob, row: AnalysisResult | None) -> str:
     """Сообщение без участия модели — если она недоступна, а результат уже готов."""
     name = job.image_name or f"#{job.image_number}"
+    subject = f"Анализ ссылки «{name}»" if is_link_job(job) else f"Анализ изображения «{name}»"
     if row is None:
-        return f"Анализ изображения «{name}» отменён — записи в очереди больше нет."
+        return f"{subject} отменён — записи в очереди больше нет."
     if row.is_error:
-        return f"Анализ изображения «{name}» завершился ошибкой: {_clip(row.error, conf("CHAT_JOB_DETAIL_CHARS"))}"
-    text = f"Анализ изображения «{name}» завершён. Уровень риска: {row.risk_level_display.lower()}."
+        return f"{subject} завершился ошибкой: {_clip(row.error, conf("CHAT_JOB_DETAIL_CHARS"))}"
+    text = f"{subject} завершён. Уровень риска: {row.risk_level_display.lower()}."
     if row.needs_human_review:
         text += " Требуется проверка человеком."
     if row.description:

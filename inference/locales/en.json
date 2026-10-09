@@ -64,6 +64,7 @@
 	"error.link_invalid": "Not a valid http(s) link: {url}",
 	"error.link_blocked": "The link points to a non-public address and was rejected: {url}",
 	"error.link_no_image": "No image found at {url}.",
+	"error.link_placeholder": "The page at {url} returned a generic placeholder page instead of the post (closed, deleted or login required): no analysis was done.",
 	"error.link_fetch_failed": "Failed to fetch {url}: {detail}",
 	"error.link_too_large": "The image at {url} is larger than {max_mb} MB.",
 	"error.link_disabled": "Analysis by link is disabled on the server (VISION_ANALYZER_LINKS_ENABLED=0).",

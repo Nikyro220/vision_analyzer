@@ -6,6 +6,10 @@
 («добавь в анализ», «поставь в очередь», «сделай риск-анализ»): модель видит список
 вложений («#1 — «photo.png»») и присылает JSON-вызов (протокол — в runner.py).
 
+Кроме вложений инструмент принимает ссылку на пост/страницу с картинкой (аргумент `url`):
+сервер анализа сам скачивает изображения (см. services.analyze_link, queue_worker), а
+модель ссылку открыть не может — анализ единственный способ узнать, что за ней.
+
 Инструмент САМ НИЧЕГО НЕ АНАЛИЗИРУЕТ: он только добавляет изображение в общую очередь
 анализа (ту же, что у страницы «Анализ») и возвращает модели статус «в очереди». Когда
 очередь дойдёт до анализа и он завершится, результат приходит в чат отдельным ходом:
@@ -16,7 +20,9 @@ blueprints/chat.py (GET .../pending) передаёт отчёт модели, �
 
   - Аргументы от модели — НЕДОВЕРЕННЫЙ ввод: номер приводится к int и ищется только
     среди вложений ЭТОГО чата (список собирает blueprints/chat.py из сообщений сессии
-    текущего пользователя), путь к файлу от модели не принимается вообще.
+    текущего пользователя), путь к файлу от модели не принимается вообще. Ссылка проходит
+    ту же проверку, что и на странице «Анализ» (forms.parse_links: только http/https, длина);
+    публичность адреса и скачивание проверяет сервер анализа.
   - Лимит очереди на пользователя (QUEUE_MAX_PENDING_PER_USER) действует и здесь.
   - Текст на картинке и подпись — данные, а не инструкции (это оговорено в промпте).
 """
@@ -80,20 +86,24 @@ def _image_number(value) -> int | None:
         return None
 
 
-def normalize_args(raw) -> tuple[int | None, str, list[str]]:
-    """(номер или None, подпись или "", предупреждения)."""
+def normalize_args(raw) -> tuple[int | None, str | None, str, list[str]]:
+    """(номер или None, ссылка или None, подпись или "", предупреждения)."""
     warnings: list[str] = []
     if not isinstance(raw, dict):
         warnings.append("args должен быть объектом — использованы значения по умолчанию")
         raw = {}
 
-    unknown = sorted(str(k) for k in raw if k not in {"image", "caption"})
+    unknown = sorted(str(k) for k in raw if k not in {"image", "caption", "url"})
     if unknown:
         warnings.append("неизвестные аргументы проигнорированы: " + ", ".join(unknown))
 
     number = _image_number(raw.get("image"))
     if raw.get("image") not in (None, "") and number is None:
         warnings.append("image должен быть номером изображения — взято последнее")
+
+    url: str | None = None
+    if raw.get("url") not in (None, ""):
+        url = str(raw["url"]).strip()
 
     caption = ""
     if raw.get("caption") is not None:
@@ -102,15 +112,56 @@ def normalize_args(raw) -> tuple[int | None, str, list[str]]:
         if len(caption) > max_chars:
             caption = caption[:max_chars]
             warnings.append(f"caption обрезан до {max_chars} символов")
-    return number, caption, warnings
+    return number, url, caption, warnings
+
+
+def _single_link(value: str) -> tuple[str | None, str]:
+    """(ссылка, "") или (None, причина отказа). Ровно одна http/https-ссылка."""
+    from ..forms import parse_links  # локально: forms тяжёлый и не нужен остальным инструментам
+
+    good, bad = parse_links(value)
+    if bad:
+        return None, bad[0][1]
+    if len(good) != 1:
+        return None, "в url должна быть ровно одна ссылка; для нескольких ссылок — по одному вызову на каждую"
+    return good[0], ""
+
+
+def _analyze_link(user, value: str, caption: str, warnings: list[str], session_id: int | None) -> ToolResult:
+    if session_id is None:
+        return _error("не удалось поставить ссылку в очередь: нет активного чата")
+    link, reason = _single_link(value)
+    if link is None:
+        return _error(f"некорректная ссылка: {reason}")
+    if caption:
+        warnings.append("caption для ссылки не используется — подпись берётся из самого поста")
+
+    current_app.logger.info("chat_tools: analyze_image user=%s link=%s -> очередь", getattr(user, "id", "?"), link[:200])
+    try:
+        payload = chat_jobs.enqueue_link(user, session_id, link)
+    except chat_jobs.JobError as exc:
+        return _error(f"не удалось поставить ссылку в очередь: {exc}")
+
+    if warnings:
+        payload["warnings"] = warnings
+    return ToolResult(json.dumps(payload, ensure_ascii=False))
 
 
 def analyze_chat_image(user, raw_args, images: list[ChatImage], session_id: int | None) -> ToolResult:
-    """Ставит изображение в очередь. `images` — вложения текущего чата (других модель получить не может)."""
-    if not images or session_id is None:
-        return _error("в этом чате нет прикреплённых изображений")
+    """Ставит в очередь изображение чата или ссылку на пост.
 
-    number, caption, warnings = normalize_args(raw_args)
+    `images` — вложения текущего чата (других модель получить не может). Ссылка (`url`) ставится
+    в очередь независимо от вложений: картинку скачивает сервер анализа.
+    """
+    number, url, caption, warnings = normalize_args(raw_args)
+    if url is not None:
+        if number is not None:
+            return _error("укажите либо image, либо url, а не оба сразу")
+        return _analyze_link(user, url, caption, warnings, session_id)
+
+    if not images or session_id is None:
+        return _error("в этом чате нет прикреплённых изображений — для анализа по ссылке передайте url")
+
     by_number = {img.number: img for img in images}
     if number is None:
         image = images[-1]
