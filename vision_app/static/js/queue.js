@@ -26,9 +26,7 @@
   function describeFiles(input) {
     var files = input.files;
     if (!files || !files.length) return "";
-    if (files.length === 1) return files[0].name;
-    var names = Array.prototype.slice.call(files, 0, 3).map(function (f) { return f.name; }).join(", ");
-    return "Файлов: " + files.length + " — " + names + (files.length > 3 ? "…" : "");
+    return files.length === 1 ? files[0].name : "Файлов: " + files.length;
   }
 
   // ---------- список выбранных файлов: миниатюра + подпись + удаление ----------
@@ -117,7 +115,7 @@
       var uploadForm = document.getElementById("upload-form");
       var captionMax = uploadForm ? Number(uploadForm.dataset.captionMax) : 0;
       if (captionMax > 0) field.maxLength = captionMax;
-      field.placeholder = "Комментарий к этому изображению (необязательно)";
+      field.placeholder = "Комментарий (необязательно)";
       field.value = captionMap.get(file) || "";
 
       var removeBtn = document.createElement("button");
@@ -143,6 +141,24 @@
     if (el) el.textContent = describeFiles(input);
     renderSelectedFiles(input);
   }
+
+  // Добавляет файлы к уже выбранным (а не заменяет): вставка из буфера, перетаскивание, кнопка.
+  function addFiles(newFiles) {
+    var input = document.getElementById("id_image");
+    if (!input) return;
+    harvestCaptions(input); // подписи, уже введённые к текущим файлам, не теряем
+    var dt = new DataTransfer();
+    var seen = {};
+    Array.prototype.slice.call(input.files).concat(Array.prototype.slice.call(newFiles)).forEach(function (f) {
+      var key = f.name + "|" + f.size + "|" + f.lastModified;
+      if (seen[key]) return;
+      seen[key] = true;
+      dt.items.add(f);
+    });
+    input.files = dt.files;
+    refreshSelection(input);
+  }
+  window.VisionIntake = { addFiles: addFiles };
 
   document.addEventListener("change", function (e) {
     if (e.target && e.target.id === "id_image") refreshSelection(e.target);
@@ -240,20 +256,32 @@
       img.src = item.thumb_url;
       img.alt = "";
       img.loading = "lazy";
-      img.width = 36;
-      img.height = 36;
+      img.width = 48;
+      img.height = 48;
       img.onerror = function () { this.style.visibility = "hidden"; };
       a.appendChild(img);
+    } else {
+      var stub = el("span", "row-thumb--empty");
+      stub.setAttribute("aria-hidden", "true");
+      a.appendChild(stub);
     }
-    a.appendChild(el("span", "risk-dot risk-" + item.risk_level));
-    a.appendChild(el("span", "id-tag", "№" + item.id));
-    a.appendChild(el("span", "mini-list-name", truncate(item.name, 28)));
-    if (item.is_new) {
-      var badge = el("span", "tag tag-new", "новое");
-      badge.style.marginLeft = "6px";
-      a.appendChild(badge);
-    }
-    a.appendChild(el("span", "mini-list-date", item.date));
+
+    var main = el("span", "mini-list-main");
+    var name = el("span", "mini-list-name", truncate(item.name, 60));
+    name.title = item.name;
+    main.appendChild(name);
+
+    var meta = el("span", "mini-list-meta");
+    var risk = el("span", "mini-list-risk");
+    risk.appendChild(el("span", "risk-dot risk-" + item.risk_level));
+    risk.appendChild(document.createTextNode(item.risk_label || ""));
+    meta.appendChild(risk);
+    meta.appendChild(el("span", "id-tag", "№" + item.id));
+    meta.appendChild(el("span", "mini-list-date", item.date));
+    if (item.is_new) meta.appendChild(el("span", "tag tag-new", "новое"));
+    main.appendChild(meta);
+
+    a.appendChild(main);
     li.appendChild(a);
     return li;
   }

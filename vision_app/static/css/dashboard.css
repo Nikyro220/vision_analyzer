@@ -1,0 +1,265 @@
+/* ============================================================
+   Страница «Новый анализ» (analyzer/dashboard.html).
+   Все правила действуют только внутри .dash-page — остальные страницы
+   (профиль, история, статус) не меняются. Цвета берутся из переменных
+   темы, поэтому вид корректен в любой теме из «Оформления».
+   ============================================================ */
+
+.dash-page {
+    --dp-r: min(calc(var(--radius) * 4 + 2px), calc(var(--radius) * 1.2 + 10.4px));
+    --dp-r-sm: calc(var(--dp-r) * 0.65);
+    --dp-line: color-mix(in srgb, var(--border) 75%, transparent);
+    --dp-soft: color-mix(in srgb, var(--border-soft) 80%, transparent);
+    /* читаемые «приглушённые» цвета: заметно ярче --text-dim, но всё ещё вторичные */
+    --dp-muted: color-mix(in srgb, var(--text) 70%, var(--bg-panel));
+    --dp-hint: color-mix(in srgb, var(--text) 55%, var(--bg-panel));
+    font-family: var(--font-body);
+}
+
+/* ---------- Заголовок страницы ---------- */
+.dash-page .page-header { margin-bottom: 28px; }
+.dash-page .page-header h1 {
+    margin: 0 0 8px;
+    font-family: var(--font-body);
+    font-size: 1.75rem;
+    font-weight: 700;
+    line-height: 1.2;
+    letter-spacing: -0.02em;
+}
+.dash-page .page-sub {
+    max-width: 60ch;
+    font-size: 1rem;
+    line-height: 1.55;
+    color: var(--dp-muted);
+}
+
+/* ---------- Сетка и карточки ---------- */
+.dash-page .panel-grid-uneven {
+    grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
+    gap: 20px;
+    align-items: start;
+}
+.dash-page .stack { gap: 20px; }
+.dash-page .card {
+    padding: 24px 26px;
+    border-color: var(--dp-soft);
+    border-radius: var(--dp-r);
+}
+.dash-page .card-title {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin: 0 0 6px;
+    font-family: var(--font-body);
+    font-size: 1.1rem;
+    font-weight: 650;
+    letter-spacing: 0;
+    text-transform: none;
+    color: var(--text);
+}
+
+/* ---------- Подсказки ---------- */
+.dash-page .field-hint {
+    margin: 8px 0 0;
+    max-width: 66ch;
+    font-size: 0.875rem;
+    line-height: 1.6;
+    color: var(--dp-hint);
+}
+.dash-page .dash-target {
+    margin: 0 0 18px;
+    font-size: 0.9rem;
+    color: var(--dp-muted);
+}
+.dash-page .dash-target strong { color: var(--text); font-weight: 600; }
+
+/* ---------- Форма ---------- */
+.dash-page .form { gap: 0; }
+.dash-page .sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+    border: 0;
+}
+.dash-page .field-error { margin-top: 10px; }
+
+/* Единое поле: текст для ссылок + нижняя панель с выбором файлов; принимает и вставку, и перетаскивание */
+.dash-page .intake {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    border: 1px solid var(--dp-line);
+    border-radius: var(--dp-r-sm);
+    background: var(--bg-elevated);
+    transition: border-color 0.15s, box-shadow 0.15s, background-color 0.15s;
+}
+.dash-page .intake:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+.dash-page .intake.is-dragover {
+    border-color: var(--accent-strong);
+    border-style: dashed;
+    background: var(--accent-soft);
+}
+.dash-page .intake textarea.input {
+    min-height: 132px;
+    padding: 14px 16px 8px;
+    border: 0;
+    border-radius: var(--dp-r-sm) var(--dp-r-sm) 0 0;
+    background: transparent;
+    box-shadow: none;
+    font-size: 0.95rem;
+    line-height: 1.55;
+    resize: vertical;
+}
+.dash-page .intake textarea.input::placeholder { color: var(--dp-hint); }
+.dash-page .intake textarea.input:focus,
+.dash-page .intake textarea.input:focus-visible { outline: none; box-shadow: none; }
+.dash-page .intake-bar {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px 12px;
+    padding: 10px 12px;
+    border-top: 1px solid var(--dp-soft);
+}
+.dash-page .intake-pick { gap: 8px; }
+.dash-page .intake-status {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: var(--accent-strong);
+}
+.dash-page .intake-hint { font-size: 0.875rem; color: var(--dp-hint); }
+.dash-page .intake-status:not(:empty) ~ .intake-hint { display: none; }
+
+.dash-page .caption-list { margin: 14px 0 0; }
+
+/* Поддерживаемые сайты — теги вместо сплошной строки текста */
+.dash-page .intake-sources { margin-top: 14px; }
+.dash-page .source-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+.dash-page .source-chips li {
+    padding: 3px 11px;
+    border-radius: 999px;
+    font-size: 0.8125rem;
+    background: color-mix(in srgb, var(--text-dim) 18%, transparent);
+    color: var(--dp-muted);
+}
+.dash-page .intake-sources .field-hint { margin: 10px 0 0; }
+
+.dash-page .btn-primary {
+    margin-top: 20px;
+    min-height: 48px;
+    border-radius: var(--dp-r-sm);
+    font-size: 1rem;
+}
+.dash-page .btn:focus-visible,
+.dash-page .mini-list-row:focus-visible {
+    outline: 2px solid var(--accent-strong);
+    outline-offset: 2px;
+}
+
+/* ---------- Очередь ---------- */
+.dash-page .queue-count {
+    min-width: 24px;
+    margin-left: 0;
+    padding: 1px 8px;
+    border: none;
+    border-radius: 999px;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    background: var(--accent-soft);
+    color: var(--accent-strong);
+}
+.dash-page .queue-list { gap: 8px; margin: 14px 0 0; }
+.dash-page .queue-item {
+    padding: 12px 14px;
+    border-color: var(--dp-soft);
+    border-radius: var(--dp-r-sm);
+}
+.dash-page .queue-name { font-size: 0.95rem; }
+.dash-page .queue-status { font-size: 0.85rem; color: var(--dp-muted); }
+.dash-page .empty-hint {
+    margin: 12px 0 0;
+    font-size: 0.95rem;
+    line-height: 1.55;
+    color: var(--dp-muted);
+}
+
+/* ---------- Последние загрузки ---------- */
+.dash-page .mini-list { margin-top: 12px; gap: 0; }
+.dash-page .mini-list > li + li { border-top: 1px solid var(--dp-soft); }
+.dash-page .mini-list-row {
+    gap: 14px;
+    padding: 10px 8px;
+    border-radius: var(--dp-r-sm);
+}
+.dash-page .mini-list-row .row-thumb,
+.dash-page .row-thumb--empty {
+    flex: none;
+    width: 48px;
+    height: 48px;
+    border-radius: calc(var(--dp-r-sm) * 0.8);
+    border: 1px solid var(--dp-soft);
+    object-fit: cover;
+}
+.dash-page .row-thumb--empty { background: color-mix(in srgb, var(--text-dim) 16%, transparent); }
+
+.dash-page .mini-list-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.dash-page .mini-list-name {
+    flex: none;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 0.95rem;
+    font-weight: 500;
+    color: var(--text);
+}
+.dash-page .mini-list-meta {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 4px 10px;
+    font-size: 0.8125rem;
+    color: var(--dp-hint);
+}
+.dash-page .mini-list-risk { display: inline-flex; align-items: center; gap: 6px; color: var(--dp-muted); }
+.dash-page .risk-dot { width: 9px; height: 9px; }
+.dash-page .id-tag { margin: 0; font-size: 0.8125rem; color: var(--dp-hint); }
+.dash-page .mini-list-date { font-family: var(--font-body); font-size: 0.8125rem; color: var(--dp-hint); }
+.dash-page .tag-new {
+    padding: 0 8px;
+    border: none;
+    border-radius: 999px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    background: var(--accent-soft);
+    color: var(--accent-strong);
+}
+
+.dash-page .link-more {
+    margin-top: 16px;
+    font-size: 0.95rem;
+    font-weight: 600;
+}
+
+@media (max-width: 880px) {
+    .dash-page .panel-grid-uneven { grid-template-columns: 1fr; }
+    .dash-page .page-header h1 { font-size: 1.5rem; }
+}
+@media (max-width: 640px) {
+    .dash-page .card { padding: 18px 16px; }
+}

@@ -1,5 +1,7 @@
 {% extends "base.html" %}
+{% from "partials/icons.html" import icon %}
 {% block title %}Новый анализ{% endblock %}
+{% block head_extra %}<link rel="stylesheet" href="{{ url_for('static', filename='css/dashboard.css') }}">{% endblock %}
 
 {# Одна строка очереди. Разметку зеркалит функция renderQueueItem() в static/js/queue.js #}
 {% macro queue_row(item) %}
@@ -21,6 +23,7 @@
 {% endmacro %}
 
 {% block content %}
+<div class="dash-page">
 <div class="page-header">
     <h1>Новый анализ изображения</h1>
     <p class="page-sub">Загрузите файлы или вставьте ссылки на посты — всё встанет в очередь и будет обработано vision-моделью по одному.</p>
@@ -30,27 +33,34 @@
     <div class="stack">
         <div class="card">
             <h2 class="card-title">Загрузка</h2>
-            <p class="field-hint">
-                {% if target_backend %}Анализ на: <strong>{{ target_backend }}</strong> · модель: <strong>{{ target_model or 'авто' }}</strong>
-                {% else %}Анализ на бэкенде и модели по умолчанию.{% endif %}
+            <p class="dash-target">
+                {% if target_backend %}Анализирует <strong>{{ target_model or 'модель по умолчанию' }}</strong> на <strong>{{ target_backend }}</strong>
+                {% else %}Используется бэкенд и модель по умолчанию.{% endif %}
             </p>
             <form method="post" enctype="multipart/form-data" class="form" id="upload-form" data-caption-max="{{ conf("CAPTION_MAX_CHARS") }}" novalidate>
                 {{ form.hidden_tag() }}
-                <div class="dropzone" id="dropzone">
-                    <input type="file" name="image" id="id_image" accept="image/*" multiple>
-                    <div class="dropzone-hint">
-                        <span class="dropzone-ic">⇧</span>
-                        <span>Перетащите изображения сюда или нажмите, чтобы выбрать файлы</span>
-                        <span class="dropzone-preview-name" id="file-name"></span>
+                {# Одно поле: ссылки пишутся/вставляются в текст, картинки — вставкой из буфера, перетаскиванием или кнопкой #}
+                <div class="intake" id="dropzone">
+                    <label for="id_links" class="sr-only">Ссылки на посты или изображения</label>
+                    {{ form.links(class_="input", id="id_links", rows="4", placeholder="Вставьте ссылку на пост или изображение (Ctrl+V). Несколько ссылок — каждую с новой строки.", spellcheck="false", autocapitalize="off") }}
+                    <div class="intake-bar">
+                        <button type="button" class="btn btn-secondary btn-sm intake-pick" id="pick-files">
+                            {{ icon('image-plus', 16) }} Выбрать изображения
+                        </button>
+                        <span class="intake-status" id="file-name"></span>
+                        <span class="intake-hint">или перетащите файлы сюда</span>
                     </div>
+                    <input type="file" name="image" id="id_image" class="sr-only" accept="image/*" multiple tabindex="-1">
                 </div>
                 {% for error in form.image.errors %}<div class="field-error">{{ error }}</div>{% endfor %}
+                {% for error in form.links.errors %}<div class="field-error">{{ error }}</div>{% endfor %}
                 <div class="caption-list" id="caption-list" hidden></div>
-                <div class="field link-field">
-                    <label for="id_links">Или ссылки на посты</label>
-                    {{ form.links(class_="input", id="id_links", placeholder="https://… — по одной ссылке на строку", spellcheck="false", autocapitalize="off") }}
-                    <div class="field-hint">Instagram, X/Twitter, TikTok, Reddit, VK, YouTube, Bluesky, Pinterest, публичные посты t.me, новостные сайты и прямые ссылки на картинки. Картинку и контекст поста (автор, текст) подтянет сервер анализа; для видео анализируется обложка.</div>
-                    {% for error in form.links.errors %}<div class="field-error">{{ error }}</div>{% endfor %}
+                <div class="intake-sources">
+                    <ul class="source-chips" aria-label="Поддерживаемые сайты">
+                        <li>Instagram</li><li>X / Twitter</li><li>TikTok</li><li>Reddit</li><li>VK</li><li>YouTube</li>
+                        <li>Bluesky</li><li>Pinterest</li><li>Telegram</li><li>новостные сайты</li><li>прямые ссылки на картинки</li>
+                    </ul>
+                    <div class="field-hint">Картинку и текст поста подтянет сервер анализа. Для видео берётся обложка.</div>
                 </div>
                 <button type="submit" class="btn btn-primary btn-block" id="submit-btn">Добавить в очередь</button>
             </form>
@@ -64,8 +74,8 @@
             <ul class="queue-list" id="queue-list">
                 {% for item in pending %}{{ queue_row(item) }}{% endfor %}
             </ul>
-            <p class="empty-hint" id="queue-empty" {% if pending %}hidden{% endif %}>Очередь пуста — загруженные файлы и ссылки появятся здесь.</p>
-            <p class="field-hint">Обработка идёт в фоне: страницу можно перезагрузить или закрыть, очередь не потеряется. Готовые результаты появляются в «Последних загрузках».</p>
+            <p class="empty-hint" id="queue-empty" {% if pending %}hidden{% endif %}>Очередь пуста. Загруженные файлы и ссылки появятся здесь.</p>
+            <p class="field-hint">Обработка идёт в фоне: страницу можно закрыть, очередь не потеряется. Готовые результаты появятся справа.</p>
             <p class="field-hint queue-error" id="queue-error" hidden>Не удаётся обновить очередь — повторяю попытку…</p>
         </div>
     </div>
@@ -76,11 +86,17 @@
             {% for item in recent %}
             <li>
                 <a href="{{ item.url }}" class="mini-list-row">
-                    {% if item.thumb_url %}<img class="row-thumb" src="{{ item.thumb_url }}" alt="" loading="lazy" width="36" height="36" onerror="this.style.visibility='hidden'">{% endif %}
-                    <span class="risk-dot risk-{{ item.risk_level }}"></span>
-                    <span class="id-tag">№{{ item.id }}</span>
-                    <span class="mini-list-name">{{ item.name|trunc(28) }}</span>{% if item.is_new %} <span class="tag tag-new">новое</span>{% endif %}
-                    <span class="mini-list-date">{{ item.date }}</span>
+                    {% if item.thumb_url %}<img class="row-thumb" src="{{ item.thumb_url }}" alt="" loading="lazy" width="48" height="48" onerror="this.style.visibility='hidden'">
+                    {% else %}<span class="row-thumb--empty" aria-hidden="true"></span>{% endif %}
+                    <span class="mini-list-main">
+                        <span class="mini-list-name" title="{{ item.name }}">{{ item.name|trunc(60) }}</span>
+                        <span class="mini-list-meta">
+                            <span class="mini-list-risk"><span class="risk-dot risk-{{ item.risk_level }}"></span>{{ item.risk_label }}</span>
+                            <span class="id-tag">№{{ item.id }}</span>
+                            <span class="mini-list-date">{{ item.date }}</span>
+                            {% if item.is_new %}<span class="tag tag-new">новое</span>{% endif %}
+                        </span>
+                    </span>
                 </a>
             </li>
             {% endfor %}
@@ -89,4 +105,6 @@
         <p class="empty-hint" id="recent-empty" {% if recent %}hidden{% endif %}>Пока нет завершённых анализов. Загрузите первое изображение или ссылку слева.</p>
     </div>
 </div>
+</div>
 {% endblock %}
+{% block scripts_extra %}<script src="{{ url_for('static', filename='js/intake.js') }}"></script>{% endblock %}
