@@ -28,6 +28,23 @@ from pathlib import Path
 import aiohttp
 
 
+class SafeTimedRotatingFileHandler(TimedRotatingFileHandler):
+    """TimedRotatingFileHandler, не падающий на Windows, если лог занят.
+
+    На Windows os.rename() по файлу, открытому другим процессом (второй
+    экземпляр сервера, Flask-часть, tail/IDE), даёт PermissionError
+    [WinError 32], и каждая строка лога превращается в "--- Logging error ---".
+    Здесь такая ротация просто пропускается: пишем дальше в тот же файл,
+    а следующая попытка будет при следующем переходе через полночь.
+    """
+
+    def rotate(self, source, dest):
+        try:
+            super().rotate(source, dest)
+        except PermissionError:
+            pass
+
+
 LOG_DIR = Path(
     os.environ.get("VISION_LOG_DIR", Path(__file__).resolve().parent.parent / "logs")
 )
@@ -39,11 +56,11 @@ def _setup_logging() -> None:
 
     console = logging.StreamHandler()
 
-    everything = TimedRotatingFileHandler(
+    everything = SafeTimedRotatingFileHandler(
         LOG_DIR / "analyzer.log", when="midnight", backupCount=14,
         encoding="utf-8", delay=True,
     )
-    errors = TimedRotatingFileHandler(
+    errors = SafeTimedRotatingFileHandler(
         LOG_DIR / "analyzer.error.log", when="midnight", backupCount=60,
         encoding="utf-8", delay=True,
     )

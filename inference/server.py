@@ -453,7 +453,43 @@ def build_app() -> web.Application:
     return app
 
 
+def _port_in_use(host: str, port: int) -> bool:
+    """True, если порт уже занят (например, забытым фоновым экземпляром)."""
+    import socket
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+        # На Windows SO_REUSEADDR разрешает "угон" порта, поэтому не ставим его.
+        try:
+            sock.bind((host, port))
+        except OSError:
+            return True
+    return False
+
+
+def _find_pid_on_port(port: int) -> str | None:
+    """Best-effort поиск PID слушателя порта через netstat (Windows/Linux)."""
+    import subprocess
+    try:
+        out = subprocess.run(
+            ["netstat", "-ano"], capture_output=True, text=True, timeout=5,
+        ).stdout
+    except Exception:
+        return None
+    for line in out.splitlines():
+        parts = line.split()
+        if len(parts) >= 5 and "LISTEN" in line.upper() and parts[1].endswith(f":{port}"):
+            return parts[-1]
+    return None
+
+
 if __name__ == "__main__":
+    if _port_in_use(config.SERVER_HOST, config.SERVER_PORT):
+        pid = _find_pid_on_port(config.SERVER_PORT)
+        logging.error(
+            "Порт %d уже занят%s — скорее всего, сервер уже запущен в фоне. "
+            "Закройте старый процесс и запустите снова.",
+            config.SERVER_PORT, f" (PID {pid})" if pid else "",
+        )
+        raise SystemExit(1)
     logging.info(
         "Запускаю vision_analyzer_server на http://%s:%d (backend по умолчанию: %s)",
         config.SERVER_HOST, config.SERVER_PORT, config.BACKEND,

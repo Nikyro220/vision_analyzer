@@ -23,6 +23,23 @@ from flask.logging import default_handler
 
 from .config import Config
 
+class SafeTimedRotatingFileHandler(TimedRotatingFileHandler):
+    """TimedRotatingFileHandler, не падающий на Windows, если лог занят.
+
+    На Windows os.rename() по файлу, открытому другим процессом (второй
+    экземпляр сервера, Flask-часть, tail/IDE), даёт PermissionError
+    [WinError 32], и каждая строка лога превращается в "--- Logging error ---".
+    Здесь такая ротация просто пропускается: пишем дальше в тот же файл,
+    а следующая попытка будет при следующем переходе через полночь.
+    """
+
+    def rotate(self, source, dest):
+        try:
+            super().rotate(source, dest)
+        except PermissionError:
+            pass
+
+
 LOG_DIR = Path(Config.LOG_DIR)
 
 
@@ -32,11 +49,11 @@ def setup_logging(app: Flask | None = None) -> None:
 
     console = logging.StreamHandler()
 
-    everything = TimedRotatingFileHandler(
+    everything = SafeTimedRotatingFileHandler(
         LOG_DIR / "app.log", when="midnight", backupCount=Config.LOG_BACKUP_DAYS,
         encoding="utf-8", delay=True,
     )
-    errors = TimedRotatingFileHandler(
+    errors = SafeTimedRotatingFileHandler(
         LOG_DIR / "app.error.log", when="midnight", backupCount=Config.LOG_ERROR_BACKUP_DAYS,
         encoding="utf-8", delay=True,
     )
