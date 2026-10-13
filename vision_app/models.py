@@ -590,12 +590,12 @@ class ProviderModelsCache(db.Model):
 # ----------------------------------------------------------------------------
 
 # Имя категории передаётся серверу анализа как есть и там же используется как
-# имя файла на диске (см. inference/categories.py) — поэтому те же ограничения:
+# имя файла на диске (см. inference/tools/vision_analyzer/categories.py) — поэтому те же ограничения:
 # только латинские буквы, цифры и «_».
 CATEGORY_NAME_RE = re.compile(r"^[A-Za-z0-9_]+$")
 
 # Раньше full/compact хранились ЦЕЛИКОМ как <signal_category name="...">...</signal_category>
-# (так их ждёт сервер анализа — см. inference/categories.py: full_signals_block/
+# (так их ждёт сервер анализа — см. inference/tools/vision_analyzer/categories.py: full_signals_block/
 # compact_signals_block просто склеивают эти строки). Начиная с админ-панели эта
 # обёртка больше не часть того, что редактирует человек: хранится и правится только
 # «тело» правил, а тег с именем категории достраивается автоматически в
@@ -634,11 +634,11 @@ def _split_paragraphs(text: str) -> list[str]:
 
 class Category(db.Model):
     """Одна категория оценивания (сигнала), которую сервер анализа ищет на
-    изображении. Раньше жили файлами в inference/categories/*.json — теперь
+    изображении. Раньше жили файлами в inference/tools/vision_analyzer/categories/*.json — теперь
     единственное место хранения и редактирования — эта таблица в vision_app;
     при каждом вызове /analyze текущий набор целиком уходит на сервер анализа
     как разовый оверлей (см. services.build_categories_payload и
-    inference/categories.py: build_overlay).
+    inference/tools/vision_analyzer/categories.py: build_overlay).
     """
 
     __tablename__ = "categories"
@@ -702,7 +702,7 @@ class Category(db.Model):
 
     def to_overlay_dict(self) -> dict:
         """Формат одного элемента списка "categories" в теле /analyze (см.
-        inference/categories.py: build_overlay / _merge_category_payload).
+        inference/tools/vision_analyzer/categories.py: build_overlay / _merge_category_payload).
         full/compact оборачиваются в <signal_category name="...">...</signal_category>
         здесь — это единственное место, где тег вообще появляется."""
         item: dict = {

@@ -169,14 +169,14 @@ def analyze_image(
     изображению (передаётся серверу как есть, влияет только на промпт модели).
 
     categories — разовые категории оценивания на этот вызов (см.
-    inference/categories.py: build_overlay). Единственный источник этого списка —
+    inference/tools/vision_analyzer/categories.py: build_overlay). Единственный источник этого списка —
     таблица categories в БД vision_app (categories_store.build_categories_payload);
     сервер анализа своих категорий больше не хранит.
 
     Формат запроса: без категорий — как раньше, сырые байты в теле
     (Content-Type: image/*) плюс query-параметры (быстрее, без base64).
     С категориями — целиком JSON-телом (Content-Type: application/json,
-    см. inference/analyze.py: _parse_json_body), потому что правила
+    см. inference/tools/vision_analyzer/analyze.py: _parse_json_body), потому что правила
     категорий (full/compact) в сумме легко превышают ограничение aiohttp
     на длину строки запроса (~8 КБ) — через query-параметры категории
     туда просто не влезают уже на 4-5 включённых категориях.

@@ -114,7 +114,7 @@ class ToolCall:
 def build_tool_system_prompt(user=None, images: list[ChatImage] | None = None) -> str:
     """Системный промпт инструментов (вторая часть системного промпта чата, см. chat_prompt.py).
 
-    Единый шаблон, как у промптов сервера анализа (inference/prompts): английский текст, XML-секции,
+    Единый шаблон, как у промптов сервера анализа (inference/tools/vision_analyzer/prompts): английский текст, XML-секции,
     утвердительные инструкции. Инструмент — это <tool> с секциями purpose / args / workflow /
     when_to_call; общий формат вызова — <protocol>, общие правила ответа — <rules>. Что видит
     пользователь (карточки, сообщения интерфейса), остаётся на русском: это не промпт.

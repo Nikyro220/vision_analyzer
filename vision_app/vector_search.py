@@ -2,7 +2,7 @@
 
 Как устроено
 ------------
-* Вектор считает сервер анализа (POST /embeddings, см. inference/embeddings.py), здесь он
+* Вектор считает сервер анализа (POST /embeddings, см. inference/tools/embeddings/embeddings.py), здесь он
   только хранится и сравнивается. Хранилище — таблица analysis_embeddings в той же БД
   (models.AnalysisEmbedding): по одному float32-вектору на анализ, L2-нормализованному, поэтому
   cosine-сходство равно скалярному произведению. Сравнение — numpy, без внешней векторной БД:

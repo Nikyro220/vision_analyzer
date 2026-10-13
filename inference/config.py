@@ -1,9 +1,8 @@
 """
 config.py — конфигурация vision_analyzer_server: константы (бэкенды,
-таймауты, сэмплинг) плюс общий bootstrap опциональных модулей (locales,
-vision_analyzer_prompt, image_upscaler) и мелкие обёртки над ними
-(_t, _current_lang, _get_system_prompt), которые нужны и backends.py,
-и server.py. Собраны в одном месте, чтобы не дублировать
+таймауты, сэмплинг, настройки инструментов из tools/) плюс общий bootstrap
+опциональных модулей (locales, tools.image_upscaler) и мелкие обёртки над
+ними (_t, _current_lang), которые нужны и инструментам, и server.py. Собраны в одном месте, чтобы не дублировать
 try/except ImportError и предупреждения в логах по разным файлам.
 
 ВАЖНО про мутируемые "глобалы": BACKEND/OLLAMA_HOST/VLLM_URL/GEMINI_MODEL
@@ -78,14 +77,6 @@ def _setup_logging() -> None:
 _setup_logging()
 
 try:
-    import prompt as prompt
-except ImportError:
-    prompt = None
-    logging.warning(
-        "config: prompt.py не найден, системный промпт будет пустым"
-    )
-
-try:
     import locales
 except ImportError:
     locales = None
@@ -94,11 +85,11 @@ except ImportError:
     )
 
 try:
-    import image_upscaler
+    from tools.image_upscaler import image_upscaler
 except ImportError:
     image_upscaler = None
     logging.warning(
-        "config: image_upscaler.py не найден, "
+        "config: tools/image_upscaler не найден, "
         "апскейлинг маленьких изображений отключён"
     )
 
@@ -137,20 +128,6 @@ def _page(name: str, **kwargs) -> str:
     for key, value in kwargs.items():
         text = text.replace("{" + key + "}", str(value))
     return text
-
-
-
-
-# С переходом на двухпроходный анализ (classify + analyze, см. backends.py:
-# _select_categories/_analyze_image) backends.py сам решает, какие категории
-# и какой вариант (full/compact) передать в prompt.get_system_prompt — эта
-# обёртка больше не используется в backends.py напрямую. Оставлена как общий
-# "весь промпт, все категории" хелпер для внешнего кода (CLI-обёртка и т.п.,
-# см. prompt.py: docstring).
-def _get_system_prompt(lang: str | None = None) -> str:
-    if prompt is None:
-        return ""
-    return prompt.get_system_prompt(lang or _current_lang())
 
 
 # ---------------------------------------------------------------------------
@@ -280,7 +257,7 @@ EMBEDDING_CACHE_DIR = Path(
 # отвечает на запросы сразу; пока модель не готова, POST /embeddings
 # отдаёт 503 + Retry-After, а прогресс виден в GET /embeddings и /health.
 # Предварительный прогрев на этапе сборки образа по-прежнему возможен —
-# см. warm_embeddings.py (использует ту же папку EMBEDDING_CACHE_DIR).
+# см. tools/embeddings/warm_embeddings.py (использует ту же папку EMBEDDING_CACHE_DIR).
 
 SAMPLING_DEFAULTS = {
     "temperature": float(os.environ.get("VISION_ANALYZER_TEMPERATURE", 0)),

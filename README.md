@@ -61,17 +61,23 @@ cd inference && python server.py
 
 ## `inference/`: сервер анализа
 
+Корень `inference/` — HTTP-сервер, конфиги и основной чат. Всё, что относится к отдельным
+инструментам (анализатор картинок, эмбеддинги, апскейл), лежит в `tools/`, по папке на инструмент.
+
 | Файл | Назначение |
 |---|---|
-| `server.py` | HTTP-эндпоинты (aiohttp): `/`, `/health`, `/analyze`, `/chat`, `/lang`, `/config`, `/sampling`, `/models`, `/providers`, `/categories` |
+| `server.py` | HTTP-эндпоинты (aiohttp): `/`, `/health`, `/analyze`, `/chat`, `/lang`, `/config`, `/sampling`, `/models`, `/providers`, `/categories`, `/embeddings` |
+| `config.py` | Константы (в том числе настройки инструментов), параметры сэмплинга, логирование, бутстрап `locales`/`image_upscaler` |
+| `http_utils.py` | Общие хелперы HTTP-слоя: JSON-ответ, `_BodyError`, подготовка изображения (mime + апскейл + base64) |
+| `chat.py`, `chat_backends.py`, `chat_prompt.py` | Основной чат `/chat` — свободный диалог с историей, без JSON-схемы риск-отчёта; `chat_prompt.py` — его системная "личность" |
 | `providers/` | Бэкенды модели, по модулю на каждый: `vllm.py` (`/v1/chat/completions`), `ollama.py` (`/api/chat`), `gemini.py` (Google `generateContent`), `anthropic.py` (Anthropic Messages API); общий интерфейс — `base.py`, реестр — `__init__.py` |
 | `fallback.py` | Цепочка фолбэка между бэкендами для `/chat` и `/analyze`: триггер — любая ошибка бэкенда, порядок (локальные → облачные) |
-| `backends.py` | Конвейер `/analyze` поверх провайдеров: двухпроходный анализ, фолбэк, постобработка отчёта |
-| `chat.py`, `chat_backends.py` | То же самое, но для `/chat` — свободный диалог с историей, без JSON-схемы риск-отчёта |
-| `config.py` | Константы, параметры сэмплинга, логирование, бутстрап `locales`/`prompt`/`image_upscaler` |
-| `prompt.py` | Системный промпт `/analyze` (двухпроходный, по категориям) и дефолтная системная "личность" `/chat` |
 | `locales.py`, `locales/*.json` | Тексты ответов сервера на разных языках |
-| `image_upscaler.py` | Апскейл маленьких изображений (Real-ESRGAN) перед анализом |
+| `tools/vision_analyzer/` | Инструмент риск-триажа картинок (`POST /analyze`, `/categories`): `analyze.py` (разбор тела запроса, хендлер), `backends.py` (двухпроходный анализ, постобработка отчёта), `prompt.py` + `prompts/`, `categories.py` + `categories/`, `categories_api.py`, `link_fetcher.py` (картинки из ссылок на посты) |
+| `tools/embeddings/` | Эмбеддинги текста (`/embeddings`): `embeddings.py`, `warm_embeddings.py` (предзагрузка весов: `cd inference && python -m tools.embeddings.warm_embeddings`) |
+| `tools/image_upscaler/` | Апскейл маленьких изображений (Real-ESRGAN) перед анализом и чатом |
+
+Веса и кэши остались на прежних местах: `inference/models/embeddings/` и `inference/upscaler/`.
 
 ### Эндпоинты
 

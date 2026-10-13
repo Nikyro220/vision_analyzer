@@ -2,7 +2,7 @@
 chat.py — всё, что относится к POST /chat: свободный, бесхис-схемный
 диалог с моделью (текст + необязательные картинки, с историей), для
 UI/ботов, которым не нужен риск-анализ по строгой JSON-схеме (см.
-analyze.py: POST /analyze — тот всегда разовый, без истории).
+tools/vision_analyzer/analyze.py: POST /analyze — тот всегда разовый, без истории).
 
 Сервер ничего не хранит — история диалога целиком приходит от клиента
 на каждый запрос (поле 'history'), ровно как раньше делал /analyze.
@@ -26,11 +26,12 @@ import aiohttp
 from aiohttp import web
 
 import chat_backends
+import chat_prompt
 import config
 import fallback
 import providers
-from analyze import _BodyError, _json, _prepare_image
-from config import locales, prompt
+from config import locales
+from http_utils import _BodyError, _json, _prepare_image
 
 #: допустимые значения поля system_mode (см. handle_chat)
 SYSTEM_MODES = ("append", "replace")
@@ -200,15 +201,12 @@ async def handle_chat(request: web.Request) -> web.Response:
         if not system_prompt:
             return _json({"error": config._t("error.system_required_for_replace", lang=resolved_lang)}, status=400)
     else:
-        # Дефолтная "личность" ассистента по инструменту (см. prompt.py:
+        # Дефолтная "личность" ассистента по инструменту (см. chat_prompt.py:
         # get_chat_system_prompt) — подставляется, даже если клиент передал своё поле
         # 'system': оно не заменяет базовый промпт, а добавляется к нему как доп.
-        # инструкция на этот вызов. Если prompt.py не найден на сервере (см. config.py) —
-        # ведём себя как раньше и просто передаём system как есть (может быть None).
-        system_prompt = (
-            prompt.get_chat_system_prompt(resolved_lang or config._current_lang(), overrides["system"])
-            if prompt is not None
-            else overrides["system"]
+        # инструкция на этот вызов.
+        system_prompt = chat_prompt.get_chat_system_prompt(
+            resolved_lang or config._current_lang(), overrides["system"],
         )
 
     logging.info(

@@ -31,10 +31,10 @@ import json
 import logging
 import re
 
-import categories
 import config
 import fallback
 import providers
+from tools.vision_analyzer import categories, prompt
 
 
 # ---------------------------------------------------------------------------
@@ -204,8 +204,8 @@ async def _select_categories(
     если клиент передал свои в /analyze; включаются в шорт-лист кандидатов
     наравне с дефолтными.
     """
-    system_prompt = config.prompt.get_classify_system_prompt(overlay)
-    user_prompt = config.prompt.get_classify_user_prompt(caption)
+    system_prompt = prompt.get_classify_system_prompt(overlay)
+    user_prompt = prompt.get_classify_user_prompt(caption)
     provider = providers.get(backend)
 
     for attempt in range(1, _CLASSIFY_MAX_ATTEMPTS + 1):
@@ -259,10 +259,10 @@ async def _analyze_image(
         )
         used_compact = selected is None  # None = проход 1 исчерпал попытки
 
-        system_prompt = config.prompt.get_system_prompt(
+        system_prompt = prompt.get_system_prompt(
             resolved_lang, categories=selected, compact=used_compact, overlay=overlay,
         )
-        user_prompt = config.prompt.get_user_prompt(resolved_lang, caption)
+        user_prompt = prompt.get_user_prompt(resolved_lang, caption)
 
         content = await provider.analyze(image_b64, image_mime, resolved_model, system_prompt, user_prompt)
         return content, name, resolved_model

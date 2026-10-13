@@ -52,8 +52,8 @@ from pathlib import Path
 from aiohttp import web
 
 import config
-from analyze import _json
 from config import locales
+from http_utils import _json
 
 log = logging.getLogger("vision_analyzer.embeddings")
 

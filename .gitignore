@@ -14,3 +14,4 @@ inference/upscaler/*.part
 logs/
 temp/
 inference/models/
+tests/

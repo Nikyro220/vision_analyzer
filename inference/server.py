@@ -1,15 +1,15 @@
 """
 server.py — HTTP-слой vision_analyzer_server: простые хендлеры (/,
 /health, /lang, /config, /sampling, /models), сборка приложения aiohttp
-и entrypoint. Сам /analyze — самый сложный путь — вынесен в analyze.py:
+и entrypoint. Сам /analyze — самый сложный путь — вынесен в tools/vision_analyzer/analyze.py:
 подготовка изображений и разбор трёх форматов тела запроса там.
 Собственно общением с моделью (Ollama/vLLM/Gemini/Anthropic) занимаются провайдеры
-в providers/ (по модулю на бэкенд), конвейер /analyze — backends.py.
+в providers/ (по модулю на бэкенд), конвейер /analyze — tools/vision_analyzer/backends.py.
 /providers — самоописание провайдеров (в т.ч. какой ключ API им нужен), чтобы клиенты не
 зашивали список бэкендов. Ключи API сервер НЕ хранит: клиент присылает ключ в каждом запросе
 заголовком X-Api-Key-<Провайдер> (см. credentials_middleware ниже).
-Хендлеры /categories (только чтение дефолтов) — в categories_api.py,
-бизнес-логика — в categories.py. Разовые категории на один вызов
+Хендлеры /categories (только чтение дефолтов) — в tools/vision_analyzer/categories_api.py,
+бизнес-логика — в tools/vision_analyzer/categories.py. Разовые категории на один вызов
 передаются прямо в POST /analyze (см. analyze.py, поле "categories").
 POST /chat — свободный диалог с моделью (текст + картинки, с историей),
 без риск-JSON-схемы /analyze — вынесен в chat.py/chat_backends.py.
@@ -41,13 +41,14 @@ import time
 import aiohttp
 from aiohttp import web
 
-import categories_api
 import chat
 import config
-import embeddings
 import providers
-from analyze import _json, handle_analyze
 from config import locales
+from http_utils import _json
+from tools.embeddings import embeddings
+from tools.vision_analyzer import categories_api
+from tools.vision_analyzer.analyze import handle_analyze
 
 
 @web.middleware
@@ -134,7 +135,7 @@ async def handle_health(request: web.Request) -> web.Response:
             "default_backend": config.BACKEND,
             "default_backend_ok": default_ok,
             "backends": backends_status,
-            # Эмбеддинги — вспомогательная возможность (см. embeddings.py), а не
+            # Эмбеддинги — вспомогательная возможность (см. tools/embeddings/embeddings.py), а не
             # основная функция сервера, поэтому её статус НЕ влияет на "ok"
             # выше: если модель эмбеддингов недоступна, риск-анализ и чат
             # продолжают работать как обычно.
@@ -420,7 +421,7 @@ async def handle_models(request: web.Request) -> web.Response:
 async def _start_embeddings_download(app: web.Application) -> None:
     """on_startup: запускает скачивание/загрузку модели эмбеддингов в
     отдельном потоке и СРАЗУ возвращается — сервер начинает принимать запросы,
-    не дожидаясь весов (см. embeddings.py: start_background_load)."""
+    не дожидаясь весов (см. tools/embeddings/embeddings.py: start_background_load)."""
     embeddings.start_background_load()
 
 
@@ -446,7 +447,7 @@ def build_app() -> web.Application:
     # /categories/{name}, иначе он перехватит его как имя категории
     # (aiohttp резолвит роуты в порядке регистрации). Только чтение —
     # правка/добавление дефолтов через API отключены (см.
-    # categories_api.py); разовые категории идут через POST /analyze.
+    # tools/vision_analyzer/categories_api.py); разовые категории идут через POST /analyze.
     app.router.add_get("/categories", categories_api.handle_categories_list)
     app.router.add_get("/categories/summaries", categories_api.handle_categories_summaries)
     app.router.add_get("/categories/{name}", categories_api.handle_category_detail)

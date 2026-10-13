@@ -203,7 +203,7 @@ class DeleteAccountForm(FlaskForm):
 # ----------------------------------------------------------------------------
 
 # Единственный плейсхолдер, который сервер анализа подставляет ВНУТРИ текста
-# правил Full/Compact (см. inference/prompt.py: get_system_prompt — финальный
+# правил Full/Compact (см. inference/tools/vision_analyzer/prompt.py: get_system_prompt — финальный
 # .replace("__OUTPUT_LANGUAGE__", ...) применяется уже после того, как правила
 # категории вставлены в промпт). Пишется ровно так — регистр и число подчёркиваний
 # важны: опечатка не сломает сохранение, но и не заменится языком, а попадёт в
@@ -233,7 +233,7 @@ class CategoryForm(FlaskForm):
     """Создание/редактирование одной категории оценивания.
 
     full/compact/summary — те же поля, что раньше жили в
-    inference/categories/<имя>.json (см. models.Category)."""
+    inference/tools/vision_analyzer/categories/<имя>.json (см. models.Category)."""
 
     name = StringField(
         "Техническое имя",
@@ -366,7 +366,7 @@ def parse_links(raw: str) -> tuple[list[str], list[tuple[str, str]]]:
 
     Ссылки разделяются пробелами/переводами строк. Адрес без схемы («t.me/chan/1») дополняется
     https://. Принимаются только http/https. Дальнейшую проверку (публичный ли адрес, есть ли
-    там картинка) делает сервер анализа при обработке — см. inference/link_fetcher.py.
+    там картинка) делает сервер анализа при обработке — см. inference/tools/vision_analyzer/link_fetcher.py.
     """
     good: list[str] = []
     bad: list[tuple[str, str]] = []

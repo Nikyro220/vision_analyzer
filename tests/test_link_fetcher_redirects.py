@@ -15,7 +15,7 @@ pytest.importorskip("yt_dlp")
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "inference"))
 
-import link_fetcher as lf  # noqa: E402
+from tools.vision_analyzer import link_fetcher as lf  # noqa: E402
 
 PIN = "https://www.pinterest.com/pin/199425089743462631/"
 FEEDBACK = PIN + "feedback/?invite_code=67bf&sender_id=1149"

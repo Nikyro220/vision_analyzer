@@ -20,9 +20,9 @@ from __future__ import annotations
 
 from aiohttp import web
 
-import categories
 import config
-from analyze import _json
+from http_utils import _json
+from tools.vision_analyzer import categories
 
 
 async def handle_categories_list(request: web.Request) -> web.Response:

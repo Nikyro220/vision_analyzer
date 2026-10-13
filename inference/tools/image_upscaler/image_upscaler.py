@@ -69,8 +69,10 @@ WEIGHTS_URL = os.environ.get(
     "https://huggingface.co/nateraw/real-esrgan/resolve/main/" + WEIGHTS_FILENAME,
 ).strip()
 
+# Веса лежат в inference/upscaler/ (а не рядом с кодом в tools/), чтобы путь не менялся
+# при переносе модуля и совпадал с .gitignore.
 MODEL_DIR = os.environ.get("VISION_ANALYZER_UPSCALER_DIR", "").strip() or os.path.join(
-    os.path.dirname(os.path.abspath(__file__)), "upscaler"
+    os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "upscaler"
 )
 MODEL_PATH = os.path.join(MODEL_DIR, WEIGHTS_FILENAME)
 

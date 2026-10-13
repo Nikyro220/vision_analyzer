@@ -7,18 +7,19 @@ VISION_ANALYZER_EMBEDDING_MODEL и делает один тестовый выз
 Назначение: скачать веса заранее — на этапе СБОРКИ образа (пока есть сеть
 наружу) или вручную, не дожидаясь первого запуска сервера. Сервер и без
 этого сам скачает модель при первом старте в фоновом потоке (см.
-embeddings.py: start_background_load), но если у контейнера в рантайме
+tools/embeddings/embeddings.py: start_background_load), но если у контейнера в рантайме
 нет сети наружу, скачивание там не сработает — тогда веса должны уже
 лежать в папке config.EMBEDDING_CACHE_DIR (VISION_ANALYZER_EMBEDDING_DIR).
 Скрипт качает именно в эту папку — ту же, откуда читает сервер.
 
-Использование:
-    python warm_embeddings.py
+Использование (из папки inference/, чтобы находились config и tools):
+    python -m tools.embeddings.warm_embeddings
     # или явно другой моделью, не трогая VISION_ANALYZER_EMBEDDING_MODEL:
-    VISION_ANALYZER_EMBEDDING_MODEL=intfloat/multilingual-e5-large python warm_embeddings.py
+    VISION_ANALYZER_EMBEDDING_MODEL=intfloat/multilingual-e5-large python -m tools.embeddings.warm_embeddings
 
 В Dockerfile (когда он появится в репозитории) — шаг сборки:
-    RUN python inference/warm_embeddings.py
+    WORKDIR inference
+    RUN python -m tools.embeddings.warm_embeddings
 Использует переменную окружения VISION_ANALYZER_EMBEDDING_MODEL, если её
 задать через --build-arg/ENV до этого шага — прогреется именно та модель,
 которая пойдёт в рантайм, а не дефолт.
@@ -34,7 +35,7 @@ import sys
 import time
 
 import config
-import embeddings
+from tools.embeddings import embeddings
 
 
 def main() -> int:
