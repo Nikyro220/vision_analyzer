@@ -70,9 +70,6 @@
         {% endif %}
         </div>
         {% endfor %}
-        {% if can_configure and sampling_error %}
-        <div class="field-error">Не удалось получить параметры генерации: {{ sampling_error }}</div>
-        {% endif %}
     </div>
 </div>
 
@@ -188,16 +185,21 @@
                     <div class="field">
                         {{ field.label }}
                         {{ field(class_="input") }}
+                        {% if field.description %}<div class="field-hint">{{ field.description }}</div>{% endif %}
                         {% for err in field.errors %}<div class="field-error">{{ err }}</div>{% endfor %}
                     </div>
                     {% endfor %}
                 </div>
                 <div class="field-hint">
-                    Пустое поле — не менять. Параметры <strong>общие для всего сервера</strong>:
-                    изменения применяются сразу ко всем последующим анализам, включая другие бэкенды и других клиентов.
-                    {% if 'num_ctx' not in card.sampling_keys %}Размер контекста (num_ctx) у этого бэкенда на лету не меняется: он задаётся при запуске.{% endif %}
+                    Пустое поле — не менять. Параметры относятся <strong>только к этому бэкенду</strong>:
+                    у каждого бэкенда свой набор параметров и свои допустимые значения, изменения здесь
+                    не затрагивают другие бэкенды. Применяются сразу ко всем последующим запросам к нему
+                    (в том числе от других клиентов сервера).
                 </div>
-                <div><button type="submit" class="btn btn-secondary">Сохранить параметры</button></div>
+                <div>
+                    <button type="submit" class="btn btn-secondary">Сохранить параметры</button>
+                    <button type="submit" class="btn btn-secondary" formaction="{{ url_for('analyzer.reset_sampling', name=card.name, tab=tab) }}" formnovalidate>Сбросить к значениям по умолчанию</button>
+                </div>
             </form>
         </div>
         {% endif %}

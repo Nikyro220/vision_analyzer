@@ -25,7 +25,7 @@ GET /providers
 ========================================================
 GET /providers describes ALL registered backends (also not configured ones):
 label, fallback, whether it is configured (i.e. whether a key arrived with THIS
-request), which /sampling parameters it uses, and which secret (credential) it
+request), which settings it has, and which secret (credential) it
 needs. A client (e.g. the web panel) builds its UI from this reply, so a new
 backend needs no client changes.
 
@@ -188,7 +188,7 @@ Anthropic Claude (backend=anthropic) is also a cloud backend (images are sent to
 Anthropic) with the same rules: no automatic fallback to or from it. The default
 model is claude-sonnet-5-5 (anthropic_model, or model=... in the request itself).
 If Claude refuses to process an image the request returns a 400 with the reason.
-From /sampling only num_predict (= max_tokens) and think are used; temperature,
+It has only two settings — num_predict (= max_tokens) and think; temperature,
 top_p, top_k and seed are not sent (current Claude models reject non-default
 sampling values, and the Messages API has no seed).
 
@@ -206,71 +206,69 @@ sampling values, and the Messages API has no seed).
 
 
 ========================================================
-GET/POST /sampling — view/change temperature, top_p, top_k, seed, num_ctx, num_predict, think
+GET/POST/DELETE /providers/{name}/settings — settings of ONE backend
 ========================================================
-GET returns the current values. POST accepts any subset of
-'temperature', 'top_p', 'top_k', 'seed', 'num_ctx', 'num_predict',
-'think' — via query, JSON body or form field, same as /config. Takes effect immediately, for
-every subsequent /analyze request. Startup values can also be set via
-the VISION_ANALYZER_TEMPERATURE / _TOP_P / _TOP_K / _SEED / _NUM_CTX / _NUM_PREDICT / _THINK
-environment variables.
+EACH backend has its own set of parameters, its own defaults and its own accepted values
+(ranges, list of choices). Changing one backend's settings does not affect the others:
+vllm and ollama each have their own temperature, num_predict, etc., independent of each
+other. GET /providers returns the schema of all parameters (type, range, choices, default,
+current value) in the settings field of each backend.
 
-num_ctx is the context window size, relevant only for backend=ollama
-(Gemini has a large fixed window and ignores it too; vLLM's context size is fixed at server startup and is not a
-per-request parameter). By default it is NOT overridden (null) —
-Ollama uses the model's own default from its Modelfile, same as
-before /sampling existed. IMPORTANT: raise it deliberately — a large
-num_ctx noticeably increases KV-cache size and prefill time, and can
-cause request timeouts if VRAM runs short. Mainly useful for a long
-/analyze -> history.
+  GET    /providers/{name}/settings — current values and the parameter schema.
+  POST   /providers/{name}/settings — change any subset of parameters (query, JSON body or
+         form field, like /config). Takes effect immediately for all following /analyze and
+         /chat requests to this backend. All or nothing: an unknown parameter or an invalid
+         value returns 400 and nothing is changed.
+  DELETE /providers/{name}/settings[?keys=a,b] — restore the defaults (all parameters or only
+         the listed ones).
 
-  curl http://xxx.xxx.xxx.xxx:6769/sampling
+Parameters where "unset" is allowed (num_predict, num_ctx, seed, vllm's top_k) are reset with
+the value auto (none/default/empty also work).
 
-  curl -X POST "http://xxx.xxx.xxx.xxx:6769/sampling?temperature=0.2&top_p=0.9"
+Parameters per backend (default in parentheses):
+  ollama     temperature (0), top_p (1.0), top_k (1), seed (42), num_ctx (auto), num_predict (auto),
+             think (true; true/false, and low/medium/high for GPT-OSS)
+  vllm       temperature (0), top_p (1.0), top_k (auto = not sent), seed (42),
+             num_predict (auto; sent as max_tokens), think_budget (4096; 0 = no limit)
+  gemini     temperature (0), seed (42), num_predict (auto; max_output_tokens),
+             think (true; false/low/medium/high -> thinking_level)
+  anthropic  num_predict (auto; max_tokens), think (true; low/medium/high -> output_config.effort)
 
-  # raise context for a long history
-  curl -X POST "http://xxx.xxx.xxx.xxx:6769/sampling?num_ctx=8192"
+Initial values come from environment variables: VISION_ANALYZER_<BACKEND>_<PARAMETER>
+(e.g. VISION_ANALYZER_VLLM_TEMPERATURE) — for that backend only; the old shared names
+VISION_ANALYZER_TEMPERATURE / _TOP_P / _TOP_K / _SEED / _NUM_CTX / _NUM_PREDICT / _THINK /
+_THINK_BUDGET still work and apply to every backend that has such a parameter.
 
-  # revert to the model's default (auto/none/default/empty all work)
-  curl -X POST "http://xxx.xxx.xxx.xxx:6769/sampling?num_ctx=auto"
+  curl http://xxx.xxx.xxx.xxx:6769/providers/vllm/settings
 
-num_predict is the maximum number of tokens the model may generate in
-one answer (Ollama: options.num_predict; vLLM: max_tokens). Must be at
-least 1. By default it is NOT overridden (null) — the model's own limit
-applies. Too small a value cuts the JSON report off mid-way (you get
-"_raw" instead of a report) — 1024-2048 is a sensible minimum. With
-think enabled, reasoning tokens count towards this limit too.
+  curl -X POST "http://xxx.xxx.xxx.xxx:6769/providers/ollama/settings?temperature=0.2&top_p=0.9"
 
-think controls the model's reasoning mode. Most models take true/false;
-GPT-OSS takes only the levels low / medium / high (true/false is ignored
-for it, and its reasoning cannot be fully disabled). Default: false.
-On vLLM the value is sent as chat_template_kwargs.enable_thinking, so a
-level only means "on" there, and without --reasoning-parser the
-reasoning text may end up inside the answer itself.
+  # vLLM answer limit (max_tokens) and removing the limit
+  curl -X POST "http://xxx.xxx.xxx.xxx:6769/providers/vllm/settings?num_predict=2048"
+  curl -X POST "http://xxx.xxx.xxx.xxx:6769/providers/vllm/settings?num_predict=auto"
 
-  # cap the answer length
-  curl -X POST "http://xxx.xxx.xxx.xxx:6769/sampling?num_predict=2048"
+  # vLLM reasoning budget against looping (needs --reasoning-parser on the vLLM side)
+  curl -X POST "http://xxx.xxx.xxx.xxx:6769/providers/vllm/settings?think_budget=2048"
 
-  # remove the limit again (auto/none/default/empty all work)
-  curl -X POST "http://xxx.xxx.xxx.xxx:6769/sampling?num_predict=auto"
+  # thinking: off / level
+  curl -X POST "http://xxx.xxx.xxx.xxx:6769/providers/ollama/settings?think=false"
+  curl -X POST "http://xxx.xxx.xxx.xxx:6769/providers/gemini/settings?think=high"
 
-  # reasoning: off / on / GPT-OSS level
-  curl -X POST "http://xxx.xxx.xxx.xxx:6769/sampling?think=false"
-  curl -X POST "http://xxx.xxx.xxx.xxx:6769/sampling?think=high"
+  # restore defaults
+  curl -X DELETE "http://xxx.xxx.xxx.xxx:6769/providers/ollama/settings"
 
-Gemini: think=false turns thinking off (thinkingBudget=0), low/medium/
-high set the budget (1024/8192/24576 tokens), true is the model's dynamic
-mode; on gemini-3.x models (thinking can't be turned off) false = low.
-For Gemini, num_predict includes thinking tokens: a value that is too
-small with think enabled gives an empty or truncated answer.
+num_ctx exists only for ollama (vLLM fixes its context size at server start; Gemini has a large
+fixed window). With a long /chat history you may need to raise num_ctx for your model/VRAM.
+num_predict for Gemini and Anthropic includes thinking tokens: a value that is too small with
+think enabled gives an empty or truncated answer. Too small a num_predict on any backend cuts
+the JSON report mid-word (you get "_raw" instead of a report) — a sensible minimum is 1024-2048.
+For Anthropic, not every model supports effort (e.g. Haiku 4.5 does not): keep think=true there.
 
-Anthropic: think=true (default) sends nothing (the model's default behaviour);
-low/medium/high -> output_config.effort; false -> effort=low (thinking can't be
-fully disabled on current models). Not every model supports effort (e.g. Haiku 4.5
-does not) — keep think=true for those. num_predict is max_tokens and, as with
-Gemini, includes thinking tokens.
+DEPRECATED: GET/POST /sampling — the former shared endpoint. It now works with exactly ONE
+backend: ?backend=<name> (default — the server's default backend); parameters the backend does
+not have are returned in the "ignored" field. The reply carries the header Deprecation: true.
 
-vllm_context_window (in the GET response) — read-only, the context
+vllm_context_window (in the GET /sampling response) — read-only, the context
 size actually reported by vLLM (GET /v1/models -> max_model_len), or
 null if the backend is unreachable or that particular build doesn't
 expose the field. When it's known, history sent to backend=vllm is
@@ -512,7 +510,7 @@ unreachable, the server automatically tries the other backend once
 automatic fallback.
 
 For backend=vllm, if the real max_model_len could be determined (see
-GET /sampling -> vllm_context_window above), history is truncated
+GET /sampling?backend=vllm -> vllm_context_window above), history is truncated
 (a rough estimate) to fit that size before sending — same as /analyze.
 
 Response:

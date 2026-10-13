@@ -103,6 +103,7 @@ def mock(monkeypatch):
     monkeypatch.setattr(config, "ANTHROPIC_MODEL", "claude-sonnet-5-5")
     m.run = lambda coro_fn, key=KEY: loop.run_until_complete(_with_key(coro_fn, key))
     yield m
+    providers.get("anthropic").reset_settings()
     loop.run_until_complete(providers.get("anthropic").aclose())
     loop.run_until_complete(server.close())
     loop.close()
@@ -133,8 +134,7 @@ def test_list_models_paginates_and_filters(mock):
 
 
 def test_analyze_request_shape_and_json_cleanup(mock, monkeypatch):
-    monkeypatch.setitem(config.SAMPLING_DEFAULTS, "num_predict", None)
-    monkeypatch.setitem(config.SAMPLING_DEFAULTS, "think", True)
+    providers.get("anthropic").reset_settings()
     mock.reply = (200, mock.ok('Вот отчёт:\n```json\n{"risk_level": "low"}\n```\nГотово.'))
 
     out = mock.run(lambda p: p.analyze(_image_b64(), "image/png", "claude-sonnet-5-5", "SYS", "USER"))
@@ -168,14 +168,14 @@ def test_invalid_json_returned_as_is(mock):
 
 @pytest.mark.parametrize("think,expected", [("medium", "medium"), ("high", "high"), (False, "low")])
 def test_think_maps_to_effort(mock, monkeypatch, think, expected):
-    monkeypatch.setitem(config.SAMPLING_DEFAULTS, "think", think)
+    providers.get("anthropic").update_settings({"think": think})
     mock.run(lambda p: p.chat("m", None, [], "hi", []))
     assert mock.last_body["output_config"] == {"effort": expected}
     assert "thinking" not in mock.last_body  # thinking={"type": "disabled"} на новых моделях = 400
 
 
 def test_num_predict_becomes_max_tokens(mock, monkeypatch):
-    monkeypatch.setitem(config.SAMPLING_DEFAULTS, "num_predict", 777)
+    providers.get("anthropic").update_settings({"num_predict": 777})
     mock.run(lambda p: p.chat("m", None, [], "hi", []))
     assert mock.last_body["max_tokens"] == 777
 

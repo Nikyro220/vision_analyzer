@@ -12,7 +12,8 @@ providers — бэкенды модели (vLLM, Ollama, Gemini, Anthropic), п�
 статуса, форму параметров генерации и поля настроек (ключ API и т.п.) она строит по
 GET /providers. Для этого у класса провайдера задаются:
   label           — название для UI;
-  sampling_keys   — какие параметры /sampling он использует;
+  settings_spec   — его параметры (генерация, лимиты): свой набор, свои значения по умолчанию
+                    и допустимые значения (providers/settings.py), у каждого провайдера независимо;
   credential      — секрет (API-ключ), который клиент присылает в КАЖДОМ запросе заголовком
                     X-Api-Key-<Имя>; сервер ключ нигде не хранит (см. providers/base.py).
 """
@@ -21,9 +22,10 @@ from __future__ import annotations
 
 import config
 from .base import (
-    ALL_SAMPLING_KEYS, CREDENTIAL_HEADER_PREFIX, Credential, Provider,
+    CREDENTIAL_HEADER_PREFIX, Credential, Provider,
     ensure_data_url, request_credentials, strip_data_url,
 )
+from .settings import Setting, SettingError
 from .anthropic import AnthropicProvider
 from .gemini import GeminiProvider
 from .ollama import OllamaProvider
@@ -63,7 +65,7 @@ def reset_all_caches() -> None:
 
 
 __all__ = [
-    "Provider", "Credential", "ALL_SAMPLING_KEYS", "CREDENTIAL_HEADER_PREFIX", "request_credentials",
+    "Provider", "Credential", "Setting", "SettingError", "CREDENTIAL_HEADER_PREFIX", "request_credentials",
     "AnthropicProvider", "GeminiProvider", "OllamaProvider", "VllmProvider",
     "names", "is_known", "get", "all_providers", "reset_all_caches",
     "strip_data_url", "ensure_data_url",

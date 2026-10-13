@@ -146,7 +146,7 @@ SETTING_GROUPS: list[tuple[str, str, list[RuntimeSetting]]] = [
         _s("VISION_API_TIMEOUT", "Таймаут /analyze и /chat, сек", min_key="VISION_API_TIMEOUT_MIN", max_key="VISION_API_TIMEOUT_MAX"),
         _s("VISION_API_HEALTH_TIMEOUT", "Таймаут /health и GET /embeddings, сек", lo=1, hi=300),
         _s("VISION_API_CALL_TIMEOUT", "Таймаут вспомогательных запросов, сек", lo=1, hi=600,
-           hint="/models, /sampling, /categories и т. п."),
+           hint="/models, /providers/<имя>/settings, /categories и т. п."),
         _s("VISION_API_MODELS_TIMEOUT", "Таймаут списка моделей облачного провайдера, сек", lo=1, hi=600,
            hint="/models облачных провайдеров (Gemini, Anthropic); отдельно от общего таймаута вспомогательных запросов."),
         _s("MODELS_CACHE_TTL", "Кэш списка моделей облачного провайдера, сек", lo=0, hi=2592000,

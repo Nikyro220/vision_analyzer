@@ -26,6 +26,7 @@ from dataclasses import dataclass
 import aiohttp
 
 import config
+from .settings import Setting, SettingError
 
 
 # ---------------------------------------------------------------------------
@@ -52,24 +53,6 @@ def split_data_url(img: str, default_mime: str = "image/png") -> tuple[str, str]
         header, b64 = img.split(";base64,", 1)
         return (header[len("data:"):] or default_mime), b64
     return default_mime, img
-
-
-def sampling_options(*, with_top_k: bool = True, with_ctx: bool = True) -> dict:
-    """Ollama-style options из config.SAMPLING_DEFAULTS (читается в момент вызова)."""
-    s = config.SAMPLING_DEFAULTS
-    options = {"temperature": s["temperature"], "top_p": s["top_p"], "seed": s["seed"]}
-    if with_top_k:
-        options["top_k"] = s["top_k"]
-    if with_ctx:
-        if s["num_ctx"] is not None:
-            options["num_ctx"] = s["num_ctx"]
-        if s["num_predict"] is not None:
-            options["num_predict"] = s["num_predict"]
-    return options
-
-
-#: все параметры генерации, которыми управляет POST /sampling
-ALL_SAMPLING_KEYS = ("temperature", "top_p", "top_k", "seed", "num_ctx", "num_predict", "think")
 
 
 # ---------------------------------------------------------------------------
@@ -115,9 +98,10 @@ class Provider(ABC):
     name: str = ""
     #: человекочитаемое название для UI (пусто — клиент покажет name)
     label: str = ""
-    #: какие параметры /sampling этот бэкенд реально использует; клиент строит
-    #: форму параметров генерации только из них (num_ctx, например, есть лишь у Ollama)
-    sampling_keys: tuple[str, ...] = tuple(k for k in ALL_SAMPLING_KEYS if k != "num_ctx")
+    #: настраиваемые параметры ЭТОГО провайдера (генерация, лимиты...): у каждого свой набор,
+    #: свои значения по умолчанию и свои допустимые значения, см. providers/settings.py.
+    #: Клиент строит форму параметров по этому описанию (GET /providers → settings).
+    settings_spec: tuple[Setting, ...] = ()
     #: секрет, который клиент присылает в каждом запросе заголовком X-Api-Key-<Имя>
     #: (None — провайдеру ключ не нужен). Сервер его не хранит, см. блок «Учётные данные» выше.
     credential: Credential | None = None
@@ -127,6 +111,50 @@ class Provider(ABC):
 
     def __init__(self) -> None:
         self._model_cache: str | None = None
+        self._spec: dict[str, Setting] = {st.key: st for st in self.settings_spec}
+        # Текущие значения — только у этого экземпляра: другие провайдеры их не видят и не меняют.
+        self._values: dict = {k: st.initial(self.name) for k, st in self._spec.items()}
+
+    # --- настройки (параметры генерации) -----------------------------------
+
+    @property
+    def settings(self) -> dict:
+        """Копия текущих значений параметров этого провайдера."""
+        return dict(self._values)
+
+    def setting(self, key: str):
+        """Текущее значение одного параметра (провайдеры читают его в момент запроса)."""
+        return self._values[key]
+
+    def update_settings(self, raw: dict) -> dict:
+        """Меняет часть параметров ТОЛЬКО этого провайдера. Всё или ничего: если хоть один
+        ключ неизвестен или значение не подходит — не меняется ничего (SettingError)."""
+        parsed = {}
+        for key, value in raw.items():
+            st = self._spec.get(key)
+            if st is None:
+                raise SettingError(self.name, key, "unknown", available=tuple(self._spec))
+            try:
+                parsed[key] = st.parse(value)
+            except ValueError as e:
+                raise SettingError(self.name, key, "invalid", reason=str(e)) from None
+        self._values.update(parsed)
+        return self.settings
+
+    def reset_settings(self, keys=None) -> dict:
+        """Возвращает параметры к значениям по умолчанию (всё или только перечисленные ключи)."""
+        keys = list(self._spec) if keys is None else list(keys)
+        for key in keys:
+            if key not in self._spec:
+                raise SettingError(self.name, key, "unknown", available=tuple(self._spec))
+        for key in keys:
+            self._values[key] = self._spec[key].initial(self.name)
+        return self.settings
+
+    def describe_settings(self) -> list[dict]:
+        return [
+            st.describe(self._values[k], st.initial(self.name)) for k, st in self._spec.items()
+        ]
 
     # --- конфигурация -----------------------------------------------------
 
@@ -169,7 +197,8 @@ class Provider(ABC):
             "fallback": self.fallback,
             "configured": self.is_configured(),
             "endpoint": self.endpoint,
-            "sampling_keys": list(self.sampling_keys),
+            "sampling_keys": list(self._spec),  # старое поле: только имена параметров
+            "settings": self.describe_settings(),
             "credential": credential,
         }
 

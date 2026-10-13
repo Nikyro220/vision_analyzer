@@ -16,8 +16,8 @@ x-api-key — не в URL, чтобы не попадать в логи прок
     (_extract_json): вызывающий код (backends.py) делает json.loads(content) напрямую.
   - Параметры сэмплинга НЕ передаются. На актуальных моделях temperature/top_p/top_k с
     нестандартными значениями дают 400, а seed в Messages API нет вовсе. Поэтому
-    sampling_keys = (num_predict, think), а temperature/top_p/top_k/seed из /sampling
-    игнорируются (они по-прежнему действуют на Ollama/vLLM).
+    у провайдера только два параметра — num_predict и think; temperature/top_p/top_k/seed
+    в его настройках нет (они есть у Ollama/vLLM).
   - Размышления: вместо бюджета токенов — adaptive thinking, глубина задаётся
     output_config.effort (low/medium/high). think=true (по умолчанию) — ничего не передаём,
     модель работает как задумано; think="low"/"medium"/"high" → effort; think=false → effort=low
@@ -51,9 +51,10 @@ from PIL import Image
 
 import config
 from .base import Credential, Provider, split_data_url
+from .settings import THINK_CHOICES, Setting
 
 
-# Уровни effort, которые можно получить из SAMPLING_DEFAULTS["think"] (True → ничего не шлём).
+# Уровни effort, которые можно получить из параметра think (True → ничего не шлём).
 _EFFORT_LEVELS = ("low", "medium", "high")
 
 # Допустимые mime картинок в Messages API; частые синонимы приводим к ним.
@@ -144,7 +145,13 @@ class AnthropicProvider(Provider):
     # автофолбэка на локальные бэкенды нет — выбор бэкенда остаётся за вызывающей стороной.
     fallback = None
     # Сэмплинг (temperature/top_p/top_k/seed) не передаётся — см. докстринг модуля.
-    sampling_keys = ("num_predict", "think")
+    settings_spec = (
+        Setting("num_predict", "int", None, "max_tokens", min=1, max=1048576, nullable=True,
+                hint="auto — ANTHROPIC_MAX_TOKENS из конфигурации сервера."),
+        Setting("think", "choice", True, "think", choices=THINK_CHOICES,
+                hint="true — по умолчанию модели; low/medium/high — output_config.effort; "
+                     "false — effort=low (полностью выключить thinking нельзя)."),
+    )
 
     # Ключ хранит клиент (vision_app, в БД, зашифрованным) и присылает его в каждом запросе
     # заголовком X-Api-Key-Anthropic. Здесь он нигде не сохраняется, в том числе в памяти.
@@ -260,7 +267,7 @@ class AnthropicProvider(Provider):
     async def _generate(
         self, model: str, system: str | None, messages: list[dict], json_mode: bool,
     ) -> str:
-        s = config.SAMPLING_DEFAULTS
+        s = self.settings
         body: dict = {
             "model": model,
             "max_tokens": s["num_predict"] or config.ANTHROPIC_MAX_TOKENS,

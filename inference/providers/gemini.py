@@ -24,7 +24,7 @@ x-goog-api-key — не в URL, чтобы не попадать в логи п�
   - Размышления: вместо thinkingBudget (2.5) — generation_config.thinking_level
     (minimal/low/medium/high). У моделей gemini-2.* этого поля нет — для них не передаётся.
   - В generation_config не передаются top_p и top_k: в справочнике Interactions API их нет
-    (SAMPLING_DEFAULTS их по-прежнему хранит — для Ollama/vLLM).
+    (поэтому их нет и в настройках этого провайдера).
   - Gemini может ОТКЛОНИТЬ запрос фильтрами безопасности — для риск-триажа это реальный сценарий,
     поэтому такие ответы превращаются в понятную RuntimeError (HTTP 400), а не в пустой отчёт.
     Порог задаётся VISION_ANALYZER_GEMINI_SAFETY → safety_settings.
@@ -44,13 +44,14 @@ import aiohttp
 
 import config
 from .base import Credential, Provider, split_data_url
+from .settings import THINK_CHOICES, Setting
 
 # Повторы временных ошибок Gemini (перегрузка 5xx, минутный лимит 429 на Free Tier: 5 запросов/мин).
 _RETRY_ATTEMPTS = 2
 _RETRY_MAX_WAIT = 35.0  # дольше не ждём — отдаём ошибку клиенту
 
 
-# Размышления: SAMPLING_DEFAULTS["think"] — True / False / "low" / "medium" / "high".
+# Размышления: параметр think провайдера — True / False / "low" / "medium" / "high".
 # True — динамический режим по умолчанию (поле не передаём); False — минимум, который
 # модель позволяет; уровни low/medium/high передаются как есть.
 _THINK_LEVELS = ("low", "medium", "high")
@@ -108,8 +109,18 @@ class GeminiProvider(Provider):
     # а при его недоступности автофолбэка на локальные бэкенды нет — выбор
     # бэкенда остаётся за вызывающей стороной.
     fallback = None
-    # num_ctx не используется; think -> thinking_level (см. _thinking_level)
-    # (sampling_keys — по умолчанию из базового класса: без num_ctx)
+    # top_p/top_k/num_ctx не передаются (в Interactions API их нет); think -> thinking_level
+    # (см. _thinking_level).
+    settings_spec = (
+        Setting("temperature", "float", 0.0, "temperature", min=0, max=2),
+        Setting("seed", "int", 42, "seed", nullable=True, hint="auto — случайный seed."),
+        Setting("num_predict", "int", None, "max_output_tokens", min=1, max=1048576, nullable=True,
+                hint="Токены размышлений входят в лимит: слишком маленькое значение при включённом "
+                     "think даёт пустой или обрезанный ответ."),
+        Setting("think", "choice", True, "think", choices=THINK_CHOICES,
+                hint="true — динамический режим; false — минимум, который позволяет модель; "
+                     "low/medium/high — thinking_level (у моделей gemini-2.* не передаётся)."),
+    )
 
     # Ключ хранит клиент (vision_app, в БД, зашифрованным) и присылает его в каждом запросе
     # заголовком X-Api-Key-Gemini. Здесь он нигде не сохраняется, в том числе в памяти.
@@ -229,7 +240,7 @@ class GeminiProvider(Provider):
     # --- запрос / разбор ответа -------------------------------------------
 
     def _generation_config(self, model: str) -> dict:
-        s = config.SAMPLING_DEFAULTS
+        s = self.settings
         gen: dict = {"temperature": s["temperature"]}
         if s["seed"] is not None:
             gen["seed"] = s["seed"]

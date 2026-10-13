@@ -24,7 +24,7 @@ from ..config import Config, conf
 from ..decorators import staff_required
 from .. import credentials, image_dedup
 from ..extensions import db
-from ..forms import ImageUploadForm, sampling_form_class
+from ..forms import ImageUploadForm, provider_settings_form_class, settings_initial
 from ..history import delete_finished, remove_image_files
 from ..models import RISK_LABELS, STATUS_LABELS, AnalysisResult, Status
 from ..queue_worker import wake_worker
@@ -35,11 +35,11 @@ from ..services import (
     invalidate_health,
     get_models,
     get_providers,
-    get_sampling,
     invalidate_models_cache,
     invalidate_providers,
     models_cached_at,
-    set_sampling,
+    reset_provider_settings,
+    set_provider_settings,
 )
 from ..settings_store import (
     clear_analysis_target, clear_chat_target, get_analysis_target, get_chat_target, has_chat_target,
@@ -548,16 +548,8 @@ def _render_health(bound_forms: dict | None = None, status_code: int = 200):
         }
 
     cards = []
-    sampling_error = None
 
     if status is not None:
-        sampling = {}
-        if can_configure:
-            try:
-                sampling = get_sampling()
-            except VisionApiError as exc:
-                sampling_error = str(exc)
-
         for provider in providers:
             name = provider.name
             info = health_backends.get(name)
@@ -584,7 +576,6 @@ def _render_health(bound_forms: dict | None = None, status_code: int = 200):
                     }
                     for t, ctx in tabs.items()
                 },
-                "sampling_keys": provider.sampling_keys,
                 "models": [],
                 "models_error": None,
                 "models_cached_at": None,
@@ -603,14 +594,13 @@ def _render_health(bound_forms: dict | None = None, status_code: int = 200):
                     m = t["active_model"]
                     t["models"] = [m, *card["models"]] if m and card["models"] and m not in card["models"] else card["models"]
 
-                if provider.sampling_keys:
-                    form_cls = sampling_form_class(provider.sampling_keys)
+                if provider.settings:
+                    # Форма — по описанию параметров ЭТОГО провайдера (у каждого свой набор и значения).
                     form = bound_forms.get(name)
                     if form is None:
-                        initial = {k: v for k, v in sampling.items() if v is not None and k in form_cls.SPEC}
-                        if sampling.get("think") is not None:
-                            initial["think"] = str(sampling["think"]).lower()   # True→"true", "high"→"high"
-                        form = form_cls(formdata=None, prefix=name, data=initial)
+                        form = provider_settings_form_class(provider.settings)(
+                            formdata=None, prefix=name, data=settings_initial(provider.settings),
+                        )
                     card["form"] = form
             cards.append(card)
 
@@ -622,7 +612,6 @@ def _render_health(bound_forms: dict | None = None, status_code: int = 200):
         tab=tab,
         tabs=tabs,
         can_configure=can_configure,
-        sampling_error=sampling_error,
     )
     return html, status_code
 
@@ -743,11 +732,11 @@ def save_used_backend():
 @bp.route("/health/backend/<name>/sampling", methods=["POST"])
 @staff_required
 def save_sampling(name: str):
-    """Изменить параметры генерации. На сервере они общие (POST /sampling)."""
+    """Изменить параметры генерации ОДНОГО провайдера. Другие провайдеры не затрагиваются."""
     provider = _require_backend(name)
-    if not provider.sampling_keys:
-        abort(404)  # у провайдера нет настраиваемых параметров генерации
-    form = sampling_form_class(provider.sampling_keys)(prefix=name)
+    if not provider.settings:
+        abort(404)  # у провайдера нет настраиваемых параметров
+    form = provider_settings_form_class(provider.settings)(prefix=name)
 
     if not form.validate_on_submit():
         flash("Параметры не сохранены — исправьте ошибки в форме.", "error")
@@ -758,13 +747,29 @@ def save_sampling(name: str):
         return _back()
 
     try:
-        set_sampling(form.values)
+        set_provider_settings(name, form.values)
     except VisionApiError as exc:
         flash(str(exc), "error")
         return _back()
 
-    changed = ", ".join(f"{k}={v}" for k, v in form.values.items())
-    flash(f"Параметры генерации обновлены на сервере: {changed}.", "success")
+    changed = ", ".join(f"{k}={'auto' if v is None else v}" for k, v in form.values.items())
+    flash(f"Параметры {provider.title} обновлены: {changed}.", "success")
+    return _back()
+
+
+@bp.route("/health/backend/<name>/sampling/reset", methods=["POST"])
+@staff_required
+def reset_sampling(name: str):
+    """Вернуть параметры генерации ОДНОГО провайдера к значениям по умолчанию."""
+    provider = _require_backend(name)
+    if not provider.settings:
+        abort(404)
+    try:
+        reset_provider_settings(name)
+    except VisionApiError as exc:
+        flash(str(exc), "error")
+        return _back()
+    flash(f"Параметры {provider.title} сброшены к значениям по умолчанию.", "success")
     return _back()
 
 

@@ -8,6 +8,7 @@ import aiohttp
 
 import config
 from .base import Provider, ensure_data_url
+from .settings import Setting
 
 
 # Грубая оценка размера токенов для истории, отправляемой в vLLM — точного
@@ -63,23 +64,6 @@ def _truncate_history(
     return kept
 
 
-def _generation_limits() -> dict:
-    """Поля запроса, ограничивающие длину генерации (защита от зацикливания).
-
-    thinking_token_budget — лимит токенов рассуждений (config.THINK_BUDGET, 0 = выкл.): когда он
-    исчерпан, vLLM сам закрывает блок рассуждений, и модель переходит к ответу. Работает, только
-    если vLLM запущен с --reasoning-parser (в старых версиях поле игнорируется без ошибки).
-    max_tokens — общий потолок ответа из /sampling (num_predict); без него длину ограничивает
-    только контекст модели.
-    """
-    limits: dict = {}
-    if config.THINK_BUDGET > 0:
-        limits["thinking_token_budget"] = config.THINK_BUDGET
-    if config.SAMPLING_DEFAULTS["num_predict"] is not None:
-        limits["max_tokens"] = config.SAMPLING_DEFAULTS["num_predict"]
-    return limits
-
-
 def _history_to_messages(history: list) -> list[dict]:
     """История прошлых сообщений диалога → формат сообщений vLLM (OpenAI-style)."""
     messages = []
@@ -98,7 +82,36 @@ class VllmProvider(Provider):
     name = "vllm"
     label = "vLLM"
     fallback = "ollama"
-    # num_ctx у vLLM не меняется на лету: контекст задаётся при запуске (--max-model-len)
+    # num_ctx у vLLM не меняется на лету: контекст задаётся при запуске (--max-model-len),
+    # поэтому его в настройках нет; think тоже нет — вместо него бюджет токенов на рассуждения.
+    settings_spec = (
+        Setting("temperature", "float", 0.0, "temperature", min=0, max=2,
+                hint="0 — жадный выбор: ответ детерминирован, но модель может зацикливаться."),
+        Setting("top_p", "float", 1.0, "top_p", min=0, max=1, min_exclusive=True),
+        Setting("top_k", "int", None, "top_k", min=1, max=100000, nullable=True,
+                hint="auto — не передавать (top_k выключен). top_k=1 даёт жадный выбор при любой temperature."),
+        Setting("seed", "int", 42, "seed", nullable=True, hint="auto — случайный seed."),
+        Setting("num_predict", "int", None, "max_tokens", min=1, max=1048576, nullable=True,
+                hint="Максимум токенов в ответе (max_tokens). auto — ограничивает только контекст модели."),
+        Setting("think_budget", "int", 4096, "think_budget", min=0, max=1048576,
+                hint="Максимум токенов на рассуждения (thinking_token_budget); 0 — без лимита. "
+                     "Защита от зацикливания. Работает, только если vLLM запущен с --reasoning-parser; "
+                     "иначе поле молча игнорируется."),
+    )
+
+    def _generation_params(self) -> dict:
+        """Поля запроса из текущих настроек vLLM (читаются в момент запроса)."""
+        v = self.settings
+        params: dict = {"temperature": v["temperature"], "top_p": v["top_p"]}
+        if v["top_k"] is not None:
+            params["top_k"] = v["top_k"]
+        if v["seed"] is not None:
+            params["seed"] = v["seed"]
+        if v["num_predict"] is not None:
+            params["max_tokens"] = v["num_predict"]
+        if v["think_budget"] > 0:
+            params["thinking_token_budget"] = v["think_budget"]
+        return params
 
     def __init__(self) -> None:
         super().__init__()
@@ -174,10 +187,7 @@ class VllmProvider(Provider):
 
         base_payload = {
             "model": model,
-            "temperature": config.SAMPLING_DEFAULTS["temperature"],
-            "top_p": config.SAMPLING_DEFAULTS["top_p"],
-            "seed": config.SAMPLING_DEFAULTS["seed"],
-            **_generation_limits(),
+            **self._generation_params(),
             "messages": messages,
         }
 
@@ -222,10 +232,7 @@ class VllmProvider(Provider):
 
         payload = {
             "model": model,
-            "temperature": config.SAMPLING_DEFAULTS["temperature"],
-            "top_p": config.SAMPLING_DEFAULTS["top_p"],
-            "seed": config.SAMPLING_DEFAULTS["seed"],
-            **_generation_limits(),
+            **self._generation_params(),
             "messages": messages,
         }
 

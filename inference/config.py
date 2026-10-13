@@ -13,10 +13,10 @@ config.VLLM_URL = ...", config.GEMINI_MODEL = ...".
 `config.BACKEND` / `config.OLLAMA_HOST` / `config.VLLM_URL` и т.д. — если вместо
 этого сделать `from config import BACKEND`, получится локальная копия
 имени, и последующие изменения через /config перестанут быть видны.
-SAMPLING_DEFAULTS этой проблемы не имеет — это обычный dict, /sampling
-мутирует его на месте (SAMPLING_DEFAULTS[...] = ...), поэтому его можно
-спокойно читать и через `config.SAMPLING_DEFAULTS`, и через
-`from config import SAMPLING_DEFAULTS`.
+Параметры генерации (temperature, think, лимиты токенов...) здесь НЕ хранятся: у каждого
+провайдера свой набор, свои значения по умолчанию и допустимые значения — см.
+providers/settings.py и Provider.settings_spec. Меняются через
+POST /providers/<имя>/settings и не влияют на других провайдеров.
 """
 
 import logging
@@ -134,21 +134,6 @@ def _page(name: str, **kwargs) -> str:
 # Конфигурация бэкендов
 # ---------------------------------------------------------------------------
 
-THINK_LEVELS = ("low", "medium", "high")
-
-def parse_think(v):
-    """True / False / 'low' / 'medium' / 'high'; иначе ValueError."""
-    if isinstance(v, bool):        # JSON-тело: true/false приходят как bool
-        return v
-    s = str(v).strip().lower()
-    if s in ("1", "true", "yes", "on"):
-        return True
-    if s in ("0", "false", "no", "off"):
-        return False
-    if s in THINK_LEVELS:
-        return s
-    raise ValueError(v)
-
 # Значения по умолчанию — можно переопределить переменными окружения при
 # запуске (VISION_ANALYZER_BACKEND / _OLLAMA_HOST / _VLLM_URL / _GEMINI_* / _ANTHROPIC_*), а также
 # "на лету", без перезапуска сервера, через GET/POST /config (см. server.py).
@@ -258,33 +243,6 @@ EMBEDDING_CACHE_DIR = Path(
 # отдаёт 503 + Retry-After, а прогресс виден в GET /embeddings и /health.
 # Предварительный прогрев на этапе сборки образа по-прежнему возможен —
 # см. tools/embeddings/warm_embeddings.py (использует ту же папку EMBEDDING_CACHE_DIR).
-
-SAMPLING_DEFAULTS = {
-    "temperature": float(os.environ.get("VISION_ANALYZER_TEMPERATURE", 0)),
-    "top_p": float(os.environ.get("VISION_ANALYZER_TOP_P", 1.0)),
-    "top_k": int(os.environ.get("VISION_ANALYZER_TOP_K", 1)),
-    "seed": int(os.environ.get("VISION_ANALYZER_SEED", 42)),
-    "num_ctx": (
-        int(os.environ["VISION_ANALYZER_NUM_CTX"])
-        if os.environ.get("VISION_ANALYZER_NUM_CTX")
-        else None
-    ),
-    "num_predict": (
-        int(os.environ["VISION_ANALYZER_NUM_PREDICT"])
-        if os.environ.get("VISION_ANALYZER_NUM_PREDICT")
-        else None          # None = не переопределять, как num_ctx
-    ),
-    "think": parse_think(os.environ.get("VISION_ANALYZER_THINK", "true")),
-}
-
-
-# Бюджет рассуждений (reasoning budget): максимум токенов, которые модель может потратить на
-# «думание» до ответа. Нужен против зацикливания: при temperature=0 (жадный выбор) модель
-# легко уходит в бесконечное «Wait, looking at the image again...» и не доходит до ответа.
-# 0 — без лимита. Сейчас применяется только для vLLM (поле thinking_token_budget, см.
-# providers/vllm.py): Ollama токенный бюджет не поддерживает (только think true/false/уровни),
-# а у Gemini и Anthropic глубину размышлений задаёт SAMPLING_DEFAULTS["think"].
-THINK_BUDGET = int(os.environ.get("VISION_ANALYZER_THINK_BUDGET", "4096"))
 
 REQUEST_TIMEOUT = aiohttp.ClientTimeout(total=500)
 DISCOVERY_TIMEOUT = aiohttp.ClientTimeout(total=10)

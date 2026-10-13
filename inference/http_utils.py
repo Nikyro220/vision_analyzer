@@ -77,7 +77,7 @@ class _BodyError(Exception):
         self.response = response
 
 
-def _json(data, status: int = 200) -> web.Response:
+def _json(data, status: int = 200, headers: dict | None = None) -> web.Response:
     """web.json_response с ensure_ascii=False и indent=2 по умолчанию.
 
     Лежит здесь (а не в server.py), потому что её используют и server.py,
@@ -85,5 +85,6 @@ def _json(data, status: int = 200) -> web.Response:
     получился бы циклический импорт.
     """
     return web.json_response(
-        data, status=status, dumps=lambda obj: json.dumps(obj, ensure_ascii=False, indent=2),
+        data, status=status, headers=headers,
+        dumps=lambda obj: json.dumps(obj, ensure_ascii=False, indent=2),
     )

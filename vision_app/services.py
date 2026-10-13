@@ -38,9 +38,6 @@ from .models import ProviderModelsCache, utcnow
 log = logging.getLogger("vision_app.services")
 
 
-# Параметры генерации, которыми управляет POST /sampling.
-SAMPLING_KEYS = ("temperature", "top_p", "top_k", "seed", "num_ctx", "num_predict", "think")
-
 # Список бэкендов здесь НЕ зашит: его отдаёт сервер анализа (GET /providers, см. get_providers()),
 # поэтому новый провайдер, добавленный в inference/providers/, сразу виден и настраивается в панели.
 
@@ -449,13 +446,41 @@ class CredentialField:
 
 
 @dataclass(frozen=True)
+class SettingInfo:
+    """Один параметр провайдера (GET /providers → settings). Набор, типы и допустимые значения
+    у каждого провайдера свои — панель ничего о них не знает и строит форму по этому описанию."""
+
+    key: str
+    type: str                       # "float" | "int" | "choice"
+    label: str = ""
+    hint: str = ""
+    value: object = None            # текущее значение на сервере
+    default: object = None
+    min: float | None = None
+    max: float | None = None
+    min_exclusive: bool = False
+    choices: tuple[tuple[str, str], ...] = ()   # ((значение, подпись), ...) для type="choice"
+    nullable: bool = False          # None = «не задано» (сбрасывается словом auto)
+
+    @property
+    def title(self) -> str:
+        return self.label or self.key
+
+    @property
+    def spec(self) -> tuple:
+        """Всё, что определяет вид поля формы (без текущего значения)."""
+        return (self.key, self.type, self.label, self.hint, self.default, self.min, self.max,
+                self.min_exclusive, self.choices, self.nullable)
+
+
+@dataclass(frozen=True)
 class ProviderInfo:
     name: str
     label: str = ""
     fallback: str | None = None
     configured: bool = True
     endpoint: str = ""
-    sampling_keys: tuple[str, ...] = ()
+    settings: tuple[SettingInfo, ...] = ()
     credential: CredentialField | None = None
 
     @property
@@ -467,6 +492,29 @@ _PROVIDERS_TTL = 15.0       # секунд: как долго список сч�
 _PROVIDERS_RETRY = 5.0      # секунд: пауза между попытками, пока сервер не отвечает
 _providers_lock = threading.Lock()
 _providers_state: dict = {"data": None, "fetched_at": 0.0, "failed_at": 0.0, "error": ""}
+
+
+def _parse_setting(item: dict) -> SettingInfo | None:
+    key, kind = item.get("key"), item.get("type")
+    if not isinstance(key, str) or kind not in ("float", "int", "choice"):
+        return None  # параметр, который эта версия панели не умеет показать, пропускаем
+    choices = tuple(
+        (str(c["value"]), str(c.get("label") or c["value"]))
+        for c in (item.get("choices") or []) if isinstance(c, dict) and "value" in c
+    )
+    return SettingInfo(
+        key=key,
+        type=kind,
+        label=str(item.get("label") or ""),
+        hint=str(item.get("hint") or ""),
+        value=item.get("value"),
+        default=item.get("default"),
+        min=item.get("min"),
+        max=item.get("max"),
+        min_exclusive=bool(item.get("min_exclusive")),
+        choices=choices,
+        nullable=bool(item.get("nullable")),
+    )
 
 
 def _parse_provider(item: dict) -> ProviderInfo:
@@ -484,7 +532,9 @@ def _parse_provider(item: dict) -> ProviderInfo:
         fallback=item.get("fallback") or None,
         configured=bool(item.get("configured", True)),
         endpoint=str(item.get("endpoint") or ""),
-        sampling_keys=tuple(k for k in (item.get("sampling_keys") or []) if k in SAMPLING_KEYS),
+        settings=tuple(
+            st for st in (_parse_setting(i) for i in (item.get("settings") or []) if isinstance(i, dict)) if st
+        ),
         credential=credential,
     )
 
@@ -792,41 +842,24 @@ def get_models(backend: str, *, force: bool = False, cached_only: bool = False) 
     return models
 
 
-def _pick_sampling(data) -> dict:
-    if not isinstance(data, dict):
-        return {}
-    for wrapper in ("sampling", "current", "values", "params"):
-        if isinstance(data.get(wrapper), dict):
-            data = data[wrapper]
-            break
-    return {key: data[key] for key in SAMPLING_KEYS if key in data}
-
-
-_sampling_cache: dict = {"data": None, "at": 0.0}
-
-
-def get_sampling() -> dict:
-    """Текущие параметры генерации сервера (GET /sampling). Общие для всех бэкендов.
-    Кэшируется на VISION_API_HEALTH_CACHE_TTL секунд; set_sampling обновляет кэш сам."""
-    ttl = conf("VISION_API_HEALTH_CACHE_TTL")
-    now = time.monotonic()
-    c = _sampling_cache
-    if ttl > 0 and c["data"] is not None and now - c["at"] < ttl:
-        return dict(c["data"])
-    data = _pick_sampling(_call("get", "/sampling"))
-    c.update(data=data, at=now)
-    return dict(data)
-
-
-def set_sampling(values: dict) -> dict:
-    """Меняет параметры (POST /sampling, JSON). Передаются только переданные ключи.
-    Действует сразу на все последующие запросы /analyze — для всего сервера."""
-    payload = {k: v for k, v in values.items() if k in SAMPLING_KEYS}
-    if not payload:
+def set_provider_settings(name: str, values: dict) -> dict:
+    """Меняет параметры ОДНОГО провайдера (POST /providers/<имя>/settings, JSON). Другие
+    провайдеры не затрагиваются. Передаются только переданные ключи; сервер принимает всё или
+    ничего. Возвращает новые значения провайдера."""
+    if not values:
         raise VisionApiError("Нет параметров для сохранения.")
-    data = _pick_sampling(_call("post", "/sampling", json=payload))
-    _sampling_cache.update(data=data, at=time.monotonic())
-    return data
+    data = _call("post", f"/providers/{quote(name, safe='')}/settings", json=values)
+    invalidate_providers()
+    return data.get("values", {}) if isinstance(data, dict) else {}
+
+
+def reset_provider_settings(name: str) -> dict:
+    """Возвращает все параметры ОДНОГО провайдера к значениям по умолчанию (DELETE
+    /providers/<имя>/settings). Возвращает новые значения."""
+    data = _call("delete", f"/providers/{quote(name, safe='')}/settings")
+    invalidate_providers()
+    return data.get("values", {}) if isinstance(data, dict) else {}
+
 
 def set_default_backend(name: str) -> dict:
     """Меняет бэкенд по умолчанию на сервере анализа (POST /config, поле backend).

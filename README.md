@@ -66,7 +66,7 @@ cd inference && python server.py
 
 | Файл | Назначение |
 |---|---|
-| `server.py` | HTTP-эндпоинты (aiohttp): `/`, `/health`, `/analyze`, `/chat`, `/lang`, `/config`, `/sampling`, `/models`, `/providers`, `/categories`, `/embeddings` |
+| `server.py` | HTTP-эндпоинты (aiohttp): `/`, `/health`, `/analyze`, `/chat`, `/lang`, `/config`, `/models`, `/providers`, `/providers/{name}/settings`, `/categories`, `/embeddings` (+ устаревший `/sampling`) |
 | `config.py` | Константы (в том числе настройки инструментов), параметры сэмплинга, логирование, бутстрап `locales`/`image_upscaler` |
 | `http_utils.py` | Общие хелперы HTTP-слоя: JSON-ответ, `_BodyError`, подготовка изображения (mime + апскейл + base64) |
 | `chat.py`, `chat_backends.py`, `chat_prompt.py` | Основной чат `/chat` — свободный диалог с историей, без JSON-схемы риск-отчёта; `chat_prompt.py` — его системная "личность" |
@@ -112,20 +112,28 @@ cd inference && python server.py
 - `GET/POST /config` — посмотреть/поменять `backend`, `ollama_host`,
   `vllm_url`, `gemini_model`, `anthropic_model` без перезапуска. Ключей API здесь нет: сервер их не хранит
   (см. ниже).
-- `GET/POST /sampling` — посмотреть/поменять `temperature`, `top_p`,
-  `top_k`, `seed`, `num_ctx`, `num_predict`, `think` (`true`/`false` или
-  `low`/`medium`/`high`). Общие для всего сервера и для всех бэкендов.
-  `num_ctx` действует только для Ollama; у Gemini `think` переводится в
-  `thinkingBudget` / `thinkingLevel`, а `num_predict` включает токены размышлений.
-  У Anthropic из `/sampling` используются только `num_predict` (это `max_tokens`) и `think`
-  (→ `output_config.effort`); `temperature`/`top_p`/`top_k`/`seed` не передаются — актуальные
-  модели Claude отвергают нестандартные значения, а `seed` в Messages API нет.
+- `GET/POST/DELETE /providers/{name}/settings` — настройки **одного** провайдера. У каждого
+  провайдера свой набор параметров, свои значения по умолчанию и свои допустимые значения;
+  изменение настроек одного провайдера не затрагивает другие. `GET` — значения и схема
+  параметров, `POST` — изменить любое подмножество (всё или ничего: неизвестный параметр или
+  недопустимое значение → 400), `DELETE[?keys=a,b]` — вернуть значения по умолчанию.
+
+  | Провайдер | Параметры (по умолчанию) |
+  |---|---|
+  | `ollama` | `temperature` (0), `top_p` (1.0), `top_k` (1), `seed` (42), `num_ctx` (auto), `num_predict` (auto), `think` (true; `true`/`false` или `low`/`medium`/`high`) |
+  | `vllm` | `temperature` (0), `top_p` (1.0), `top_k` (auto), `seed` (42), `num_predict` (auto → `max_tokens`), `think_budget` (4096 → `thinking_token_budget`, 0 — без лимита) |
+  | `gemini` | `temperature` (0), `seed` (42), `num_predict` (auto → `max_output_tokens`, включает токены размышлений), `think` (→ `thinking_level`) |
+  | `anthropic` | `num_predict` (auto → `max_tokens`), `think` (→ `output_config.effort`) |
+
+  Значение `auto` сбрасывает параметр, где «не задано» допустимо. `GET/POST /sampling` — устаревший
+  алиас: теперь он работает с одним бэкендом (`?backend=`, по умолчанию — бэкенд по умолчанию),
+  лишние параметры возвращает в `ignored`.
 - `GET /models` — полный список моделей, которые прямо сейчас отдаёт бэкенд
   (`?backend=vllm|ollama|gemini|anthropic`, без параметра — все настроенные).
 
 - `GET /providers` — описание **всех** зарегистрированных провайдеров (в отличие от
   `/health`, где не настроенные скрыты): `name`, `label`, `fallback`, `configured`,
-  `endpoint`, `sampling_keys` (какие параметры `/sampling` он использует) и `credential`
+  `endpoint`, `settings` (его параметры: тип, диапазон/варианты, значение по умолчанию, текущее значение) и `credential`
   (какой секрет нужен провайдеру и в каком заголовке его присылать). По этому ответу
   веб-панель строит страницу статуса, поэтому новый провайдер не требует правок в `vision_app/`.
 
@@ -145,7 +153,7 @@ curl -H "X-Api-Key-Anthropic: sk-ant-..." "http://127.0.0.1:6769/models?backend=
 ### Как добавить нового провайдера
 
 1. Создать `inference/providers/<имя>.py` с наследником `Provider` и задать `name`, `label`,
-   `fallback`, `sampling_keys` и (если нужен ключ) `credential=Credential(label=..., hint=...)`;
+   `fallback`, `settings_spec` (его параметры, см. `providers/settings.py`) и (если нужен ключ) `credential=Credential(label=..., hint=...)`;
    ключ в коде провайдера читается как `self.api_key` (берётся из заголовка текущего запроса).
 2. Добавить его в `_PROVIDERS` в `providers/__init__.py` и его настройки — в `config.py`.
 
@@ -167,11 +175,8 @@ curl -H "X-Api-Key-Anthropic: sk-ant-..." "http://127.0.0.1:6769/models?backend=
 | `VISION_ANALYZER_ANTHROPIC_MAX_TOKENS` | `16000` | `max_tokens` (если не задан `num_predict`); токены размышлений входят в лимит |
 | `VISION_ANALYZER_ANTHROPIC_VERSION` | `2023-06-01` | Значение заголовка `anthropic-version` |
 | `VISION_ANALYZER_ANTHROPIC_API_BASE` | `https://api.anthropic.com/v1` | Базовый URL API (например, свой прокси) |
-| `VISION_ANALYZER_TEMPERATURE` / `_TOP_P` / `_TOP_K` / `_SEED` | `0` / `1.0` / `1` / `42` | Параметры сэмплинга по умолчанию |
-| `VISION_ANALYZER_NUM_CTX` | — (не переопределяется) | Размер контекста (только Ollama) |
-| `VISION_ANALYZER_NUM_PREDICT` | — (не переопределяется) | Лимит длины ответа |
-| `VISION_ANALYZER_THINK` | `true` | Режим рассуждений модели |
-| `VISION_ANALYZER_THINK_BUDGET` | `4096` | Максимум токенов на рассуждения (только vLLM, нужен `--reasoning-parser`); `0` — без лимита. Защита от зацикливания модели |
+| `VISION_ANALYZER_<ПРОВАЙДЕР>_<ПАРАМЕТР>` | см. таблицу выше | Значение по умолчанию параметра для одного провайдера, например `VISION_ANALYZER_VLLM_TEMPERATURE=0.6` или `VISION_ANALYZER_VLLM_THINK_BUDGET=2048` |
+| `VISION_ANALYZER_TEMPERATURE` / `_TOP_P` / `_TOP_K` / `_SEED` / `_NUM_CTX` / `_NUM_PREDICT` / `_THINK` / `_THINK_BUDGET` | — | Старые общие имена: работают и действуют на все провайдеры, у которых есть такой параметр (имя с провайдером приоритетнее) |
 | `VISION_LOG_DIR` | `<корень проекта>/logs` | Куда писать `analyzer.log` / `analyzer.error.log` |
 
 Сервер слушает `0.0.0.0:6769`.
@@ -185,7 +190,7 @@ curl -H "X-Api-Key-Anthropic: sk-ant-..." "http://127.0.0.1:6769/models?backend=
 | `blueprints/analyzer.py` | Загрузка → очередь, история, детальный результат, статус сервера |
 | `blueprints/panel.py` | Админка: пользователи, роли, все анализы, статистика |
 | `queue_worker.py` | Фоновый поток, обрабатывающий очередь анализов по одному |
-| `services.py` | Клиент к `inference/server.py` (`/analyze`, `/health`, `/models`, `/sampling`, `/providers`). Список бэкендов не зашит — берётся из `GET /providers` (`get_providers()`, кэш 15 с) |
+| `services.py` | Клиент к `inference/server.py` (`/analyze`, `/health`, `/models`, `/providers`, `/providers/<имя>/settings`). Список бэкендов не зашит — берётся из `GET /providers` (`get_providers()`, кэш 15 с) |
 | `chat_prompt.py` | Системный промпт чата: хранится в БД (`settings`), правится в разделе «Промпты» (`/panel/categories/`); к нему автоматически добавляется промпт инструментов из `chat_tools/runner.py` (он не редактируется), в `/chat` уходит с `system_mode=replace` |
 | `settings_store.py` | Выбранные бэкенд/модель для анализа и переопределения констант `config.py` из `/panel/settings/` (хранятся в БД, применяются без перезапуска; `flask reset-settings` — сброс) |
 | `history.py` | Удаление записей истории вместе с файлами |

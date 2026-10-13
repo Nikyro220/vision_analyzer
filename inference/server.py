@@ -1,6 +1,6 @@
 """
 server.py — HTTP-слой vision_analyzer_server: простые хендлеры (/,
-/health, /lang, /config, /sampling, /models), сборка приложения aiohttp
+/health, /lang, /config, /providers, /models), сборка приложения aiohttp
 и entrypoint. Сам /analyze — самый сложный путь — вынесен в tools/vision_analyzer/analyze.py:
 подготовка изображений и разбор трёх форматов тела запроса там.
 Собственно общением с моделью (Ollama/vLLM/Gemini/Anthropic) занимаются провайдеры
@@ -273,7 +273,7 @@ async def handle_config(request: web.Request) -> web.Response:
 async def handle_providers(request: web.Request) -> web.Response:
     """GET /providers — описание ВСЕХ зарегистрированных провайдеров (в отличие от
     /health, где не настроенные скрыты): название, фолбэк, настроен ли, какие
-    параметры /sampling он использует и какой секрет (API-ключ) ему нужен. По этому ответу клиент (веб-панель) сам строит
+    параметры генерации (settings) у него есть и какой секрет (API-ключ) ему нужен. По этому ответу клиент (веб-панель) сам строит
     свой UI — новый провайдер появляется там без правок на стороне клиента.
     Поле "credential" описывает секрет (API-ключ), который клиент должен присылать в
     каждом запросе заголовком из credential.header; "configured" — пришёл ли ключ в ЭТОМ
@@ -284,102 +284,115 @@ async def handle_providers(request: web.Request) -> web.Response:
     })
 
 
-_SAMPLING_KEYS = ("temperature", "top_p", "top_k", "seed", "num_ctx", "num_predict", "think")
+async def _read_params(request: web.Request) -> dict:
+    """Параметры запроса одним словарём: JSON-тело или form-поля, поверх них — query
+    (query в приоритете, как в /config и /lang)."""
+    params: dict = {}
+    if request.content_type == "application/json":
+        try:
+            body = await request.json()
+        except Exception:
+            body = None
+        if isinstance(body, dict):
+            params.update(body)
+    elif request.can_read_body:
+        params.update(await request.post())
+    params.update(request.query)
+    return params
 
 
-def _parse_resettable_int(v):
-    """int(...), но 'auto'/'none'/'default'/'' (и None из JSON) → None,
-    т.е. "вернуться к дефолту модели". Общий парсер для num_ctx и
-    num_predict — у обоих одинаковая семантика сброса."""
-    if v is None or (isinstance(v, str) and v.strip().lower() in ("", "auto", "none", "default")):
-        return None
-    return int(v)
+def _setting_error(e: providers.SettingError) -> web.Response:
+    if e.kind == "unknown":
+        message = config._t(
+            "error.setting_unknown", backend=e.provider, param=e.key, available=", ".join(e.available) or "-",
+        )
+    else:
+        message = config._t("error.setting_invalid", backend=e.provider, param=e.key, reason=e.reason)
+    return _json({"error": message, "provider": e.provider, "key": e.key}, status=400)
 
 
-# Каждому полю /sampling — своя функция разбора строки/значения из запроса
-# в то, что кладётся в config.SAMPLING_DEFAULTS. Все бросают ValueError
-# при некорректном значении — handle_sampling ловит это одним try/except
-# на весь цикл, отдельная обработка ошибок на поле не нужна.
-_SAMPLING_PARSERS = {
-    "temperature": float,
-    "top_p": float,
-    "top_k": int,
-    "seed": int,
-    "num_ctx": _parse_resettable_int,
-    "num_predict": _parse_resettable_int,
-    "think": config.parse_think,
-}
+def _settings_payload(provider: providers.Provider) -> dict:
+    return {"provider": provider.name, "values": provider.settings, "settings": provider.describe_settings()}
+
+
+async def handle_provider_settings(request: web.Request) -> web.Response:
+    """Настройки ОДНОГО провайдера — /providers/{name}/settings. У каждого провайдера свой набор
+    параметров, свои значения по умолчанию и свои допустимые значения (providers/settings.py);
+    изменение настроек одного провайдера не затрагивает другие.
+
+    GET    — текущие значения и схема параметров (тип, диапазон/варианты, значение по умолчанию).
+    POST   — изменить любое подмножество параметров (query, JSON-тело или form). Всё или ничего:
+             неизвестный параметр или недопустимое значение → 400, и не меняется ничего.
+             Для параметров, где это разрешено, значение auto сбрасывает «не задано».
+    DELETE — вернуть значения по умолчанию: все или только перечисленные в ?keys=a,b.
+    """
+    name = request.match_info["name"].strip().lower()
+    if not providers.is_known(name):
+        return _json({"error": config._t("error.unknown_backend", backend=name)}, status=404)
+    provider = providers.get(name)
+
+    try:
+        if request.method == "POST":
+            params = await _read_params(request)
+            if not params:
+                return _json({
+                    "error": config._t(
+                        "error.sampling_missing_fields", backend=name, available=", ".join(provider.settings) or "-",
+                    ),
+                }, status=400)
+            provider.update_settings(params)
+            logging.info("Настройки провайдера %s обновлены: %s", name, provider.settings)
+            return _json({"ok": True, **_settings_payload(provider)})
+
+        if request.method == "DELETE":
+            keys = [k.strip() for k in request.query.get("keys", "").split(",") if k.strip()] or None
+            provider.reset_settings(keys)
+            logging.info("Настройки провайдера %s сброшены (%s): %s", name, keys or "все", provider.settings)
+            return _json({"ok": True, **_settings_payload(provider)})
+    except providers.SettingError as e:
+        return _setting_error(e)
+
+    return _json(_settings_payload(provider))
 
 
 async def handle_sampling(request: web.Request) -> web.Response:
-    """GET — вернуть текущие temperature/top_p/top_k/seed/num_ctx/
-    num_predict/think, а также реально обнаруженный (если получилось)
-    контекст vLLM.
+    """УСТАРЕЛО (оставлено для старых клиентов): GET/POST /sampling — то же, что
+    /providers/{name}/settings, но для одного провайдера, выбранного параметром ?backend=
+    (по умолчанию — бэкенд сервера по умолчанию). Раньше параметры были общими для всех
+    бэкендов — теперь у каждого провайдера свои, и этот хендлер работает ровно с одним.
 
-    POST — изменить любое подмножество этих полей на лету, без
-    перезапуска. Поля принимаются через query, JSON-тело или form-поле,
-    как и /config.
-
-    num_ctx — конфигурируемый дефолт, актуален ТОЛЬКО для backend=ollama
-    (это per-request параметр options.num_ctx). У vLLM размер контекста
-    фиксирован при запуске сервера (--max-model-len) и через POST
-    /sampling не меняется — значение num_ctx для vllm просто игнорируется
-    при реальном анализе. По умолчанию num_ctx = null — т.е. НЕ
-    переопределяется, Ollama использует дефолт модели из её Modelfile
-    (так было и до появления /sampling). Поднимать его стоит осознанно:
-    большой num_ctx заметно увеличивает объём KV-cache и время prefill —
-    вплоть до таймаута запроса (REQUEST_TIMEOUT), если не хватает VRAM.
-    Задать явно — POST num_ctx=<число>; вернуть обратно на дефолт модели —
-    POST num_ctx=auto (также подойдут "none"/"default"/"").
-
-    num_predict — максимум токенов в одном ответе модели (Ollama:
-    options.num_predict; vLLM: max_tokens). Та же семантика сброса —
-    num_predict=auto. По умолчанию null (без лимита). Слишком маленькое
-    значение обрежет JSON-отчёт на середине (в ответе будет "_raw"
-    вместо разобранного отчёта).
-
-    think — режим размышлений модели: true/false для большинства
-    моделей, либо low/medium/high для GPT-OSS (см. config.parse_think).
-
-    Вместо num_ctx в GET-ответе отдельным read-only-полем
-    'vllm_context_window' отдаётся то, что реально узнали у самой vLLM
-    (через GET /v1/models, поле max_model_len) — либо null, если бэкенд
-    недоступен или конкретная сборка это поле не отдаёт.
+    Параметры, которых у выбранного провайдера нет (например, num_ctx у vLLM), не считаются
+    ошибкой: они возвращаются в поле "ignored". Недопустимое значение — 400, как и раньше.
     """
+    name = (request.query.get("backend") or config.BACKEND).strip().lower()
+    if not providers.is_known(name):
+        return _json({"error": config._t("error.unknown_backend", backend=name)}, status=400)
+    provider = providers.get(name)
+    headers = {"Deprecation": "true"}
+
     if request.method == "GET":
         vllm_context_window = await providers.get("vllm").context_window() if providers.is_known("vllm") else None
-        return _json({**config.SAMPLING_DEFAULTS, "vllm_context_window": vllm_context_window})
-
-    raw_values = {}
-    for key in _SAMPLING_KEYS:
-        v = request.query.get(key)
-        if v is not None:
-            raw_values[key] = v
-
-    if not raw_values:
-        if request.content_type == "application/json":
-            body = await request.json() or {}
-        else:
-            body = await request.post()
-        for key in _SAMPLING_KEYS:
-            if key in body:
-                raw_values[key] = body[key]
-
-    if not raw_values:
-        return _json({"error": config._t("error.sampling_missing_fields")}, status=400)
-
-    try:
-        for key, parse in _SAMPLING_PARSERS.items():
-            if key in raw_values:
-                config.SAMPLING_DEFAULTS[key] = parse(raw_values[key])
-    except (TypeError, ValueError):
         return _json(
-            {"error": config._t("error.sampling_invalid_value", value=str(raw_values))},
-            status=400,
+            {**provider.settings, "backend": name, "vllm_context_window": vllm_context_window}, headers=headers,
         )
 
-    logging.info("Параметры сэмплинга обновлены извне: %s", config.SAMPLING_DEFAULTS)
-    return _json({"ok": True, **config.SAMPLING_DEFAULTS})
+    params = {k: v for k, v in (await _read_params(request)).items() if k != "backend"}
+    known = {k: v for k, v in params.items() if k in provider.settings}
+    ignored = sorted(set(params) - set(known))
+    if not known:
+        return _json({
+            "error": config._t(
+                "error.sampling_missing_fields", backend=name, available=", ".join(provider.settings) or "-",
+            ),
+            "ignored": ignored,
+        }, status=400, headers=headers)
+    try:
+        provider.update_settings(known)
+    except providers.SettingError as e:
+        return _setting_error(e)
+
+    logging.info("Настройки провайдера %s обновлены через /sampling: %s", name, provider.settings)
+    return _json({"ok": True, "backend": name, **provider.settings, "ignored": ignored}, headers=headers)
 
 
 async def handle_models(request: web.Request) -> web.Response:
@@ -436,10 +449,11 @@ def build_app() -> web.Application:
     app.router.add_post("/lang", handle_lang)
     app.router.add_get("/config", handle_config)
     app.router.add_post("/config", handle_config)
-    app.router.add_get("/sampling", handle_sampling)
+    app.router.add_get("/sampling", handle_sampling)  # устарело: см. handle_sampling
     app.router.add_post("/sampling", handle_sampling)
     app.router.add_get("/models", handle_models)
     app.router.add_get("/providers", handle_providers)
+    app.router.add_route("*", "/providers/{name}/settings", handle_provider_settings)
     app.router.add_get("/embeddings", embeddings.handle_embeddings_info)
     app.router.add_post("/embeddings", embeddings.handle_embeddings)
     app.router.add_post("/embeddings/download", embeddings.handle_embeddings_download)

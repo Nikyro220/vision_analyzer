@@ -495,8 +495,16 @@ class ImageUploadForm(FlaskForm):
 
 
 # ----------------------------------------------------------------------------
-# Параметры генерации (POST /sampling)
+# Параметры провайдера (POST /providers/<имя>/settings)
 # ----------------------------------------------------------------------------
+# У каждого провайдера свой набор параметров, свои значения по умолчанию и свои допустимые
+# значения. Панель ничего о них не знает: сервер описывает каждый параметр (тип, диапазон,
+# варианты) в GET /providers → settings, и форма строится ровно по этому описанию. Новый
+# провайдер или новый параметр не требуют правок в этом файле.
+
+_RESET_WORDS = ("auto", "none", "null", "default")
+
+
 def _parse_number(raw: str, kind: str, lo, hi, lo_exclusive: bool = False):
     """Разбирает число из поля. Бросает ValueError с русским сообщением."""
     if kind == "int":
@@ -511,64 +519,72 @@ def _parse_number(raw: str, kind: str, lo, hi, lo_exclusive: bool = False):
         if not math.isfinite(value):
             raise ValueError("Введите обычное число.")
 
-    too_low = value <= lo if lo_exclusive else value < lo
-    if (lo is not None and too_low) or (hi is not None and value > hi):
-        left = f"больше {lo}" if lo_exclusive else f"от {lo}"
-        raise ValueError(f"Допустимое значение: {left} до {hi}.")
+    too_low = lo is not None and (value <= lo if lo_exclusive else value < lo)
+    if too_low or (hi is not None and value > hi):
+        raise ValueError(f"Допустимое значение: {_range_text(lo, hi, lo_exclusive)}.")
     return value
 
 
-# Описание каждого параметра генерации: поле формы и ограничения. Какие из них показывать
-# для конкретного провайдера, решает сам провайдер (sampling_keys в GET /providers), поэтому
-# для нового бэкенда править этот файл не нужно — только если появится новый ПАРАМЕТР.
-#   имя -> (тип, минимум, максимум, минимум не включается)
-_SAMPLING_SPEC = {
-    "temperature": ("float", 0, 2, False),
-    "top_p": ("float", 0, 1, True),
-    "top_k": ("int", -1, 100000, False),
-    "seed": ("int", -(2**63), 2**63 - 1, False),
-    "num_predict": ("int", 1, 1048576, False),
-    "num_ctx": ("int", 128, 1048576, False),
-}
+def _fmt(x) -> str:
+    return str(int(x)) if float(x).is_integer() else str(x)
 
 
-def _text_field(name: str, placeholder: str, inputmode: str) -> StringField:
+def _range_text(lo, hi, lo_exclusive: bool = False) -> str:
+    if lo is not None and hi is not None:
+        return f"{'больше' if lo_exclusive else 'от'} {_fmt(lo)} до {_fmt(hi)}"
+    if lo is not None:
+        return f"{'больше' if lo_exclusive else 'не меньше'} {_fmt(lo)}"
+    if hi is not None:
+        return f"не больше {_fmt(hi)}"
+    return "любое число"
+
+
+def _display(value) -> str:
+    """Текущее значение параметра → строка для поля формы (None — «не задано» — пустое поле)."""
+    if value is None:
+        return ""
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    return str(value)
+
+
+def settings_initial(settings) -> dict:
+    """Начальные значения полей формы из текущих значений провайдера на сервере."""
+    return {st.key: _display(st.value) for st in settings}
+
+
+def _setting_field(spec: tuple):
+    """Поле формы по описанию параметра (SettingInfo.spec)."""
+    key, kind, label, hint, default, lo, hi, lo_excl, choices, nullable = spec
+    description = " ".join(filter(None, [
+        hint,
+        f"По умолчанию: {_display(default) or 'auto'}.",
+    ]))
+    if kind == "choice":
+        return SelectField(
+            label or key, choices=list(choices), validators=[Optional()], description=description,
+        )
+    if lo is not None or hi is not None:
+        placeholder = f"{_fmt(lo)}–{_fmt(hi)}" if lo is not None and hi is not None else _range_text(lo, hi, lo_excl)
+    else:
+        placeholder = "целое" if kind == "int" else "число"
+    if nullable:
+        placeholder += " или auto"
     return StringField(
-        name,
+        label or key,
         validators=[Optional(), Length(max=32)],
-        render_kw={"placeholder": placeholder, "inputmode": inputmode, "autocomplete": "off"},
+        description=description,
+        render_kw={
+            "placeholder": placeholder,
+            "inputmode": "numeric" if kind == "int" else "decimal",
+            "autocomplete": "off",
+        },
     )
 
 
-def _think_field() -> SelectField:
-    return SelectField(
-        "think",
-        choices=[
-            ("false", "выкл"),
-            ("true", "вкл"),
-            ("low", "low (GPT-OSS)"),
-            ("medium", "medium (GPT-OSS)"),
-            ("high", "high (GPT-OSS)"),
-        ],
-        validators=[Optional()],
-    )
-
-
-# Фабрики полей; порядок здесь = порядок полей на странице.
-_SAMPLING_FIELDS = {
-    "temperature": lambda: _text_field("temperature", "0–2", "decimal"),
-    "top_p": lambda: _text_field("top_p", "0–1", "decimal"),
-    "top_k": lambda: _text_field("top_k", "целое", "numeric"),
-    "seed": lambda: _text_field("seed", "целое", "numeric"),
-    "num_predict": lambda: _text_field("num_predict", "1–1048576", "numeric"),
-    "think": _think_field,
-    "num_ctx": lambda: _text_field("num_ctx", "128–1048576", "numeric"),
-}
-
-
-class _SamplingForm(FlaskForm):
-    """Базовая форма (без полей — их добавляет sampling_form_class по sampling_keys провайдера).
-    Пустое поле = «не менять»: на сервер уходят только заполненные."""
+class _SettingsForm(FlaskForm):
+    """Базовая форма (поля добавляет provider_settings_form_class по описанию параметров
+    провайдера). Пустое числовое поле = «не менять»: на сервер уходят только заполненные."""
 
     class Meta:
         # Формы с prefix называют поле токена «<prefix>-csrf_token», а глобальный
@@ -576,35 +592,38 @@ class _SamplingForm(FlaskForm):
         # шаблон кладёт обычное скрытое поле csrf_token.
         csrf = False
 
-    SPEC: dict = {}
+    SPEC: dict = {}      # ключ -> SettingInfo.spec
     values: dict
 
     def validate(self, extra_validators=None):
         ok = super().validate(extra_validators)
         self.values = {}
-        for name, (kind, lo, hi, lo_excl) in self.SPEC.items():
-            field = getattr(self, name)
+        for key, (_, kind, _, _, _, lo, hi, lo_excl, _, nullable) in self.SPEC.items():
+            field = getattr(self, key)
             raw = (field.data or "").strip().replace(",", ".")
             if not raw:
                 continue
-            try:
-                self.values[name] = _parse_number(raw, kind, lo, hi, lo_excl)
-            except ValueError as exc:
-                field.errors = [*field.errors, str(exc)]
-                ok = False
-
-        if "think" in self._fields:
-            self.values["think"] = {"true": True, "false": False}.get(self.think.data, self.think.data)
-
+            if kind == "choice":
+                self.values[key] = {"true": True, "false": False}.get(raw, raw)
+            elif nullable and raw.lower() in _RESET_WORDS:
+                self.values[key] = None
+            else:
+                try:
+                    self.values[key] = _parse_number(raw, kind, lo, hi, lo_excl)
+                except ValueError as exc:
+                    field.errors = [*field.errors, str(exc)]
+                    ok = False
         return ok
 
 
 @lru_cache(maxsize=None)
-def sampling_form_class(keys: tuple[str, ...]) -> type[_SamplingForm]:
-    """Форма параметров генерации ровно с теми полями, которые провайдер использует
-    (sampling_keys из GET /providers). Неизвестные ключи игнорируются; классы кэшируются —
-    для одного набора ключей он создаётся один раз."""
-    ordered = tuple(k for k in _SAMPLING_FIELDS if k in keys)
-    attrs: dict = {k: _SAMPLING_FIELDS[k]() for k in ordered}
-    attrs["SPEC"] = {k: _SAMPLING_SPEC[k] for k in ordered if k in _SAMPLING_SPEC}
-    return type("SamplingForm", (_SamplingForm,), attrs)
+def _settings_form_class(specs: tuple) -> type[_SettingsForm]:
+    attrs: dict = {spec[0]: _setting_field(spec) for spec in specs}
+    attrs["SPEC"] = {spec[0]: spec for spec in specs}
+    return type("ProviderSettingsForm", (_SettingsForm,), attrs)
+
+
+def provider_settings_form_class(settings) -> type[_SettingsForm]:
+    """Форма параметров провайдера ровно с теми полями, которые он описал (GET /providers →
+    settings). Классы кэшируются по описанию — для одного набора параметров он создаётся один раз."""
+    return _settings_form_class(tuple(st.spec for st in settings))

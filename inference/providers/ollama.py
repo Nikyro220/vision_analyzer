@@ -9,14 +9,37 @@ import uuid
 import aiohttp
 
 import config
-from .base import ALL_SAMPLING_KEYS, Provider, sampling_options, strip_data_url
+from .base import Provider, strip_data_url
+from .settings import THINK_CHOICES, Setting
 
 
 class OllamaProvider(Provider):
     name = "ollama"
     label = "Ollama"
     fallback = "vllm"
-    sampling_keys = ALL_SAMPLING_KEYS  # единственный бэкенд, где num_ctx — per-request параметр
+    # Единственный бэкенд, где num_ctx — per-request параметр (options.num_ctx).
+    settings_spec = (
+        Setting("temperature", "float", 0.0, "temperature", min=0, max=2),
+        Setting("top_p", "float", 1.0, "top_p", min=0, max=1, min_exclusive=True),
+        Setting("top_k", "int", 1, "top_k", min=1, max=100000,
+                hint="1 — жадный выбор: ответ детерминирован, но модель может зацикливаться."),
+        Setting("seed", "int", 42, "seed", nullable=True, hint="auto — случайный seed."),
+        Setting("num_ctx", "int", None, "num_ctx", min=128, max=1048576, nullable=True,
+                hint="auto — дефолт модели из Modelfile. Большой контекст раздувает KV-cache и время prefill."),
+        Setting("num_predict", "int", None, "num_predict", min=1, max=1048576, nullable=True,
+                hint="Максимум токенов в ответе. Слишком маленькое значение обрежет JSON-отчёт."),
+        Setting("think", "choice", True, "think", choices=THINK_CHOICES,
+                hint="true/false для большинства моделей; low/medium/high — для GPT-OSS."),
+    )
+
+    def _options(self) -> dict:
+        """Ollama-style options из текущих настроек (читаются в момент запроса)."""
+        v = self.settings
+        options = {"temperature": v["temperature"], "top_p": v["top_p"], "top_k": v["top_k"]}
+        for key in ("seed", "num_ctx", "num_predict"):
+            if v[key] is not None:
+                options[key] = v[key]
+        return options
 
     @property
     def endpoint(self) -> str:
@@ -95,8 +118,8 @@ class OllamaProvider(Provider):
             "stream": True,
             "format": "json",
             "messages": messages,
-            "options": sampling_options(),
-            "think": config.SAMPLING_DEFAULTS["think"],
+            "options": self._options(),
+            "think": self.setting("think"),
         }
         return await self._stream_chat(payload, label="")
 
@@ -131,7 +154,7 @@ class OllamaProvider(Provider):
             "model": model,
             "stream": True,
             "messages": messages,
-            "options": sampling_options(),
-            "think": config.SAMPLING_DEFAULTS["think"],
+            "options": self._options(),
+            "think": self.setting("think"),
         }
         return await self._stream_chat(payload, label="chat:")
