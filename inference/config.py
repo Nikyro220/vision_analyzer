@@ -278,6 +278,14 @@ SAMPLING_DEFAULTS = {
 }
 
 
+# Бюджет рассуждений (reasoning budget): максимум токенов, которые модель может потратить на
+# «думание» до ответа. Нужен против зацикливания: при temperature=0 (жадный выбор) модель
+# легко уходит в бесконечное «Wait, looking at the image again...» и не доходит до ответа.
+# 0 — без лимита. Сейчас применяется только для vLLM (поле thinking_token_budget, см.
+# providers/vllm.py): Ollama токенный бюджет не поддерживает (только think true/false/уровни),
+# а у Gemini и Anthropic глубину размышлений задаёт SAMPLING_DEFAULTS["think"].
+THINK_BUDGET = int(os.environ.get("VISION_ANALYZER_THINK_BUDGET", "4096"))
+
 REQUEST_TIMEOUT = aiohttp.ClientTimeout(total=500)
 DISCOVERY_TIMEOUT = aiohttp.ClientTimeout(total=10)
 

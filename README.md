@@ -171,6 +171,7 @@ curl -H "X-Api-Key-Anthropic: sk-ant-..." "http://127.0.0.1:6769/models?backend=
 | `VISION_ANALYZER_NUM_CTX` | — (не переопределяется) | Размер контекста (только Ollama) |
 | `VISION_ANALYZER_NUM_PREDICT` | — (не переопределяется) | Лимит длины ответа |
 | `VISION_ANALYZER_THINK` | `true` | Режим рассуждений модели |
+| `VISION_ANALYZER_THINK_BUDGET` | `4096` | Максимум токенов на рассуждения (только vLLM, нужен `--reasoning-parser`); `0` — без лимита. Защита от зацикливания модели |
 | `VISION_LOG_DIR` | `<корень проекта>/logs` | Куда писать `analyzer.log` / `analyzer.error.log` |
 
 Сервер слушает `0.0.0.0:6769`.

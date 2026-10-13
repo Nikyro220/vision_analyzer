@@ -63,6 +63,23 @@ def _truncate_history(
     return kept
 
 
+def _generation_limits() -> dict:
+    """Поля запроса, ограничивающие длину генерации (защита от зацикливания).
+
+    thinking_token_budget — лимит токенов рассуждений (config.THINK_BUDGET, 0 = выкл.): когда он
+    исчерпан, vLLM сам закрывает блок рассуждений, и модель переходит к ответу. Работает, только
+    если vLLM запущен с --reasoning-parser (в старых версиях поле игнорируется без ошибки).
+    max_tokens — общий потолок ответа из /sampling (num_predict); без него длину ограничивает
+    только контекст модели.
+    """
+    limits: dict = {}
+    if config.THINK_BUDGET > 0:
+        limits["thinking_token_budget"] = config.THINK_BUDGET
+    if config.SAMPLING_DEFAULTS["num_predict"] is not None:
+        limits["max_tokens"] = config.SAMPLING_DEFAULTS["num_predict"]
+    return limits
+
+
 def _history_to_messages(history: list) -> list[dict]:
     """История прошлых сообщений диалога → формат сообщений vLLM (OpenAI-style)."""
     messages = []
@@ -160,6 +177,7 @@ class VllmProvider(Provider):
             "temperature": config.SAMPLING_DEFAULTS["temperature"],
             "top_p": config.SAMPLING_DEFAULTS["top_p"],
             "seed": config.SAMPLING_DEFAULTS["seed"],
+            **_generation_limits(),
             "messages": messages,
         }
 
@@ -207,6 +225,7 @@ class VllmProvider(Provider):
             "temperature": config.SAMPLING_DEFAULTS["temperature"],
             "top_p": config.SAMPLING_DEFAULTS["top_p"],
             "seed": config.SAMPLING_DEFAULTS["seed"],
+            **_generation_limits(),
             "messages": messages,
         }
 

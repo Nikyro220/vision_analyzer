@@ -1,0 +1,161 @@
+diff --git a/README.md b/README.md
+index 5f55e26..5f8c8d7 100644
+--- a/README.md
++++ b/README.md
+@@ -171,6 +171,7 @@ curl -H "X-Api-Key-Anthropic: sk-ant-..." "http://127.0.0.1:6769/models?backend=
+ | `VISION_ANALYZER_NUM_CTX` | — (не переопределяется) | Размер контекста (только Ollama) |
+ | `VISION_ANALYZER_NUM_PREDICT` | — (не переопределяется) | Лимит длины ответа |
+ | `VISION_ANALYZER_THINK` | `true` | Режим рассуждений модели |
++| `VISION_ANALYZER_THINK_BUDGET` | `4096` | Максимум токенов на рассуждения (только vLLM, нужен `--reasoning-parser`); `0` — без лимита. Защита от зацикливания модели |
+ | `VISION_LOG_DIR` | `<корень проекта>/logs` | Куда писать `analyzer.log` / `analyzer.error.log` |
+ 
+ Сервер слушает `0.0.0.0:6769`.
+diff --git a/inference/config.py b/inference/config.py
+index f910257..1309a12 100644
+--- a/inference/config.py
++++ b/inference/config.py
+@@ -278,6 +278,14 @@ SAMPLING_DEFAULTS = {
+ }
+ 
+ 
++# Бюджет рассуждений (reasoning budget): максимум токенов, которые модель может потратить на
++# «думание» до ответа. Нужен против зацикливания: при temperature=0 (жадный выбор) модель
++# легко уходит в бесконечное «Wait, looking at the image again...» и не доходит до ответа.
++# 0 — без лимита. Сейчас применяется только для vLLM (поле thinking_token_budget, см.
++# providers/vllm.py): Ollama токенный бюджет не поддерживает (только think true/false/уровни),
++# а у Gemini и Anthropic глубину размышлений задаёт SAMPLING_DEFAULTS["think"].
++THINK_BUDGET = int(os.environ.get("VISION_ANALYZER_THINK_BUDGET", "4096"))
++
+ REQUEST_TIMEOUT = aiohttp.ClientTimeout(total=500)
+ DISCOVERY_TIMEOUT = aiohttp.ClientTimeout(total=10)
+ 
+diff --git a/inference/providers/vllm.py b/inference/providers/vllm.py
+index 66c46c1..a4af5d2 100644
+--- a/inference/providers/vllm.py
++++ b/inference/providers/vllm.py
+@@ -63,6 +63,23 @@ def _truncate_history(
+     return kept
+ 
+ 
++def _generation_limits() -> dict:
++    """Поля запроса, ограничивающие длину генерации (защита от зацикливания).
++
++    thinking_token_budget — лимит токенов рассуждений (config.THINK_BUDGET, 0 = выкл.): когда он
++    исчерпан, vLLM сам закрывает блок рассуждений, и модель переходит к ответу. Работает, только
++    если vLLM запущен с --reasoning-parser (в старых версиях поле игнорируется без ошибки).
++    max_tokens — общий потолок ответа из /sampling (num_predict); без него длину ограничивает
++    только контекст модели.
++    """
++    limits: dict = {}
++    if config.THINK_BUDGET > 0:
++        limits["thinking_token_budget"] = config.THINK_BUDGET
++    if config.SAMPLING_DEFAULTS["num_predict"] is not None:
++        limits["max_tokens"] = config.SAMPLING_DEFAULTS["num_predict"]
++    return limits
++
++
+ def _history_to_messages(history: list) -> list[dict]:
+     """История прошлых сообщений диалога → формат сообщений vLLM (OpenAI-style)."""
+     messages = []
+@@ -160,6 +177,7 @@ class VllmProvider(Provider):
+             "temperature": config.SAMPLING_DEFAULTS["temperature"],
+             "top_p": config.SAMPLING_DEFAULTS["top_p"],
+             "seed": config.SAMPLING_DEFAULTS["seed"],
++            **_generation_limits(),
+             "messages": messages,
+         }
+ 
+@@ -207,6 +225,7 @@ class VllmProvider(Provider):
+             "temperature": config.SAMPLING_DEFAULTS["temperature"],
+             "top_p": config.SAMPLING_DEFAULTS["top_p"],
+             "seed": config.SAMPLING_DEFAULTS["seed"],
++            **_generation_limits(),
+             "messages": messages,
+         }
+ 
+diff --git a/tests/test_vllm_think_budget.py b/tests/test_vllm_think_budget.py
+new file mode 100644
+index 0000000..c1ac3dc
+--- /dev/null
++++ b/tests/test_vllm_think_budget.py
+@@ -0,0 +1,80 @@
++"""vLLM-провайдер: бюджет рассуждений (config.THINK_BUDGET) и max_tokens попадают в запрос.
++
++Запуск из корня репозитория:  python -m pytest tests/test_vllm_think_budget.py -q
++Реальный vLLM не нужен — используется мок-сервер /v1/chat/completions.
++"""
++
++from __future__ import annotations
++
++import asyncio
++import sys
++from pathlib import Path
++
++import pytest
++from aiohttp import web
++from aiohttp.test_utils import TestServer
++
++sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "inference"))
++
++import config  # noqa: E402
++import providers  # noqa: E402
++
++
++class MockVllm:
++    def __init__(self) -> None:
++        self.bodies: list[dict] = []
++
++    async def completions(self, request: web.Request) -> web.Response:
++        self.bodies.append(await request.json())
++        return web.json_response({"choices": [{"message": {"content": " {\"ok\": true} "}}]})
++
++
++@pytest.fixture
++def vllm(monkeypatch):
++    mock = MockVllm()
++
++    async def start():
++        app = web.Application()
++        app.router.add_post("/v1/chat/completions", mock.completions)
++        server = TestServer(app)
++        await server.start_server()
++        return server
++
++    loop = asyncio.new_event_loop()
++    server = loop.run_until_complete(start())
++    monkeypatch.setattr(config, "VLLM_URL", f"http://127.0.0.1:{server.port}/v1")
++    monkeypatch.setitem(config.SAMPLING_DEFAULTS, "num_predict", None)
++    yield mock, loop
++    loop.run_until_complete(server.close())
++    loop.close()
++
++
++def _run(loop, coro):
++    return loop.run_until_complete(coro)
++
++
++def test_budget_sent_in_analyze_and_chat(vllm, monkeypatch):
++    mock, loop = vllm
++    monkeypatch.setattr(config, "THINK_BUDGET", 1234)
++    p = providers.get("vllm")
++
++    _run(loop, p.analyze("AAAA", "image/png", "m", "sys", "user"))
++    _run(loop, p.chat("m", None, [], "hi", []))
++
++    assert [b.get("thinking_token_budget") for b in mock.bodies] == [1234, 1234]
++    assert all("max_tokens" not in b for b in mock.bodies)
++
++
++def test_budget_zero_means_no_limit(vllm, monkeypatch):
++    mock, loop = vllm
++    monkeypatch.setattr(config, "THINK_BUDGET", 0)
++    _run(loop, providers.get("vllm").chat("m", None, [], "hi", []))
++    assert "thinking_token_budget" not in mock.bodies[0]
++
++
++def test_num_predict_becomes_max_tokens(vllm, monkeypatch):
++    mock, loop = vllm
++    monkeypatch.setattr(config, "THINK_BUDGET", 0)
++    monkeypatch.setitem(config.SAMPLING_DEFAULTS, "num_predict", 777)
++    _run(loop, providers.get("vllm").chat("m", None, [], "hi", []))
++    assert mock.bodies[0]["max_tokens"] == 777
