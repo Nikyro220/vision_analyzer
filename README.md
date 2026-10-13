@@ -65,7 +65,7 @@ cd inference && python server.py
 |---|---|
 | `server.py` | HTTP-эндпоинты (aiohttp): `/`, `/health`, `/analyze`, `/chat`, `/lang`, `/config`, `/sampling`, `/models`, `/providers`, `/categories` |
 | `providers/` | Бэкенды модели, по модулю на каждый: `vllm.py` (`/v1/chat/completions`), `ollama.py` (`/api/chat`), `gemini.py` (Google `generateContent`), `anthropic.py` (Anthropic Messages API); общий интерфейс — `base.py`, реестр — `__init__.py` |
-| `fallback.py` | Цепочка фолбэка между бэкендами для `/chat` и `/analyze`: триггеры (подключение, 5xx), порядок (локальные → облачные) |
+| `fallback.py` | Цепочка фолбэка между бэкендами для `/chat` и `/analyze`: триггер — любая ошибка бэкенда, порядок (локальные → облачные) |
 | `backends.py` | Конвейер `/analyze` поверх провайдеров: двухпроходный анализ, фолбэк, постобработка отчёта |
 | `chat.py`, `chat_backends.py` | То же самое, но для `/chat` — свободный диалог с историей, без JSON-схемы риск-отчёта |
 | `config.py` | Константы, параметры сэмплинга, логирование, бутстрап `locales`/`prompt`/`image_upscaler` |

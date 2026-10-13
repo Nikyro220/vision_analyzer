@@ -1,12 +1,10 @@
 """
 fallback.py — цепочка фолбэка между бэкендами для /chat и /analyze.
 
-Раньше фолбэк был один шаг и только между локальными бэкендами (Provider.fallback:
-vllm ↔ ollama), и только при ошибке подключения. Теперь:
+Правило простое: любая ошибка бэкенда (подключение, таймаут, 4xx/5xx, safety-блок,
+пустой/сломанный ответ провайдера) → пробуем следующий бэкенд. Какая именно это ошибка —
+пользователю не важно.
 
-  - триггеры: ошибка подключения ИЛИ 5xx апстрима (500/502/503/504, у Anthropic ещё 529).
-    Таймаут, 4xx (ключ, квота, safety-блок, плохой запрос) — не фолбэчим: другой бэкенд
-    не исправит ошибку запроса, а таймаут уже стоил REQUEST_TIMEOUT секунд;
   - порядок: сам бэкенд → его Provider.fallback → остальные локальные → облачные.
     Облачные участвуют, только если в ЭТОМ запросе пришёл их ключ (Provider.is_configured)
     и не выключено VISION_ANALYZER_CLOUD_FALLBACK=0 — иначе картинки уходили бы во вне;
@@ -20,22 +18,10 @@ from __future__ import annotations
 import logging
 from typing import Awaitable, Callable, TypeVar
 
-import aiohttp
-
 import config
 import providers
 
 T = TypeVar("T")
-
-#: 529 — «overloaded» у Anthropic
-TRANSIENT_STATUSES = frozenset({500, 502, 503, 504, 529})
-
-
-def is_transient(exc: BaseException) -> bool:
-    """Сбой самого бэкенда (недоступен / перегружен), а не запроса."""
-    if isinstance(exc, aiohttp.ClientConnectorError):
-        return True
-    return isinstance(exc, aiohttp.ClientResponseError) and exc.status in TRANSIENT_STATUSES
 
 
 def parse_flag(raw, default: bool) -> bool:
@@ -76,13 +62,11 @@ async def run(
     for i, name in enumerate(names):
         try:
             return await call(name, i > 0)
-        except Exception as e:  # noqa: BLE001 — решаем ниже, что из этого фолбэчим
+        except Exception as e:  # noqa: BLE001 — любая ошибка = пробуем следующий
             if i == 0:
                 e.chat_backend = name
-                if not is_transient(e) or len(names) == 1:
-                    raise
                 first = e
-                logging.warning("Бэкенд %r недоступен (%s: %s)", name, type(e).__name__, e)
+                logging.warning("Бэкенд %r не ответил (%s: %s)", name, type(e).__name__, e)
             else:
                 logging.warning("Фолбэк %r тоже не сработал (%s: %s)", name, type(e).__name__, e)
             if i + 1 < len(names):
