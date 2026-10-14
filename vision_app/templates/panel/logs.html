@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% block title %}Логи{% endblock %}
+{% block content %}
+<div class="page-header">
+    <h1>Логи</h1>
+    <p class="page-sub">Flask-панель и сервер анализа — отдельными вкладками. Раздел виден только главному админу.</p>
+</div>
+
+<nav class="tabs" aria-label="Источник логов">
+    {% for key, src in view.sources.items() %}
+    <a class="tab {% if key == view.source.key %}is-active{% endif %}" href="{{ url_for('panel.logs', source=key) }}">{{ src.title }}</a>
+    {% endfor %}
+</nav>
+
+<form method="get" class="filter-bar" id="logs-form" data-endpoint="{{ url_for('panel.logs') }}">
+    <input type="hidden" name="source" value="{{ view.source.key }}">
+    <select name="file" class="input" aria-label="Файл">
+        {% for f in view.files %}
+        <option value="{{ f.name }}" {% if view.file and view.file.name == f.name %}selected{% endif %}>{{ f.name }}</option>
+        {% else %}
+        <option value="">Файлов нет</option>
+        {% endfor %}
+    </select>
+    <select name="level" class="input" aria-label="Уровень">
+        <option value="">Все уровни</option>
+        {% for lvl in view.levels %}
+        <option value="{{ lvl }}" {% if view.level == lvl %}selected{% endif %}>{{ lvl }}{% if lvl != 'CRITICAL' %} и выше{% endif %}</option>
+        {% endfor %}
+    </select>
+    <select name="limit" class="input" aria-label="Сколько записей">
+        {% for n in view.limit_choices %}
+        <option value="{{ n }}" {% if view.limit == n %}selected{% endif %}>{{ n }} записей</option>
+        {% endfor %}
+    </select>
+    <input type="search" name="q" class="input input-grow" placeholder="Поиск по тексту…" value="{{ view.query }}" autocomplete="off">
+    <label class="checkbox-label">
+        <input type="checkbox" id="logs-auto"> Автообновление
+    </label>
+    <button type="submit" class="btn btn-secondary btn-sm">Обновить</button>
+</form>
+
+<div id="logs-results">
+{% include "panel/_logs_results.html" %}
+</div>
+{% endblock %}
+
+{% block scripts_extra %}
+<script src="{{ url_for('static', filename='js/logs.js') }}"></script>
+{% endblock %}

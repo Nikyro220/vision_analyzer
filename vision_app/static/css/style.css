@@ -2200,3 +2200,30 @@ a.chat-head-toggle { text-decoration: none; }
     .health-page .def-list { grid-template-columns: 1fr; gap: 2px 0; }
     .health-page .def-list dd { margin-bottom: 10px; }
 }
+
+
+/* ---------------- Страница «Логи» (panel/logs.html) ---------------- */
+
+.log-meta { margin: 0 0 10px; }
+.log-view {
+    background: var(--bg-panel);
+    border: 1px solid var(--border-soft);
+    border-radius: var(--radius);
+    max-height: 70vh;
+    overflow: auto;
+    padding: 6px 0;
+    font-family: var(--font-mono);
+    font-size: 0.8rem;
+    line-height: 1.45;
+}
+.log-entry {
+    padding: 2px 14px;
+    border-left: 3px solid transparent;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+}
+.log-entry:hover { background: var(--bg-hover); }
+.log-debug { color: var(--text-dim); }
+.log-warning { border-left-color: var(--risk-medium); }
+.log-error, .log-critical { border-left-color: var(--danger); color: var(--danger-strong); }
+.log-critical { font-weight: 600; }

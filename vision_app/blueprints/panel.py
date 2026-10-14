@@ -3,12 +3,12 @@
 import json
 from urllib.parse import urlparse
 
-from flask import Blueprint, flash, jsonify, redirect, render_template, request, url_for
+from flask import Blueprint, current_app, flash, jsonify, redirect, render_template, request, url_for
 from flask_login import current_user
 from sqlalchemy import func, select
 from sqlalchemy.orm import joinedload
 
-from .. import examples_codec
+from .. import examples_codec, log_viewer
 from ..config import conf
 from ..decorators import head_admin_required, staff_required
 from ..extensions import db
@@ -574,3 +574,23 @@ def category_toggle_active(pk: int):
         "success",
     )
     return redirect(_safe_referrer(url_for("panel.categories_list")))
+
+
+@bp.route("/logs/")
+@head_admin_required
+def logs():
+    """Логи Flask-панели и сервера анализа — отдельными вкладками (только главный админ)."""
+    view = log_viewer.build_view(
+        current_app.config["LOG_DIR"],
+        source=request.args.get("source", ""),
+        file=request.args.get("file", ""),
+        level=request.args.get("level", ""),
+        query=request.args.get("q", ""),
+        limit=request.args.get("limit", ""),
+    )
+
+    # Запрос из JS (смена фильтра / автообновление): отдаём только блок с записями.
+    if request.headers.get("X-Requested-With") == "fetch":
+        return jsonify(html=render_template("panel/_logs_results.html", view=view))
+
+    return render_template("panel/logs.html", view=view)

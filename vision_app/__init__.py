@@ -13,6 +13,7 @@ from flask_wtf.csrf import CSRFError
 from .categories_store import normalize_legacy_wrappers, seed_default_categories
 from .config import Config, conf
 from .extensions import csrf, db, login_manager, migrate
+from .logging_setup import setup_logging
 from .models import ROLE_CHOICES, ROLE_LABELS, RISK_LABELS, Role, User
 from .queue_worker import ensure_worker, worker_enabled
 from .schema import backfill_user_fields, ensure_schema, migrate_legacy_names
@@ -30,6 +31,11 @@ def create_app(config: dict | None = None) -> Flask:
     app.config.from_object(Config)
     if config:
         app.config.update(config)
+
+    # Файловые логи (logs/app.log, logs/app.error.log) — их читает страница «Логи» в панели.
+    # В тестах не трогаем корневой logger и не пишем в logs/.
+    if not app.config.get("TESTING"):
+        setup_logging(app)
 
     Path(app.config["UPLOAD_FOLDER"]).mkdir(parents=True, exist_ok=True)
 

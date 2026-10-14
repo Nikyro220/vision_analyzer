@@ -83,6 +83,9 @@
                 <span class="nav-ic">{{ icon('activity') }}</span> <span class="nav-label">Статус сервера</span>
             </a>
             {% if current_user.is_head_admin %}
+            <a class="nav-link {% if ep == 'panel.logs' %}is-active{% endif %}" href="{{ url_for('panel.logs') }}">
+                <span class="nav-ic">{{ icon('scroll-text') }}</span> <span class="nav-label">Логи</span>
+            </a>
             <a class="nav-link {% if ep == 'panel.settings' %}is-active{% endif %}" href="{{ url_for('panel.settings') }}">
                 <span class="nav-ic">{{ icon('settings') }}</span> <span class="nav-label">Настройки</span>
             </a>
