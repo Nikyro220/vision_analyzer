@@ -32,6 +32,19 @@ def create_app(config: dict | None = None) -> Flask:
     if config:
         app.config.update(config)
 
+    # Секретный ключ. В проде он обязан быть задан (FLASK_SECRET_KEY): иначе подписанные сессии
+    # и CSRF-токены можно подделать. В тестах и debug (app.debug / FLASK_DEBUG) разрешён дефолтный
+    # ключ, чтобы всё работало как раньше. Пустой FLASK_SECRET_KEY тоже считается «не задан».
+    _is_debug_or_test = app.testing or app.debug or os.environ.get("FLASK_DEBUG") == "1"
+    if not app.config.get("SECRET_KEY"):
+        if _is_debug_or_test:
+            app.config["SECRET_KEY"] = "dev-insecure-change-me"
+        else:
+            raise RuntimeError(
+                "FLASK_SECRET_KEY не задан. Без него сессии и CSRF-токены можно подделать — "
+                "задайте FLASK_SECRET_KEY (см. README, раздел про .env) и перезапустите приложение."
+            )
+
     # Файловые логи (logs/app.log, logs/app.error.log) — их читает страница «Логи» в панели.
     # В тестах не трогаем корневой logger и не пишем в logs/.
     if not app.config.get("TESTING"):

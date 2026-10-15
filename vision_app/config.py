@@ -45,8 +45,10 @@ def _env_float(name: str, default: float) -> float:
 
 
 class Config:
-    # ВАЖНО: в проде обязательно задайте свой секретный ключ.
-    SECRET_KEY = os.environ.get("FLASK_SECRET_KEY", "dev-insecure-change-me")
+    # Секретный ключ (сессии, CSRF). В проде ОБЯЗАТЕЛЬНО задайте FLASK_SECRET_KEY — если ключ
+    # отсутствует, create_app упадёт с ошибкой (иначе подписанные сессии можно подделать). В
+    # тестах и debug дефолтный ключ подставляется сам — см. create_app в __init__.py.
+    SECRET_KEY = os.environ.get("FLASK_SECRET_KEY")
 
     SQLALCHEMY_DATABASE_URI = os.environ.get(
         "DATABASE_URL", f"sqlite:///{BASE_DIR / 'db.sqlite3'}"
