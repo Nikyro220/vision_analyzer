@@ -51,6 +51,9 @@ def get_page(name: str, lang: str | None = None) -> str:
         return variants[lang]
     if DEFAULT_LANG in variants:
         return variants[DEFAULT_LANG]
+    # Страницы переведены не на все языки (например, kk): тогда показываем английскую.
+    if "en" in variants:
+        return variants["en"]
     return f"???{name}???"
 
 
@@ -86,6 +89,8 @@ def get_locale(k, lang=None):
         return LOCALES[lang][k]
     if k in LOCALES.get(DEFAULT_LANG, {}):
         return LOCALES[DEFAULT_LANG][k]
+    if k in LOCALES.get("en", {}):
+        return LOCALES["en"][k]
     return f"???{k}???"
 
 

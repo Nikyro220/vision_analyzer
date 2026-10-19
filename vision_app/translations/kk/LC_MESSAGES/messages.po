@@ -1,0 +1,3638 @@
+# Translations for vision_app (kk).
+# Ключи area.section.item; править тут, затем pybabel compile -d vision_app/translations.
+msgid ""
+msgstr ""
+"Project-Id-Version: vision_app VERSION\n"
+"Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
+"POT-Creation-Date: 2026-10-19 21:00+0000\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: kk\n"
+"Language-Team: kk <LL@li.org>\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.18.0\n"
+
+msgid "account.data.title"
+msgstr "Аккаунт деректері"
+
+msgid "account.delete"
+msgstr "Аккаунтты жою"
+
+msgid "account.delete.confirm"
+msgstr "«%(username)s» аккаунтын шынымен жою керек пе? Мұны қайтару мүмкін емес."
+
+msgid "account.edit.title"
+msgstr "Деректерді өзгерту"
+
+msgid "account.field.color"
+msgstr "Түс"
+
+msgid "account.field.fullname"
+msgstr "Т.А.Ә."
+
+msgid "account.field.login"
+msgstr "Логин"
+
+msgid "account.field.nickname"
+msgstr "Никнейм"
+
+msgid "account.field.nickname_title"
+msgstr "Аккаунт атауы"
+
+msgid "account.field.registered"
+msgstr "Тіркелген күні"
+
+msgid "account.field.role"
+msgstr "Рөл"
+
+msgid "account.history.unnamed"
+msgstr "атаусыз"
+
+msgid "appearance.noscript"
+msgstr "Безендіруді баптау үшін JavaScript қосулы болуы керек."
+
+msgid "appearance.subtitle"
+msgstr "Интерфейстің темасы, түстері мен қаріптері. Тек сіздің браузеріңізде сақталады."
+
+msgid "auth.blocked.heading"
+msgstr "Аккаунт бұғатталған"
+
+msgid "auth.blocked.hint"
+msgstr "Егер бұл қате деп ойласаңыз, әкімшіге хабарласыңыз."
+
+msgid "auth.blocked.logout"
+msgstr "Аккаунттан шығу"
+
+msgid "auth.blocked.text"
+msgstr "Әкімші «%(username)s» аккаунты үшін жүйеге қолжетімділікті шектеді."
+
+msgid "auth.blocked.title"
+msgstr "Қолжетімділік бұғатталған"
+
+msgid "auth.login.no_account"
+msgstr "Аккаунтыңыз жоқ па?"
+
+msgid "auth.login.register_link"
+msgstr "Тіркелу"
+
+msgid "auth.login.submit"
+msgstr "Кіру"
+
+msgid "auth.login.subtitle"
+msgstr "Суретті тәуекелге талдауға жіберу үшін жүйеге кіріңіз."
+
+msgid "auth.login.title"
+msgstr "Кіру"
+
+msgid "auth.register.have_account"
+msgstr "Аккаунтыңыз бар ма?"
+
+msgid "auth.register.heading"
+msgstr "Аккаунт құру"
+
+msgid "auth.register.subtitle"
+msgstr "Тіркелгеннен кейін суретті талдауға қолжетімділік «Пайдаланушы» рөлімен бірден беріледі."
+
+msgid "auth.register.title"
+msgstr "Тіркелу"
+
+msgid "avatars.error.anim_heavy"
+msgstr "Анимация тым ауыр: өлшемін немесе кадрлар санын азайтыңыз."
+
+msgid "avatars.error.anim_output"
+msgstr "Анимация тым ауыр болып шықты (%(kb)s КБ-тан артық). Қысқарақ файлды байқап көріңіз."
+
+msgid "avatars.error.empty"
+msgstr "Файл бос."
+
+msgid "avatars.error.format_animated"
+msgstr "PNG, JPEG, WebP және GIF қолдау көрсетіледі."
+
+msgid "avatars.error.format_static"
+msgstr "Тек PNG, JPEG және WebP қолдау көрсетіледі."
+
+msgid "avatars.error.no_frames"
+msgstr "Файлда кадрлар жоқ."
+
+msgid "avatars.error.too_big"
+msgstr "Файл тым үлкен (ең көбі %(kb)s КБ)."
+
+msgid "avatars.error.too_large_image"
+msgstr "Сурет тым үлкен (ең көбі %(side)sx%(side)s)."
+
+msgid "avatars.error.too_many_frames"
+msgstr "Кадрлар тым көп (%(count)s, ең көбі %(max)s)."
+
+msgid "avatars.error.too_zoomed"
+msgstr "Мұндай сурет үшін ұлғайту тым күшті. Масштабты немесе созуды азайтыңыз."
+
+msgid "avatars.error.unreadable"
+msgstr "Суретті оқу мүмкін болмады."
+
+msgid "base.title.suffix"
+msgstr "Талдау панелі"
+
+msgid "catform.advanced.hint"
+msgstr "Дерлік әрқашан қажет емес. Мұнда промптта <code>&lt;signal_category&gt;</code> жабылғаннан <i>кейін</i> жеке блок болып тұруы тиіс көмекші мәтін жазылады (мысалы, транскрипцияға арналған белгілі сөз тіркестерінің анықтамалығы) — оның ішіндегі тағы бір ереже абзацы ретінде емес."
+
+msgid "catform.advanced.title"
+msgstr "Full/Compact үшін қосымша блоктар (өте сирек қажет)"
+
+msgid "catform.compact.copy"
+msgstr "Full-дан көшіру"
+
+msgid "catform.compact.label"
+msgstr "Compact — қысқартылған нұсқа, fallback"
+
+msgid "catform.help.compact"
+msgstr "<b>Compact</b> — мәні сол, бірақ қысқа: модель бірінші өтуде санаттарды сенімді анықтай алмаса ғана қолданылады. «Full-дан көшіру» түймесін басып жинап, қолмен қысқартуға болады."
+
+msgid "catform.help.language"
+msgstr "<b>Қызметтік сөз <code>__OUTPUT_LANGUAGE__</code></b> — егер ережеде модельден бір нәрсе жазуды сұрау керек болса (мысалы, detail/rationale ішінде), нақты тілді жазбаңыз («орысша жаз») — талдау ағылшын тілінде де жүруі мүмкін. Орнына <code>__OUTPUT_LANGUAGE__</code> деп сол күйінде қойыңыз — сервер модельге жібермес бұрын қажетті тілді өзі қояды. Тек Full/Compact ішінде жұмыс істейді, Summary-де мағынасы жоқ — онда оны ешкім ауыстырмайды. Өрістің жанындағы «__OUTPUT_LANGUAGE__ қою» түймесі мұны қате жібермей жасайды — қатеден дәл сәйкестіктен басқа ештеңе сақтамайды: артық бос орын да, астыңғы сызықтың басқа саны да жұмыс істемейді, ал мұндай мәтінді сақтауға форма жібермейді және не дұрыс емес екенін айтады."
+
+msgid "catform.help.rules"
+msgstr "<b>Ережелер (Full)</b> — екінші, мұқият өту үшін белгілердің толық сипаттамасы. «Ереже қосу» түймесі арқылы жеке абзацтармен жазыңыз — мысалы, бір абзац нені іздейтінімізді, екіншісі нақты белгілер тізімін, үшіншісі олардың қандай үйлесімінде сигнал табылды деп саналатынын және бұл тәуекел деңгейіне қалай әсер ететінін сипаттасын. <code>&lt;signal_category&gt;</code> тегі автоматты түрде орналасады — оны өзіңіз жазудың қажеті жоқ."
+
+msgid "catform.help.scene"
+msgstr "<b>Көрініс үлгісі</b> — міндетті емес; ұқсас жағдайдың дайын талдауы модельге көмектеседі."
+
+msgid "catform.help.summary"
+msgstr "<b>Summary</b> — жылдам бірінші өту үшін ағылшынша қысқа сипаттама: модель осы санатқа назар аударуы үшін фотода не көрінуі керек."
+
+msgid "catform.help.title"
+msgstr "Санат қалай құрылған — алғаш рет пайдаланбас бұрын оқыңыз"
+
+msgid "catform.insert_placeholder"
+msgstr "__OUTPUT_LANGUAGE__ қою"
+
+msgid "catform.js.rule_delete"
+msgstr "Бұл ережені жою"
+
+msgid "catform.js.scene_add"
+msgstr "+ Көрініс қосу"
+
+msgid "catform.js.scene_delete"
+msgstr "✕ Көріністі жою"
+
+msgid "catform.js.scene_desc"
+msgstr "Көріністің сипаттамасы"
+
+msgid "catform.js.scene_title"
+msgstr "Көрініс {letter}"
+
+msgid "catform.js.signal_add"
+msgstr "+ Сигнал қосу"
+
+msgid "catform.js.signal_delete"
+msgstr "Сигналды жою"
+
+msgid "catform.js.signals_label"
+msgstr "Сигналдар (бос — сигнал жоқ)"
+
+msgid "catform.name.hint"
+msgstr "Тек латын әріптері, сандар және «_». Абайлап өзгертіңіз — талдау сервері дәл осы атауды промптта көреді."
+
+msgid "catform.new"
+msgstr "Жаңа санат"
+
+msgid "catform.rule.add"
+msgstr "+ Ереже қосу"
+
+msgid "catform.rules.hint"
+msgstr "Төмендегі әр блок — қорытынды мәтіннің жеке абзацы. Мағыналық блоктарды бір-бірден қосыңыз: нені іздейміз → нақты белгілер → сигнал табылды деп қашан санаймыз → бұл тәуекелге қалай әсер етеді."
+
+msgid "catform.rules.label"
+msgstr "Ережелер (Full) — мұқият, екінші өтуде қолданылады"
+
+msgid "catform.scenes.hint"
+msgstr "Модельге арналған ұқсас жағдайлардың дайын талдаулары — әр тіл үшін бөлек. Көрініс: сипаттама, сигналдар тізімі (id мен санат өздігінен қойылады), негіздеме, тәуекел деңгейі және «адамның тексеруі қажет» белгісі. JSON автоматты түрде жиналады."
+
+msgid "catform.scenes.label"
+msgstr "Көрініс үлгілері"
+
+msgid "catform.title"
+msgstr "«%(name)s» санаты"
+
+msgid "catform.title.hint"
+msgstr "Тек осы панельдегі тізім үшін, талдауға әсер етпейді."
+
+msgid "chat.action.cancelled"
+msgstr "Әкімші бас тартты."
+
+msgid "chat.action.detail.delete"
+msgstr "Аккаунт, оның барлық талдаулары, чаттары және сурет файлдары қайтарусыз жойылады"
+
+msgid "chat.action.detail.role"
+msgstr "Рөл: %(old)s → %(new)s"
+
+msgid "chat.action.detail.role_lost"
+msgstr "Ағымдағы «%(role)s» рөлі жоғалады: бұғаттан шығарылғаннан кейін пайдаланушы қарапайым пайдаланушы болады"
+
+msgid "chat.action.detail.unblock_role"
+msgstr "Бұғаттан шығарылғаннан кейінгі рөл: Пайдаланушы"
+
+msgid "chat.action.done.delete"
+msgstr "«%(name)s» аккаунты деректерімен бірге жойылды."
+
+msgid "chat.action.done.edit"
+msgstr "«%(name)s» деректері жаңартылды: %(fields)s."
+
+msgid "chat.action.done.role"
+msgstr "«%(name)s» рөлі өзгертілді: %(old)s → %(new)s."
+
+msgid "chat.action.error.already_blocked"
+msgstr "пайдаланушы бұрыннан бұғатталған"
+
+msgid "chat.action.error.foreign"
+msgstr "өтінім басқа әкімшіге тиесілі"
+
+msgid "chat.action.error.head_only"
+msgstr "пайдаланушыларға қатысты әрекеттер тек бас әкімшіге қолжетімді"
+
+msgid "chat.action.error.no_rights"
+msgstr "бұл пайдаланушыны басқаруға құқығыңыз жоқ"
+
+msgid "chat.action.error.not_blocked"
+msgstr "пайдаланушы бұғатталмаған"
+
+msgid "chat.action.error.processed"
+msgstr "өтінім бұрыннан өңделген"
+
+msgid "chat.action.error.role_forbidden"
+msgstr "бұл рөлді тағайындауға болмайды; қолжетімдісі: %(roles)s"
+
+msgid "chat.action.error.same_role"
+msgstr "пайдаланушыда бұрыннан «%(role)s» рөлі бар"
+
+msgid "chat.action.error.self"
+msgstr "өз аккаунтыңызды өзгертуге, бұғаттауға немесе жоюға болмайды"
+
+msgid "chat.action.error.type_login"
+msgstr "жою үшін «%(username)s» логинін дәл жазылғандай енгізіңіз"
+
+msgid "chat.action.error.user_not_found"
+msgstr "пайдаланушы табылмады (дәл логин немесе id қажет)"
+
+msgid "chat.action.expired"
+msgstr "Растау мерзімі өтті."
+
+msgid "chat.action.expired_retry"
+msgstr "Растау мерзімі өтті. Әрекетті қайта дайындауды сұраңыз."
+
+msgid "chat.action.failed"
+msgstr "Орындалмады: %(error)s."
+
+msgid "chat.action.failed_internal"
+msgstr "Орындалмады: ішкі қате."
+
+msgid "chat.action.summary.block"
+msgstr "«%(name)s» аккаунтын бұғаттау"
+
+msgid "chat.action.summary.delete"
+msgstr "«%(name)s» аккаунтын барлық деректерімен жою"
+
+msgid "chat.action.summary.edit"
+msgstr "«%(name)s» деректерін өзгерту"
+
+msgid "chat.action.summary.set_role"
+msgstr "«%(name)s» рөлін «%(new)s» рөліне ауыстыру"
+
+msgid "chat.action.summary.unblock"
+msgstr "«%(name)s» аккаунтын бұғаттан шығару"
+
+msgid "chat.action.title.set_role"
+msgstr "Рөлді ауыстыру"
+
+msgid "chat.attach.empty"
+msgstr "«%(name)s» файлы бос."
+
+msgid "chat.attach.label"
+msgstr "Суретті тіркеу"
+
+msgid "chat.attach.not_image"
+msgstr "«%(name)s» файлы сурет емес немесе зақымдалған."
+
+msgid "chat.attach.title"
+msgstr "Суретті тіркеу (ең көбі %(count)s дана, әрқайсысы %(mb)s МБ-қа дейін)"
+
+msgid "chat.attach.too_big"
+msgstr "«%(name)s» файлы тым үлкен (ең көбі %(mb)s МБ)."
+
+msgid "chat.attach.too_many"
+msgstr "Бір хабарламаға %(max)s суреттен көп тіркеуге болмайды."
+
+msgid "chat.attach.unsupported"
+msgstr "«%(name)s» файл пішіміне қолдау көрсетілмейді."
+
+msgid "chat.category.confirm_hint"
+msgstr "Жою үшін санаттың атауын енгізіңіз: "
+
+msgid "chat.category.detail.create"
+msgstr "ӨШІРУЛІ (қаралама) күйінде құрылады: бөлек өтініммен қосылғанға дейін талдауларға қатыспайды"
+
+msgid "chat.category.detail.delete"
+msgstr "Санат қайтарусыз жойылады; бұрын сақталған талдауларда оның атауы қалады"
+
+msgid "chat.category.detail.delete_hint"
+msgstr "Егер оны тек талдаудан алып тастау керек болса — жоюдың орнына өшіріңіз"
+
+msgid "chat.category.detail.disable"
+msgstr "Санат жаңа талдауларға қатыспайды; өзі сақталады және оны қайта қосуға болады"
+
+msgid "chat.category.detail.enable"
+msgstr "Санат талдау серверіне жіберіле бастайды және барлық пайдаланушылардың талдауларына әсер етеді"
+
+msgid "chat.category.detail.title"
+msgstr "Атауы: %(title)s"
+
+msgid "chat.category.detail.update"
+msgstr "Санат қосулы болса, өзгеріс барлық пайдаланушылардың талдауларына әсер етеді"
+
+msgid "chat.category.done.create"
+msgstr "«%(name)s» санаты өшірулі (қаралама) күйінде құрылды. Оны бөлек өтініммен қосуға болады."
+
+msgid "chat.category.done.update"
+msgstr "«%(name)s» санаты жаңартылды: %(fields)s."
+
+msgid "chat.category.error.admins_only"
+msgstr "санаттарды тек панель әкімшілері басқара алады"
+
+msgid "chat.category.error.already_disabled"
+msgstr "санат бұрыннан өшірулі"
+
+msgid "chat.category.error.already_enabled"
+msgstr "санат бұрыннан қосулы"
+
+msgid "chat.category.error.changed"
+msgstr "өтінім дайындалғаннан кейін санат өзгерді — өзгерісті қайта дайындауды сұраңыз"
+
+msgid "chat.category.error.not_found"
+msgstr "санат табылмады (list ішіндегі дәл атау немесе id қажет)"
+
+msgid "chat.category.error.type_name"
+msgstr "жою үшін «%(name)s» атауын дәл жазылғандай енгізіңіз"
+
+msgid "chat.category.field.position"
+msgstr "Орны"
+
+msgid "chat.category.page_link"
+msgstr "санат беті"
+
+msgid "chat.category.summary.create"
+msgstr "«%(name)s» санатын құру"
+
+msgid "chat.category.summary.delete"
+msgstr "«%(name)s» санатын жою"
+
+msgid "chat.category.summary.disable"
+msgstr "«%(name)s» санатын өшіру"
+
+msgid "chat.category.summary.enable"
+msgstr "«%(name)s» санатын қосу"
+
+msgid "chat.category.summary.update"
+msgstr "«%(name)s» санатын өзгерту"
+
+msgid "chat.category.title.create"
+msgstr "Санат құру"
+
+msgid "chat.category.title.delete"
+msgstr "Санатты жою"
+
+msgid "chat.category.title.disable"
+msgstr "Санатты өшіру"
+
+msgid "chat.category.title.enable"
+msgstr "Санатты қосу"
+
+msgid "chat.category.title.update"
+msgstr "Санатты өзгерту"
+
+msgid "chat.composer.hint"
+msgstr "Enter — жіберу · Shift+Enter — жаңа жол · ↑/↓ — бұрынғы хабарламалар · суретті сүйреп әкелуге немесе буферден қоюға болады"
+
+msgid "chat.copy_all"
+msgstr "Бүкіл диалогты буферге көшіру"
+
+msgid "chat.delete"
+msgstr "Чатты жою"
+
+msgid "chat.delete.confirm"
+msgstr "Бұл чатты қайтарусыз жою керек пе?"
+
+msgid "chat.empty.hint"
+msgstr "Тәуекел санаттары, дайын /analyze есебі нені білдіретіні, сэмплинг баптаулары туралы сұраңыз — немесе суретті тіркеп (қыстырғыш, сүйреп әкелу немесе буферден қою) ол туралы сұрақ қойыңыз — модель суретті өзі көреді. Толыққанды тәуекел талдауын іске қосу үшін суретті талдауға қосуды сұраңыз: ол ортақ кезекке тұрады, ал нәтиже чатта өздігінен пайда болады."
+
+msgid "chat.empty.title"
+msgstr "чат бос"
+
+msgid "chat.error.busy"
+msgstr "Модель алдыңғы хабарламаға әлі жауап беруде — жауабын күтіңіз."
+
+msgid "chat.error.empty"
+msgstr "Хабарлама бос."
+
+msgid "chat.error.too_long"
+msgstr "Хабарлама тым ұзын (ең көбі %(max)s таңба)."
+
+msgid "chat.export.analyses"
+msgstr "Талдаулар: %(items)s"
+
+msgid "chat.export.attachments"
+msgstr "Тіркемелер: %(names)s"
+
+msgid "chat.export.created"
+msgstr "Құрылған: %(date)s"
+
+msgid "chat.export.model"
+msgstr "Модель"
+
+msgid "chat.export.title"
+msgstr "Чат: %(title)s"
+
+msgid "chat.export.you"
+msgstr "Сіз"
+
+msgid "chat.export_json"
+msgstr "Диалогты JSON-ға экспорттау"
+
+msgid "chat.fallback_reply"
+msgstr "Талдаулар тарихынан деректі алу мүмкін болмады. Сұрақты басқаша тұжырымдап көріңіз."
+
+msgid "chat.heading"
+msgstr "Модельмен чат"
+
+msgid "chat.input.placeholder"
+msgstr "Хабарлама…"
+
+msgid "chat.job.cancelled"
+msgstr "%(subject)s тоқтатылды — кезекте жазба қалмады."
+
+msgid "chat.job.default_label"
+msgstr "Талдау #%(id)s"
+
+msgid "chat.job.done"
+msgstr "%(subject)s аяқталды. Тәуекел деңгейі: %(risk)s."
+
+msgid "chat.job.failed"
+msgstr "%(subject)s қатемен аяқталды: %(error)s"
+
+msgid "chat.job.needs_review"
+msgstr "Адамның тексеруі қажет."
+
+msgid "chat.job.see_report"
+msgstr "Толық есеп — төмендегі сілтемеде."
+
+msgid "chat.job.subject_image"
+msgstr "«%(name)s» суретін талдау"
+
+msgid "chat.job.subject_link"
+msgstr "«%(name)s» сілтемесін талдау"
+
+msgid "chat.new"
+msgstr "+ Жаңа чат"
+
+msgid "chat.resize.label"
+msgstr "Чат терезесінің өлшемін өзгерту (көрсеткілер — өзгерту, Home — қалпына келтіру)"
+
+msgid "chat.resize.title"
+msgstr "Өлшемін өзгерту үшін тартыңыз. Екі рет басу — қалпына келтіру"
+
+msgid "chat.role.model"
+msgstr "модель"
+
+msgid "chat.role.user"
+msgstr "сіз"
+
+msgid "chat.send"
+msgstr "Жіберу"
+
+msgid "chat.session.default_title"
+msgstr "Жаңа чат"
+
+msgid "chat.sessions.empty"
+msgstr "Әзірге бірде-бір чат жоқ."
+
+msgid "chat.sessions.hide"
+msgstr "Чаттар тізімін жасыру"
+
+msgid "chat.sessions.show"
+msgstr "Чаттар тізімін көрсету"
+
+msgid "chat.subtitle"
+msgstr "Модельмен еркін диалог, талдаудың тәуекел JSON-схемасынсыз."
+
+msgid "chat.target.answering"
+msgstr "Қазір жауап беріп тұр: <strong>%(backend)s</strong> · модель: <strong>%(model)s</strong>."
+
+msgid "chat.target.default"
+msgstr "Әдепкі бэкенд жауап береді."
+
+msgid "chat.title.image"
+msgstr "Сурет: %(name)s"
+
+msgid "common.cancel"
+msgstr "Бас тарту"
+
+msgid "common.change"
+msgstr "Өзгерту"
+
+msgid "common.delete"
+msgstr "Жою"
+
+msgid "common.id_col"
+msgstr "№"
+
+msgid "common.id_tag"
+msgstr "№%(id)s"
+
+msgid "common.nothing_found"
+msgstr "Ештеңе табылмады."
+
+msgid "common.save"
+msgstr "Сақтау"
+
+msgid "credentials.error.bad_master"
+msgstr "%(env)s пішімі дұрыс емес (Fernet кілті қажет: urlsafe-base64 пішіміндегі 32 байт)."
+
+msgid "credentials.error.chars"
+msgstr "Кілтте бос орындар, жол үзілімдері және ASCII емес таңбалар болмауы керек."
+
+msgid "credentials.error.empty"
+msgstr "Кілт бос."
+
+msgid "credentials.error.setup"
+msgstr "%(env)s айнымалысы берілмеген — онсыз API кілттерін сақтау мүмкін емес. Мәнді мына пәрменмен жасаңыз: python -c \"from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())\" — оны жобаның түбіріндегі .env файлына жазыңыз (%(env)s=...) және қолданбаны қайта іске қосыңыз."
+
+msgid "credentials.error.too_long"
+msgstr "Кілт мәні тым ұзын."
+
+msgid "dashboard.heading"
+msgstr "Суретті жаңа талдау"
+
+msgid "dashboard.intake.drop_hint"
+msgstr "немесе файлдарды осында сүйреп әкеліңіз"
+
+msgid "dashboard.intake.label"
+msgstr "Жазбаларға немесе суреттерге сілтемелер"
+
+msgid "dashboard.intake.pick"
+msgstr "Суреттерді таңдау"
+
+msgid "dashboard.intake.placeholder"
+msgstr "Жазбаға немесе суретке сілтемені қойыңыз (Ctrl+V). Бірнеше сілтеме болса — әрқайсысын жаңа жолдан жазыңыз."
+
+msgid "dashboard.queue.empty"
+msgstr "Кезек бос. Жүктелген файлдар мен сілтемелер осында көрінеді."
+
+msgid "dashboard.queue.error"
+msgstr "Кезекті жаңарту мүмкін болмай тұр — қайта талпынып жатырмын…"
+
+msgid "dashboard.queue.hint"
+msgstr "Өңдеу фонда жүреді: бетті жабуға болады, кезек жоғалмайды. Дайын нәтижелер оң жақта пайда болады."
+
+msgid "dashboard.queue.title"
+msgstr "Кезек"
+
+msgid "dashboard.recent.empty"
+msgstr "Әзірге аяқталған талдаулар жоқ. Сол жақтан алғашқы суретті немесе сілтемені жүктеңіз."
+
+msgid "dashboard.recent.title"
+msgstr "Соңғы жүктеулер"
+
+msgid "dashboard.sources.direct"
+msgstr "суреттерге тікелей сілтемелер"
+
+msgid "dashboard.sources.hint"
+msgstr "Сурет пен жазба мәтінін талдау сервері өзі тартады. Бейне үшін мұқаба алынады."
+
+msgid "dashboard.sources.label"
+msgstr "Қолдау көрсетілетін сайттар"
+
+msgid "dashboard.sources.news"
+msgstr "жаңалық сайттары"
+
+msgid "dashboard.submit"
+msgstr "Кезекке қосу"
+
+msgid "dashboard.subtitle"
+msgstr "Файлдарды жүктеңіз немесе жазбаларға сілтемелерді қойыңыз — барлығы кезекке тұрады және vision-модельмен бір-бірден өңделеді."
+
+msgid "dashboard.target.analyzing"
+msgstr "<strong>%(backend)s</strong> бэкендінде <strong>%(model)s</strong> талдап жатыр"
+
+msgid "dashboard.target.default"
+msgstr "Әдепкі бэкенд пен модель қолданылады."
+
+msgid "dashboard.target.default_model"
+msgstr "әдепкі модель"
+
+msgid "dashboard.upload.title"
+msgstr "Жүктеу"
+
+msgid "error.404.text"
+msgstr "Мұндай бет жоқ немесе оған қолжетімділігіңіз жоқ."
+
+msgid "error.404.title"
+msgstr "Бет табылмады"
+
+msgid "error.405.text"
+msgstr "Бұл мекенжай мұндай сұраныс түрін қабылдамайды."
+
+msgid "error.405.title"
+msgstr "Әдіске рұқсат жоқ"
+
+msgid "error.500.text"
+msgstr "Бірдеңе дұрыс болмады. Кейінірек қайталап көріңіз."
+
+msgid "error.500.title"
+msgstr "Ішкі қате"
+
+msgid "error.card.home"
+msgstr "Басты бетке"
+
+msgid "flash.account.delete_mismatch"
+msgstr "Растау пәрмені дұрыс енгізілмеді. Аккаунт жойылған жоқ."
+
+msgid "flash.account.deleted"
+msgstr "«%(username)s» аккаунты жойылды."
+
+msgid "flash.account.updated"
+msgstr "Аккаунт деректері жаңартылды."
+
+msgid "flash.avatar.bad_params"
+msgstr "Редактор параметрлері дұрыс емес."
+
+msgid "flash.avatar.deleted"
+msgstr "Аватар жойылды."
+
+msgid "flash.avatar.no_file"
+msgstr "Файл таңдалмаған."
+
+msgid "flash.avatar.updated"
+msgstr "Аватар жаңартылды."
+
+msgid "flash.backend.analysis_cleared"
+msgstr "Таңдау тазартылды: бэкендті сервер таңдайды, модель — авто."
+
+msgid "flash.backend.analysis_set"
+msgstr "Талдаулар «%(name)s» бэкендінде орындалады, модель: %(model)s."
+
+msgid "flash.backend.analysis_uses"
+msgstr "Талдаулар «%(title)s» бэкендінде орындалады."
+
+msgid "flash.backend.chat_cleared"
+msgstr "Чат тағы да талдаулармен бірдей бэкенд пен модельді пайдаланады."
+
+msgid "flash.backend.chat_set"
+msgstr "Чат «%(name)s» бэкендінде жауап береді, модель: %(model)s."
+
+msgid "flash.backend.chat_uses"
+msgstr "Чат «%(title)s» бэкендінде жауап береді."
+
+msgid "flash.backend.down_warning"
+msgstr "«%(title)s» қазір қолжетімсіз — сұраныстар қатемен аяқталады (немесе фолбэк қосулы болса, басқа бэкендке барады)."
+
+msgid "flash.backend.not_configured"
+msgstr "«%(title)s» бапталмаған — алдымен оның карточкасында қосылу деректерін (API-кілтті) енгізіңіз."
+
+msgid "flash.backend.unavailable"
+msgstr "«%(name)s» бэкенді қазір қолжетімсіз."
+
+msgid "flash.categories.exist"
+msgstr "Санаттар бұрыннан бар — серверден жүктеу тек бос тізім үшін қажет."
+
+msgid "flash.categories.import_failed"
+msgstr "Санаттарды талдау серверінен алу мүмкін болмады — оның іске қосылғанын тексеріңіз."
+
+msgid "flash.categories.imported"
+msgstr "Санаттар талдау серверінен жүктелді."
+
+msgid "flash.category.added"
+msgstr "«%(name)s» санаты қосылды."
+
+msgid "flash.category.delete_stale"
+msgstr "Санатты жою мүмкін болмады — сессия ескірген, қайталап көріңіз."
+
+msgid "flash.category.deleted"
+msgstr "«%(name)s» санаты жойылды."
+
+msgid "flash.category.disabled"
+msgstr "«%(name)s» санаты өшірілді."
+
+msgid "flash.category.enabled"
+msgstr "«%(name)s» санаты қосылды."
+
+msgid "flash.category.updated"
+msgstr "«%(name)s» санаты жаңартылды."
+
+msgid "flash.csrf_expired"
+msgstr "Сессия аяқталды немесе форма ескірді. Әрекетті қайталаңыз."
+
+msgid "flash.file_too_large"
+msgstr "Файл тым үлкен. Ең үлкен өлшемі — %(limit)s МБ."
+
+msgid "flash.forbidden"
+msgstr "Бұл бетке кіру үшін құқықтар жеткіліксіз."
+
+msgid "flash.history.deleted"
+msgstr "Жойылған жазбалар: %(count)s."
+
+msgid "flash.history.new_cleared"
+msgstr "«Жаңа» белгілері тазартылды: %(items)s."
+
+msgid "flash.history.no_new"
+msgstr "Жаңа белгілер жоқ."
+
+msgid "flash.history.none_selected"
+msgstr "Ештеңе таңдалмаған."
+
+msgid "flash.history.nothing_to_delete"
+msgstr "Жоятын ештеңе жоқ."
+
+msgid "flash.key.already_unset"
+msgstr "Кілт бұрыннан берілмеген."
+
+msgid "flash.key.default_lost"
+msgstr "«%(title)s» — серверде әдепкі бэкенд, ал кілт енді жоқ: нақты таңдамай жіберілген сұраныстар сәтсіз болады. «Қолданылатын бэкенд» блогында басқа бэкендті таңдаңыз."
+
+msgid "flash.key.empty"
+msgstr "Сақтайтын ештеңе жоқ: өріс бос (бос өріс «өзгертпеу» дегенді білдіреді)."
+
+msgid "flash.key.erased"
+msgstr "«%(title)s» кілті жойылды."
+
+msgid "flash.key.no_answer"
+msgstr "жауап жоқ"
+
+msgid "flash.key.saved_down"
+msgstr "«%(title)s» кілті сақталды, бірақ бэкенд жауап бермейді: %(reason)s"
+
+msgid "flash.key.saved_ok"
+msgstr "«%(title)s» кілті сақталды — бэкенд жауап береді. Модельдер тізімін «Тізімді жаңарту» түймесімен жүктеуге болады."
+
+msgid "flash.key.saved_unchecked"
+msgstr "«%(title)s» кілті сақталды, бірақ оны тексеру мүмкін болмады: %(error)s"
+
+msgid "flash.login.bad_credentials"
+msgstr "Логин немесе құпиясөз дұрыс емес."
+
+msgid "flash.login.inactive"
+msgstr "Бұл аккаунт өшірілген."
+
+msgid "flash.login.welcome_back"
+msgstr "Қайта оралуыңызбен, %(username)s!"
+
+msgid "flash.logout"
+msgstr "Сіз жүйеден шықтыңыз."
+
+msgid "flash.model.not_found"
+msgstr "«%(model)s» моделі «%(name)s» бэкендінде табылмады."
+
+msgid "flash.model.too_long"
+msgstr "Модель атауы тым ұзын."
+
+msgid "flash.models.fetch_failed"
+msgstr "«%(title)s» модельдерінің тізімін алу мүмкін болмады: %(error)s"
+
+msgid "flash.models.refreshed"
+msgstr "«%(title)s» модельдерінің тізімі жаңартылды: %(count)s."
+
+msgid "flash.panel.blocked"
+msgstr "«%(username)s» пайдаланушысы бұғатталды."
+
+msgid "flash.panel.history_cleared"
+msgstr "«%(username)s» пайдаланушысының тарихы тазартылды: жойылғаны %(items)s."
+
+msgid "flash.panel.no_analyses"
+msgstr "«%(username)s» пайдаланушысында аяқталған талдаулар жоқ."
+
+msgid "flash.panel.no_block_rights"
+msgstr "Бұл пайдаланушыны бұғаттауға құқығыңыз жоқ."
+
+msgid "flash.panel.no_delete_rights"
+msgstr "Бұл пайдаланушыны жоюға құқығыңыз жоқ."
+
+msgid "flash.panel.role_changed"
+msgstr "«%(username)s» пайдаланушысының рөлі өзгертілді: %(old)s → %(new)s."
+
+msgid "flash.panel.role_forbidden"
+msgstr "Сіз бұл рөлді тағайындай алмайсыз."
+
+msgid "flash.panel.unblocked"
+msgstr "«%(username)s» пайдаланушысы бұғаттан шығарылды."
+
+msgid "flash.panel.user_updated"
+msgstr "«%(username)s» пайдаланушысының деректері жаңартылды."
+
+msgid "flash.prompt.default_active"
+msgstr "Чаттың стандартты жүйелік промпты әрекет етеді."
+
+msgid "flash.prompt.reset"
+msgstr "Чаттың жүйелік промпты стандартқа қайтарылды."
+
+msgid "flash.prompt.saved"
+msgstr "Чаттың жүйелік промпты сақталды. Келесі хабарламадан бастап қолданылады."
+
+msgid "flash.queue.added"
+msgstr "Кезекке қосылды: %(items)s (%(numbers)s)."
+
+msgid "flash.queue.and"
+msgstr " және "
+
+msgid "flash.queue.cannot_cancel"
+msgstr "Талдау бұрыннан өңделуде немесе аяқталған — оны тоқтату мүмкін емес."
+
+msgid "flash.queue.removed"
+msgstr "Кезектен алынды."
+
+msgid "flash.queue.total_limit"
+msgstr "Ортақ кезек толған (%(limit)s ішінен %(count)s). Кейінірек қайталаңыз."
+
+msgid "flash.queue.user_limit"
+msgstr "Сіздің кезегіңізде бұрыннан %(count)s бар, ең көбі — %(limit)s. Өңделгенше күтіп, қайталаңыз."
+
+msgid "flash.register.first_user"
+msgstr "Тіркелу орындалды. Сіз жүйенің бірінші пайдаланушысысыз — сізге «Бас әкімші» рөлі берілді."
+
+msgid "flash.register.ok"
+msgstr "Тіркелу сәтті өтті. Қош келдіңіз!"
+
+msgid "flash.rename.done"
+msgstr "Атауы өзгертілді."
+
+msgid "flash.rename.empty"
+msgstr "Атауы бос болмауы керек."
+
+msgid "flash.rename.too_long"
+msgstr "Атауы тым ұзын: ең көбі %(max)s таңба."
+
+msgid "flash.rename.unchanged"
+msgstr "Атауы өзгерген жоқ."
+
+msgid "flash.result.deleted"
+msgstr "Нәтиже жойылды."
+
+msgid "flash.result.pending"
+msgstr "Талдау әлі аяқталған жоқ — нәтижені күтіңіз немесе кезекте оны тоқтатыңыз."
+
+msgid "flash.sampling.empty"
+msgstr "Сақтайтын ештеңе жоқ: барлық өрістер бос (бос өріс «өзгертпеу» дегенді білдіреді)."
+
+msgid "flash.sampling.invalid"
+msgstr "Параметрлер сақталмады — формадағы қателерді түзетіңіз."
+
+msgid "flash.sampling.reset"
+msgstr "%(title)s параметрлері әдепкі мәндерге қайтарылды."
+
+msgid "flash.sampling.saved"
+msgstr "%(title)s параметрлері жаңартылды: %(changed)s."
+
+msgid "flash.session_stale"
+msgstr "Сессия ескірген, қайталап көріңіз."
+
+msgid "flash.settings.invalid"
+msgstr "Баптаулар сақталмады — қателерді түзетіп, қайталаңыз."
+
+msgid "flash.settings.saved"
+msgstr "Баптаулар сақталды және қазірдің өзінде әрекет етеді."
+
+msgid "flash.upload.skipped_file"
+msgstr "«%(name)s» файлы өткізілді: %(reason)s."
+
+msgid "flash.upload.skipped_link"
+msgstr "«%(link)s» сілтемесі өткізілді: %(reason)s."
+
+msgid "flash.upload.skipped_more"
+msgstr "…және тағы өткізілгені: %(count)s."
+
+msgid "flash.upload.skipped_more_links"
+msgstr "…және тағы өткізілген сілтемелер: %(count)s."
+
+msgid "forms.account.color"
+msgstr "Пайдаланушы түсі"
+
+msgid "forms.account.color_format"
+msgstr "Түс #rrggbb пішімінде беріледі."
+
+msgid "forms.account.color_hint"
+msgstr "Суретсіз аватарды және чаттағы хабарламаларыңызды бояйды"
+
+msgid "forms.account.display_style"
+msgstr "Менің атымды қалай көрсету"
+
+msgid "forms.account.family_name"
+msgstr "Тегі"
+
+msgid "forms.account.given_name"
+msgstr "Аты"
+
+msgid "forms.account.middle_name"
+msgstr "Әкесінің аты"
+
+msgid "forms.account.nickname_placeholder"
+msgstr "Міндетті емес: аккаунтыңыз қалай аталады"
+
+msgid "forms.account.optional"
+msgstr "Міндетті емес"
+
+msgid "forms.category.compact"
+msgstr "Compact (қысқартылған нұсқа, fallback)"
+
+msgid "forms.category.compact_extra"
+msgstr "Compact үшін қосымша блоктар (сирек қажет)"
+
+msgid "forms.category.compact_required"
+msgstr "compact өрісін толтырыңыз."
+
+msgid "forms.category.examples_bad"
+msgstr "Көрініс үлгілерін талдау мүмкін болмады — бетті жаңартып, қайталаңыз."
+
+msgid "forms.category.exists"
+msgstr "Мұндай атаумен санат бұрыннан бар."
+
+msgid "forms.category.full"
+msgstr "Full (екінші өту үшін толық ережелер)"
+
+msgid "forms.category.full_extra"
+msgstr "Full үшін қосымша блоктар (сирек қажет)"
+
+msgid "forms.category.full_required"
+msgstr "full өрісін толтырыңыз."
+
+msgid "forms.category.is_active"
+msgstr "Қосулы (талдауға қатысады)"
+
+msgid "forms.category.name"
+msgstr "Техникалық атауы"
+
+msgid "forms.category.name_chars"
+msgstr "Тек латын әріптері, сандар және «_» рұқсат етіледі."
+
+msgid "forms.category.name_max"
+msgstr "64 таңбадан аспауы керек."
+
+msgid "forms.category.name_required"
+msgstr "Санаттың техникалық атауын енгізіңіз."
+
+msgid "forms.category.placeholder_typo"
+msgstr "«%(found)s» қызметтік сөзінде қате бар сияқты. Дәл «%(expected)s» деп жазу керек (екі жағынан екі астыңғы сызық, бас әріптермен) — әйтпесе талдау сервері тілді қоймайды және бұл сөз промптта сол күйінде қалады."
+
+msgid "forms.category.position"
+msgstr "Промптта пайда болу реті"
+
+msgid "forms.category.position_range"
+msgstr "0-ден 100000-ға дейін."
+
+msgid "forms.category.summary"
+msgstr "Summary (бірінші, жіктеуші өту үшін)"
+
+msgid "forms.category.summary_placeholder"
+msgstr "Ағылшынша қысқа сипаттама: санат үміткер болуы үшін суретте не көрінуі керек."
+
+msgid "forms.category.summary_required"
+msgstr "summary өрісін толтырыңыз."
+
+msgid "forms.category.title"
+msgstr "Интерфейс үшін атауы"
+
+msgid "forms.category.title_placeholder"
+msgstr "Қару және қауіпті заттар"
+
+msgid "forms.common.email_invalid"
+msgstr "Электрондық пошта мекенжайын дұрыс енгізіңіз."
+
+msgid "forms.common.enter_login"
+msgstr "Логинді енгізіңіз."
+
+msgid "forms.common.enter_password"
+msgstr "Құпиясөзді енгізіңіз."
+
+msgid "forms.common.login_chars"
+msgstr "Тек әріптер, сандар және @/./+/-/_ таңбалары рұқсат етіледі"
+
+msgid "forms.common.login_exists"
+msgstr "Мұндай логині бар пайдаланушы бұрыннан бар."
+
+msgid "forms.common.max150"
+msgstr "150 таңбадан аспауы керек."
+
+msgid "forms.common.password"
+msgstr "Құпиясөз"
+
+msgid "forms.delete.confirm_label"
+msgstr "Растау"
+
+msgid "forms.delete.confirm_required"
+msgstr "Растау пәрменін енгізіңіз."
+
+msgid "forms.link.invalid"
+msgstr "мекенжай дұрыс емес"
+
+msgid "forms.link.need_url"
+msgstr "https://… түріндегі сілтеме қажет"
+
+msgid "forms.link.too_long"
+msgstr "сілтеме тым ұзын"
+
+msgid "forms.number.allowed"
+msgstr "Рұқсат етілген мән: %(range)s."
+
+msgid "forms.number.finite"
+msgstr "Қарапайым сан енгізіңіз."
+
+msgid "forms.number.float"
+msgstr "Санды енгізіңіз (мысалы, 0.7)."
+
+msgid "forms.number.int"
+msgstr "Бүтін санды енгізіңіз."
+
+msgid "forms.number.or_auto"
+msgstr " немесе auto"
+
+msgid "forms.number.placeholder_int"
+msgstr "бүтін сан"
+
+msgid "forms.number.placeholder_number"
+msgstr "сан"
+
+msgid "forms.password.common"
+msgstr "Бұл құпиясөз тым кең таралған."
+
+msgid "forms.password.digits_only"
+msgstr "Құпиясөз тек сандардан тұра алмайды."
+
+msgid "forms.password.similar"
+msgstr "Құпиясөз логинге тым ұқсас."
+
+msgid "forms.password.too_short"
+msgstr "Құпиясөз тым қысқа. Кемінде %(min)s таңба."
+
+msgid "forms.prompt.too_long"
+msgstr "Промпт тым ұзын: ең көбі %(limit)s таңба."
+
+msgid "forms.range.any"
+msgstr "кез келген сан"
+
+msgid "forms.range.from_to"
+msgstr "%(lo)s-тен %(hi)s-ке дейін"
+
+msgid "forms.range.ge"
+msgstr "%(lo)s-тен кем емес"
+
+msgid "forms.range.gt"
+msgstr "%(lo)s-тен артық"
+
+msgid "forms.range.gt_to"
+msgstr "%(lo)s-тен артық, %(hi)s-ке дейін"
+
+msgid "forms.range.le"
+msgstr "%(hi)s-тен артық емес"
+
+msgid "forms.register.mismatch"
+msgstr "Енгізілген құпиясөздер сәйкес келмейді."
+
+msgid "forms.register.password2"
+msgstr "Құпиясөзді растау"
+
+msgid "forms.register.password2_placeholder"
+msgstr "Құпиясөзді қайталаңыз"
+
+msgid "forms.register.password_placeholder"
+msgstr "Құпиясөз ойлап табыңыз"
+
+msgid "forms.register.repeat_required"
+msgstr "Құпиясөзді қайталаңыз."
+
+msgid "forms.register.username"
+msgstr "Пайдаланушы аты"
+
+msgid "forms.register.username_placeholder"
+msgstr "Логин ойлап табыңыз"
+
+msgid "forms.setting.default"
+msgstr "Әдепкі: %(value)s."
+
+msgid "forms.upload.empty"
+msgstr "файл бос"
+
+msgid "forms.upload.images"
+msgstr "Суреттер"
+
+msgid "forms.upload.invalid"
+msgstr "Дұрыс суретті немесе сілтемені жүктеңіз. %(reasons)s"
+
+msgid "forms.upload.links"
+msgstr "Жазбаларға сілтемелер"
+
+msgid "forms.upload.not_image"
+msgstr "сурет емес немесе зақымдалған"
+
+msgid "forms.upload.nothing"
+msgstr "Сурет файлын таңдаңыз немесе жазбаға сілтемені қойыңыз."
+
+msgid "forms.upload.reason"
+msgstr "«%(name)s»: %(why)s"
+
+msgid "forms.upload.too_many"
+msgstr "Бір рет жүктеуге болатын файлдар ең көбі %(max)s."
+
+msgid "forms.upload.too_many_total"
+msgstr "Бір рет қосуға болатын файлдар мен сілтемелердің жиынтығы ең көбі %(max)s."
+
+msgid "forms.upload.unsupported"
+msgstr "пішімге қолдау көрсетілмейді"
+
+msgid "health.cache_hint"
+msgstr "Бэкендтердің күйі кэште сақталады, қойындылар серверге сұраныссыз ауысады."
+
+msgid "health.card.address"
+msgstr "Мекенжай"
+
+msgid "health.card.error"
+msgstr "Қате"
+
+msgid "health.card.in_use"
+msgstr "Қолданылуда"
+
+msgid "health.card.model_auto"
+msgstr "Модель (авто)"
+
+msgid "health.card.model_selected"
+msgstr "Таңдалған модель"
+
+msgid "health.card.not_configured"
+msgstr "Бапталмаған"
+
+msgid "health.card.ok"
+msgstr "Жұмыс істеп тұр"
+
+msgid "health.card.selected_down"
+msgstr "Таңдалған, бірақ қолжетімсіз"
+
+msgid "health.card.unavailable"
+msgstr "Қолжетімсіз"
+
+msgid "health.card.via_fallback"
+msgstr "(фолбэк)"
+
+msgid "health.conn.title"
+msgstr "Қосылу"
+
+msgid "health.current.auto_model"
+msgstr "<strong>%(backend)s</strong>, модель: авто"
+
+msgid "health.current.explicit"
+msgstr "<strong>%(backend)s</strong>, модель: <strong>%(model)s</strong>"
+
+msgid "health.current.fallback"
+msgstr "(фолбэк: сервердің негізгі бэкенді қолжетімсіз)"
+
+msgid "health.current.follows"
+msgstr "Талдаулардағыдай: <strong>%(backend)s</strong>, модель: <strong>%(model)s</strong>"
+
+msgid "health.current.none"
+msgstr "<strong>ештеңеде емес</strong>: қазір бірде-бір бэкенд қолжетімді емес"
+
+msgid "health.fallback_off"
+msgstr "Фолбэк өшірулі — сұраныстар қатемен аяқталады."
+
+msgid "health.fallback_on"
+msgstr "Фолбэк қосулы — сервер мүмкіндік тапса, сұраныстар басқа қолжетімді бэкендке барады."
+
+msgid "health.heading"
+msgstr "Талдау сервері"
+
+msgid "health.hint.analysis"
+msgstr "Талдауларға арналған таңдау чатқа әсер етпейді, оған жеке таңдау берілмегенше."
+
+msgid "health.hint.chat"
+msgstr "Чатқа арналған таңдау талдауларға әсер етпейді."
+
+msgid "health.hint.fallback_off"
+msgstr "Фолбэк өшірулі: сұраныс қатаң түрде таңдалған бэкендке барады."
+
+msgid "health.hint.fallback_on"
+msgstr "Егер бэкенд қолжетімсіз болса немесе 5xx қайтарса, сервер келесісін байқап көреді: алдымен жергілікті, содан кейін бұлттық (кілт берілсе)."
+
+msgid "health.key.erase"
+msgstr "Өшіру"
+
+msgid "health.key.erase.confirm"
+msgstr "«%(title)s» үшін сақталған кілтті өшіру керек пе?"
+
+msgid "health.key.locked_aria"
+msgstr "%(label)s (берілген, өзгерту мүмкін емес — алдымен өшіріңіз)"
+
+msgid "health.key.no_master"
+msgstr "Кілтті сақтау мүмкін емес: <code>VISION_CREDENTIALS_KEY</code> орта айнымалысы (шифрлаудың мастер-кілті) берілмеген. Мәнді жасаңыз: <code>python -c \"from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())\"</code> және қолданбаны қайта іске қосыңыз."
+
+msgid "health.key.placeholder"
+msgstr "Мәнді қойыңыз"
+
+msgid "health.key.replace_hint"
+msgstr "Кілтті ауыстыру үшін алдымен ағымдағысын өшіріңіз, содан кейін жаңасын енгізіңіз."
+
+msgid "health.key.set"
+msgstr "берілген"
+
+msgid "health.key.undecryptable"
+msgstr "шифрланған мәні ашылмайды — қайта енгізіңіз"
+
+msgid "health.key.unset"
+msgstr "берілмеген"
+
+msgid "health.model.aria"
+msgstr "%(name)s моделі"
+
+msgid "health.model.auto"
+msgstr "авто"
+
+msgid "health.model.placeholder"
+msgstr "Модель ID (бос — авто)"
+
+msgid "health.model.title"
+msgstr "Модель"
+
+msgid "health.models.cached"
+msgstr "%(date)s күні жүктелген; кэште сақталады, бет үшін провайдерге бармайды."
+
+msgid "health.models.empty"
+msgstr "Бэкенд модельдер тізімін қайтармады — ID-ді қолмен енгізіңіз немесе бос қалдырыңыз (авто)."
+
+msgid "health.models.error"
+msgstr "Модельдер тізімін алу мүмкін болмады: %(error)s. Модель ID-ін қолмен енгізіңіз."
+
+msgid "health.models.not_loaded"
+msgstr "Модельдер тізімі әлі жүктелмеген — «Тізімді жаңарту» түймесін басыңыз немесе ID-ді қолмен енгізіңіз."
+
+msgid "health.models.refresh"
+msgstr "Тізімді жаңарту"
+
+msgid "health.option.auto"
+msgstr "Авто (сервер анықтайды)"
+
+msgid "health.option.auto.lower"
+msgstr "авто (сервер анықтайды)"
+
+msgid "health.option.like_analysis"
+msgstr "Талдаулардағыдай"
+
+msgid "health.option.not_configured"
+msgstr "— бапталмаған"
+
+msgid "health.option.unavailable"
+msgstr "— қолжетімсіз"
+
+msgid "health.refresh"
+msgstr "Күйді жаңарту"
+
+msgid "health.sampling.hint"
+msgstr "Бос өріс — өзгертпеу. Параметрлер <strong>тек осы бэкендке</strong> қатысты: әр бэкендтің өз параметрлер жиыны және өз рұқсат етілген мәндері бар, мұндағы өзгерістер басқа бэкендтерге әсер етпейді. Олар бұл бэкендке келесі барлық сұраныстарға бірден қолданылады (серверге қосылған басқа клиенттердің сұраныстарына да)."
+
+msgid "health.sampling.reset"
+msgstr "Әдепкі мәндерге қайтару"
+
+msgid "health.sampling.save"
+msgstr "Параметрлерді сақтау"
+
+msgid "health.sampling.title"
+msgstr "Генерация параметрлері"
+
+msgid "health.select.label"
+msgstr "Қолданылатын бэкенд"
+
+msgid "health.server_down"
+msgstr "Сервер қолжетімсіз"
+
+msgid "health.subtitle"
+msgstr "vision_analyzer_server.py бэкендтері"
+
+msgid "health.subtitle.configure"
+msgstr ": модельді таңдау және генерация параметрлері"
+
+msgid "health.tab.analysis"
+msgstr "Талдау"
+
+msgid "health.tab.chat"
+msgstr "Чат"
+
+msgid "health.tabs.label"
+msgstr "Тағайындалуы"
+
+msgid "health.target.analysis"
+msgstr "талдау"
+
+msgid "health.target.analysis_gen"
+msgstr "талдау"
+
+msgid "health.target.chat"
+msgstr "чат"
+
+msgid "health.target.chat_gen"
+msgstr "чат"
+
+msgid "health.target_down"
+msgstr "Таңдалған «%(backend)s» бэкенді қолжетімсіз."
+
+msgid "health.unavailable.need_key"
+msgstr "Жоғарыда қосылу деректерін енгізіңіз — содан кейін мұнда модельді таңдау және генерация параметрлері пайда болады."
+
+msgid "health.unavailable.wait"
+msgstr "Модельді таңдау және параметрлер бэкенд жұмыс істей бастағанда қолжетімді болады."
+
+msgid "health.use"
+msgstr "Қолдану"
+
+msgid "health.use_for"
+msgstr "%(target)s үшін қолдану"
+
+msgid "health.used_backend"
+msgstr "Қолданылатын бэкенд — %(target)s"
+
+msgid "history.all"
+msgstr "Бүкіл тарих"
+
+msgid "history.col.backend"
+msgstr "Бэкенд"
+
+msgid "history.col.date"
+msgstr "Күні"
+
+msgid "history.col.file"
+msgstr "Файл"
+
+msgid "history.col.review"
+msgstr "Адамның тексеруі"
+
+msgid "history.col.risk"
+msgstr "Тәуекел"
+
+msgid "history.delete_selected"
+msgstr "Таңдалғандарды жою"
+
+msgid "history.delete_selected.confirm"
+msgstr "Таңдалған жазбаларды суреттерімен бірге жою керек пе? Мұны қайтару мүмкін емес."
+
+msgid "history.empty.no_match"
+msgstr "«%(query)s» сұранысы бойынша ештеңе табылмады."
+
+msgid "history.empty.none"
+msgstr "Тарих бос — аяқталған талдаулар әзірге жоқ."
+
+msgid "history.heading"
+msgstr "Талдаулар тарихы"
+
+msgid "history.reset_new"
+msgstr "«Жаңа» белгілерін тазарту (%(count)s)"
+
+msgid "history.review.no"
+msgstr "жоқ"
+
+msgid "history.review.yes"
+msgstr "иә"
+
+msgid "history.search.placeholder"
+msgstr "Файл атауы немесе нөмірі бойынша іздеу…"
+
+msgid "history.select_all"
+msgstr "Беттегінің барлығын таңдау"
+
+msgid "history.select_row"
+msgstr "%(id)s жазбасын таңдау"
+
+msgid "history.subtitle"
+msgstr "Суреттеріңіздің барлық аяқталған талдаулары. Кезектегі файлдар «Жаңа талдау» бетінде көрсетіледі."
+
+msgid "history.tag.error"
+msgstr "қате"
+
+msgid "history.tag.new"
+msgstr "жаңа"
+
+msgid "js.avatar.anim_too_big"
+msgstr "Анимация тым үлкен: ең көбі {mb} МБ."
+
+msgid "js.avatar.cannot_open"
+msgstr "Суретті ашу мүмкін болмады. PNG, JPEG, WebP немесе GIF байқап көріңіз."
+
+msgid "js.avatar.prepare_failed"
+msgstr "Суретті дайындау мүмкін болмады."
+
+msgid "js.avatar.save_failed"
+msgstr "Аватарды сақтау мүмкін болмады."
+
+msgid "js.avatar.save_failed_reload"
+msgstr "Аватарды сақтау мүмкін болмады. Бетті жаңартып, қайта байқап көріңіз."
+
+msgid "js.avatar.too_big"
+msgstr "Файл тым үлкен."
+
+msgid "js.chat.action.cancel"
+msgstr "Бас тарту"
+
+msgid "js.chat.action.cancelled"
+msgstr "Бас тартылды"
+
+msgid "js.chat.action.confirm"
+msgstr "Растау"
+
+msgid "js.chat.action.done"
+msgstr "Орындалды"
+
+msgid "js.chat.action.expired"
+msgstr "Растау мерзімі өтті"
+
+msgid "js.chat.action.failed"
+msgstr "Орындалмады"
+
+msgid "js.chat.action.running"
+msgstr "Орындалуда…"
+
+msgid "js.chat.action.title"
+msgstr "Әрекет"
+
+msgid "js.chat.action.user_page"
+msgstr "пайдаланушы беті"
+
+msgid "js.chat.analyses_count"
+msgstr "талдаулар: {n}"
+
+msgid "js.chat.analysis_n"
+msgstr "Талдау #{id}"
+
+msgid "js.chat.attach.remove"
+msgstr "Тіркемені алып тастау"
+
+msgid "js.chat.confirm_login"
+msgstr "Жою үшін логинді енгізіңіз: "
+
+msgid "js.chat.copied"
+msgstr "Көшірілді"
+
+msgid "js.chat.error.copy"
+msgstr "Диалогты көшіру мүмкін болмады. Оны JSON экспорты түймесімен жүктеп алыңыз."
+
+msgid "js.chat.error.lost_reply"
+msgstr "Модельдің жауабы алынбады (сервер қайта іске қосылған болуы мүмкін). Хабарламаны қайта жіберіңіз."
+
+msgid "js.chat.error.no_answer"
+msgstr "Жауап алу мүмкін болмады."
+
+msgid "js.chat.error.no_reply"
+msgstr "Модельден жауап алу мүмкін болмады — хабарлама енгізу өрісіне қайтарылды."
+
+msgid "js.chat.error.offline"
+msgstr "Сервермен байланыс жоқ."
+
+msgid "js.chat.error.rejected"
+msgstr "Сервер сұранысты қабылдамады (файлдар тым үлкен болуы мүмкін)."
+
+msgid "js.chat.error.request"
+msgstr "Сұранысты орындау мүмкін болмады."
+
+msgid "js.chat.error.resend"
+msgstr "Алдыңғы хабарламаны жіберу мүмкін болмады — мәтін енгізу өрісіне қайтарылды."
+
+msgid "js.chat.error.unreachable"
+msgstr "Сервермен байланысу мүмкін болмады. Қосылымды тексеріп, қайталаңыз."
+
+msgid "js.chat.file"
+msgstr "файл"
+
+msgid "js.chat.image"
+msgstr "сурет"
+
+msgid "js.chat.not_attached"
+msgstr "Тіркелмеді: {list}."
+
+msgid "js.chat.role.error"
+msgstr "қате"
+
+msgid "js.chat.role.model"
+msgstr "модель"
+
+msgid "js.chat.role.user"
+msgstr "сіз"
+
+msgid "js.chat.send"
+msgstr "Жіберу"
+
+msgid "js.chat.sending"
+msgstr "Жіберілуде…"
+
+msgid "js.chat.skip.not_image"
+msgstr "«{name}» — сурет емес"
+
+msgid "js.chat.skip.too_big"
+msgstr "«{name}» — {mb} МБ-тан үлкен"
+
+msgid "js.chat.skip.too_many"
+msgstr "«{name}» — хабарламада ең көбі {max} сурет"
+
+msgid "js.chat.user_n"
+msgstr "Пайдаланушы #{id}"
+
+msgid "js.chat.valid_until"
+msgstr "{date} дейін жарамды"
+
+msgid "js.list.selected_other_pages"
+msgstr "(басқа беттер/сүзгілерді қоса)"
+
+msgid "js.list.selected_total"
+msgstr "Барлығы таңдалды: {n}"
+
+msgid "js.main.analyzing"
+msgstr "Талдап жатырмыз…"
+
+msgid "js.queue.cancel"
+msgstr "Кезектен алып тастау"
+
+msgid "js.queue.clear_all"
+msgstr "Барлығын тазарту"
+
+msgid "js.queue.comment"
+msgstr "Пікір (міндетті емес)"
+
+msgid "js.queue.files_count"
+msgstr "Файлдар: {n}"
+
+msgid "js.queue.new"
+msgstr "жаңа"
+
+msgid "js.queue.next"
+msgstr "Кезекте · келесі"
+
+msgid "js.queue.processing"
+msgstr "Өңделуде · {time}"
+
+msgid "js.queue.remove_file"
+msgstr "Бұл файлды таңдаудан алып тастау"
+
+msgid "js.queue.selected"
+msgstr "Таңдалды: {n}"
+
+msgid "js.queue.uploading"
+msgstr "Жүктеліп жатыр…"
+
+msgid "js.queue.waiting"
+msgstr "Кезекте · сіздің алдыңызда: {ahead}"
+
+msgid "js.settings.enabled"
+msgstr "қосулы"
+
+msgid "js.settings.reset"
+msgstr "қалпына келтіру"
+
+msgid "js.sidebar.collapse"
+msgstr "Панельді жию"
+
+msgid "js.sidebar.expand"
+msgstr "Панельді жаю"
+
+msgid "js.theme.accent.color"
+msgstr "Акцент түсі"
+
+msgid "js.theme.accent.hint"
+msgstr "Түймелердің, белсенді мәзір тармақтарының, сілтемелердің және фокустың түсі. Кейбір темалар өз акцентін береді; мұнда таңдалған түс оны басып тастайды."
+
+msgid "js.theme.accent.light"
+msgstr "Акцент: ашық нұсқа"
+
+msgid "js.theme.accent.light_hint"
+msgstr "Сілтемелер мен меңзеген кездегі түс. Әдепкіде акцент пен темаға қарай автоматты түрде таңдалады."
+
+msgid "js.theme.accent.quick"
+msgstr "Акцентті жылдам таңдау"
+
+msgid "js.theme.accent.random"
+msgstr "Кездейсоқ"
+
+msgid "js.theme.accent.title"
+msgstr "Акцент"
+
+msgid "js.theme.applied"
+msgstr "Тема қолданылды."
+
+msgid "js.theme.applied_reset"
+msgstr "Тема қолданылды. Беттердің, мәтіннің және күйлердің жеке түстері қалпына келтірілді — «Болдырмау» оларды қайтарады."
+
+msgid "js.theme.auto"
+msgstr "Авто"
+
+msgid "js.theme.behavior.motion"
+msgstr "Анимацияларды азайту"
+
+msgid "js.theme.behavior.motion_hint"
+msgstr "Интерфейстің жұмсақ ауысулары мен анимацияларын өшіреді."
+
+msgid "js.theme.behavior.title"
+msgstr "Мінез-құлық"
+
+msgid "js.theme.color.blue"
+msgstr "Көк"
+
+msgid "js.theme.color.green"
+msgstr "Жасыл"
+
+msgid "js.theme.color.orange"
+msgstr "Қызғылт сары"
+
+msgid "js.theme.color.pink"
+msgstr "Қызғылт"
+
+msgid "js.theme.color.red"
+msgstr "Қызыл"
+
+msgid "js.theme.color.teal"
+msgstr "Көгілдір жасыл"
+
+msgid "js.theme.color.violet"
+msgstr "Күлгін"
+
+msgid "js.theme.color.yellow"
+msgstr "Сары"
+
+msgid "js.theme.contrast.bad"
+msgstr "нашар"
+
+msgid "js.theme.contrast.low"
+msgstr "аз"
+
+msgid "js.theme.default"
+msgstr "әдепкі"
+
+msgid "js.theme.export"
+msgstr "Экспорт"
+
+msgid "js.theme.exported"
+msgstr "Тема файлға сақталды."
+
+msgid "js.theme.fit.full"
+msgstr "«Бүкіл енге» қосулы — жүгірткі әрекет етпейді."
+
+msgid "js.theme.fit.now"
+msgstr "Қазір терезеге {px} px-ге дейін сыяды."
+
+msgid "js.theme.fit.over"
+msgstr "Одан көбірек таңдалған — іс жүзінде енді терезе шектейді; оны кеңейтіңіз немесе «Мазмұн терезенің бүкіл енінде» қосыңыз."
+
+msgid "js.theme.font.aria"
+msgstr "{label} — қаріп атауы"
+
+msgid "js.theme.font.code"
+msgstr "Бағдарламашылық"
+
+msgid "js.theme.font.custom"
+msgstr "Өз қарпім…"
+
+msgid "js.theme.font.grotesque"
+msgstr "Гротеск"
+
+msgid "js.theme.font.humanist"
+msgstr "Гуманистік"
+
+msgid "js.theme.font.mono"
+msgstr "Моноенді"
+
+msgid "js.theme.font.mono_default"
+msgstr "Моноенді (әдепкі)"
+
+msgid "js.theme.font.placeholder"
+msgstr "Мысалы: Inter, PT Sans"
+
+msgid "js.theme.font.same"
+msgstr "Негізгі қаріптей"
+
+msgid "js.theme.font.serif"
+msgstr "Сериф қаріпті"
+
+msgid "js.theme.font.system"
+msgstr "Жүйелік (әдепкі)"
+
+msgid "js.theme.font.wide"
+msgstr "Оқуға ыңғайлы (кең)"
+
+msgid "js.theme.import"
+msgstr "Импорт"
+
+msgid "js.theme.import.bad_json"
+msgstr "Файл дұрыс JSON емес."
+
+msgid "js.theme.import.not_theme"
+msgstr "Бұл Vision Triage тема файлы емес."
+
+msgid "js.theme.imported"
+msgstr "Тема импортталды."
+
+msgid "js.theme.layout.full"
+msgstr "Мазмұн терезенің бүкіл енінде"
+
+msgid "js.theme.layout.full_hint"
+msgstr "Ен шектеуін алады: мазмұн бүйір панелінің оң жағындағы бүкіл орынды алады."
+
+msgid "js.theme.layout.hint"
+msgstr "Негізгі аймақтардың дөңгелектелуі мен өлшемдері."
+
+msgid "js.theme.layout.max_width"
+msgstr "Мазмұнның ең үлкен ені"
+
+msgid "js.theme.layout.max_width_hint"
+msgstr "Мазмұн енін шектейді; ол браузер терезесінен кең бола алмайды. Жүгірткіні жіберген кезде қолданылады."
+
+msgid "js.theme.layout.radius"
+msgstr "Бұрыштардың дөңгелектелуі"
+
+msgid "js.theme.layout.sidebar"
+msgstr "Бүйір панелінің ені"
+
+msgid "js.theme.layout.sidebar_hint"
+msgstr "Жүгірткіні жіберген кезде қолданылады."
+
+msgid "js.theme.layout.title"
+msgstr "Пішін және орналасу"
+
+msgid "js.theme.module.hint"
+msgstr "Пресет палитраны өзгертеді, ал кейбір темаларда акцент түсін де өзгертеді. Қаріптер мен пішін сіздікі болып қалады. Темалар топтарға бөлінген: қараңғы, ашық және контрастты; топ ішінде — әліпби бойынша. Ашық тізімде атаудың алғашқы әріптерін теруге болады."
+
+msgid "js.theme.module.label"
+msgstr "Безендіру темасы"
+
+msgid "js.theme.module.title"
+msgstr "Тема"
+
+msgid "js.theme.preview.delete"
+msgstr "Жою"
+
+msgid "js.theme.preview.dim"
+msgstr "Әлсіз мәтін."
+
+msgid "js.theme.preview.heading"
+msgstr "Бөлім тақырыбы"
+
+msgid "js.theme.preview.high"
+msgstr "жоғары"
+
+msgid "js.theme.preview.input"
+msgstr "Енгізу өрісі"
+
+msgid "js.theme.preview.input_aria"
+msgstr "Енгізу өрісінің үлгісі"
+
+msgid "js.theme.preview.link"
+msgstr "Сілтеме"
+
+msgid "js.theme.preview.low"
+msgstr "төмен"
+
+msgid "js.theme.preview.medium"
+msgstr "орташа"
+
+msgid "js.theme.preview.muted"
+msgstr "Бәсеңдетілген мәтін."
+
+msgid "js.theme.preview.primary"
+msgstr "Негізгі"
+
+msgid "js.theme.preview.role_admin"
+msgstr "Әкімші"
+
+msgid "js.theme.preview.role_head"
+msgstr "Бас әкімші"
+
+msgid "js.theme.preview.role_user"
+msgstr "Пайдаланушы"
+
+msgid "js.theme.preview.secondary"
+msgstr "Қосымша"
+
+msgid "js.theme.preview.text"
+msgstr "Интерфейстің қарапайым мәтіні."
+
+msgid "js.theme.preview.title"
+msgstr "Алдын ала қарау"
+
+msgid "js.theme.reset_all"
+msgstr "Барлығын қалпына келтіру"
+
+msgid "js.theme.reset_done"
+msgstr "Безендіру стандартқа қайтарылды."
+
+msgid "js.theme.reset_section"
+msgstr "бөлімді қалпына келтіру"
+
+msgid "js.theme.sample_text"
+msgstr "Қаріпті тексеруге арналған мәтін: әғқңөұүһі 0123456789"
+
+msgid "js.theme.status.danger"
+msgstr "Қауіпті әрекеттер / қателер"
+
+msgid "js.theme.status.high"
+msgstr "Жоғары тәуекел"
+
+msgid "js.theme.status.hint"
+msgstr "Тәуекел деңгейлерінің, қателердің және ескертулердің түстері. Пайдаланушы рөлдерінің түстері бапталмайды."
+
+msgid "js.theme.status.low"
+msgstr "Төмен тәуекел / сәттілік"
+
+msgid "js.theme.status.medium"
+msgstr "Орташа тәуекел / ескерту"
+
+msgid "js.theme.status.title"
+msgstr "Күйлер және ескертулер"
+
+msgid "js.theme.storage_note"
+msgstr "Безендіру тек осы браузерде сақталады және автоматты түрде қолданылады. Басқа пайдаланушылар мен құрылғылар оны көрмейді."
+
+msgid "js.theme.surfaces.bg"
+msgstr "Бет фоны"
+
+msgid "js.theme.surfaces.border"
+msgstr "Шекаралар"
+
+msgid "js.theme.surfaces.border_soft"
+msgstr "Жұмсақ шекаралар"
+
+msgid "js.theme.surfaces.hint"
+msgstr "Фондар мен шекаралар. Пресетті ауыстыру бұл түстерді пресет палитрасына қайтарады."
+
+msgid "js.theme.surfaces.hover"
+msgstr "Меңзеу"
+
+msgid "js.theme.surfaces.input"
+msgstr "Енгізу өрістері және кіріктірілген блоктар"
+
+msgid "js.theme.surfaces.panel"
+msgstr "Панельдер мен карточкалар"
+
+msgid "js.theme.surfaces.title"
+msgstr "Беттер"
+
+msgid "js.theme.system"
+msgstr "Жүйедегідей"
+
+msgid "js.theme.text.accent_panel"
+msgstr "Акцент / панель"
+
+msgid "js.theme.text.faint"
+msgstr "Әлсіз мәтін (жазулар, күндер)"
+
+msgid "js.theme.text.faint_panel"
+msgstr "Әлсіз / панель"
+
+msgid "js.theme.text.hint"
+msgstr "Мәтін түстері. Жанында фонмен контраст көрсетілген (WCAG AA нормасы — 4.5-тен бастап)."
+
+msgid "js.theme.text.main"
+msgstr "Негізгі мәтін"
+
+msgid "js.theme.text.main_bg"
+msgstr "Негізгі / фон"
+
+msgid "js.theme.text.muted"
+msgstr "Бәсеңдетілген мәтін"
+
+msgid "js.theme.text.muted_panel"
+msgstr "Бәсеңдетілген / панель"
+
+msgid "js.theme.text.title"
+msgstr "Мәтін"
+
+msgid "js.theme.typo.heading"
+msgstr "Тақырыптар мен деректер қарпі"
+
+msgid "js.theme.typo.hint"
+msgstr "Өз қарпіңіз құрылғыңызда орнатылған болуы керек — қаріптер интернеттен жүктелмейді."
+
+msgid "js.theme.typo.line"
+msgstr "Жол аралығы"
+
+msgid "js.theme.typo.main"
+msgstr "Негізгі қаріп"
+
+msgid "js.theme.typo.size"
+msgstr "Мәтін өлшемі"
+
+msgid "js.theme.typo.size_hint"
+msgstr "Бүкіл интерфейстегі мәтінді масштабтайды. Жүгірткіні жіберген кезде қолданылады."
+
+msgid "js.theme.typo.title"
+msgstr "Типография"
+
+msgid "js.theme.undo"
+msgstr "↶ Болдырмау"
+
+msgid "js.theme.undone"
+msgstr "Өзгеріс болдырылмады."
+
+msgid "js.theme.value_auto"
+msgstr "авто"
+
+msgid "logs.auto_refresh"
+msgstr "Автожаңарту"
+
+msgid "logs.empty.no_dir"
+msgstr "Логтар папкасы әлі құрылмаған."
+
+msgid "logs.empty.no_files"
+msgstr "«%(title)s» көзінің лог файлдары әзірге жоқ."
+
+msgid "logs.empty.no_match"
+msgstr "Таңдалған шарттарға сәйкес жазбалар жоқ."
+
+msgid "logs.file.modified"
+msgstr "өзгертілген: %(date)s"
+
+msgid "logs.file.shown"
+msgstr "сәйкес келетін %(matched)s жазбаның %(shown)s көрсетілді, жаңалары жоғарыда"
+
+msgid "logs.file.truncated"
+msgstr "· файл үлкен, соңғы %(kb)s КБ оқылды"
+
+msgid "logs.level.all"
+msgstr "Барлық деңгейлер"
+
+msgid "logs.level.and_above"
+msgstr "және жоғары"
+
+msgid "logs.level.label"
+msgstr "Деңгей"
+
+msgid "logs.limit.label"
+msgstr "Қанша жазба"
+
+msgid "logs.limit.option"
+msgstr "%(n)s жазба"
+
+msgid "logs.no_files"
+msgstr "Файлдар жоқ"
+
+msgid "logs.refresh"
+msgstr "Жаңарту"
+
+msgid "logs.search"
+msgstr "Мәтін бойынша іздеу…"
+
+msgid "logs.size.b"
+msgstr "%(n)s Б"
+
+msgid "logs.size.kb"
+msgstr "%(n)s КБ"
+
+msgid "logs.size.mb"
+msgstr "%(n)s МБ"
+
+msgid "logs.source.flask"
+msgstr "Flask-панелі"
+
+msgid "logs.source.label"
+msgstr "Лог көзі"
+
+msgid "logs.source.server"
+msgstr "Талдау сервері"
+
+msgid "logs.subtitle"
+msgstr "Flask-панелі мен талдау сервері — бөлек қойындыларда. Бөлім тек бас әкімшіге көрінеді."
+
+msgid "models.display_style.fi"
+msgstr "Тегі Аты"
+
+msgid "models.owner.deleted"
+msgstr "жойылған пайдаланушы (id %(id)s)"
+
+msgid "nav.account.logout"
+msgstr "Шығу"
+
+msgid "nav.account.profile"
+msgstr "Профиль"
+
+msgid "nav.admin.analyses"
+msgstr "Барлық талдаулар"
+
+msgid "nav.admin.overview"
+msgstr "Шолу"
+
+msgid "nav.admin.prompts"
+msgstr "Промптар"
+
+msgid "nav.admin.users"
+msgstr "Пайдаланушылар"
+
+msgid "nav.analysis.chat"
+msgstr "Чат"
+
+msgid "nav.analysis.history"
+msgstr "Тарих"
+
+msgid "nav.analysis.new"
+msgstr "Жаңа талдау"
+
+msgid "nav.group.admin"
+msgstr "Басқару панелі"
+
+msgid "nav.group.analysis"
+msgstr "Талдау"
+
+msgid "nav.group.system"
+msgstr "Жүйе"
+
+msgid "nav.sidebar.collapse"
+msgstr "Панельді жию"
+
+msgid "nav.language"
+msgstr "Интерфейс тілі"
+
+msgid "nav.system.appearance"
+msgstr "Безендіру"
+
+msgid "nav.system.logs"
+msgstr "Логтар"
+
+msgid "nav.system.settings"
+msgstr "Баптаулар"
+
+msgid "nav.system.status"
+msgstr "Сервер күйі"
+
+msgid "pagination.current"
+msgstr "%(page)s бет, барлығы %(pages)s"
+
+msgid "pagination.next"
+msgstr "Алға →"
+
+msgid "pagination.prev"
+msgstr "← Артқа"
+
+msgid "panel.analyses.all_users"
+msgstr "Барлық пайдаланушылар"
+
+msgid "panel.analyses.any_risk"
+msgstr "Кез келген тәуекел"
+
+msgid "panel.analyses.delete_filtered"
+msgstr "Табылғандардың бәрін жою (%(total)s)"
+
+msgid "panel.analyses.delete_filtered.confirm"
+msgstr "Табылған БАРЛЫҚ жазбаларды (%(total)s дана) суреттерімен бірге жою керек пе — тек осы беттегілерді ғана емес? Мұны қайтару мүмкін емес."
+
+msgid "panel.analyses.filter_hint.none"
+msgstr "Сүзгі берілмеген — жүйенің бүкіл тарихы жойылады."
+
+msgid "panel.analyses.filter_hint.set"
+msgstr "Ағымдағы сүзгі бойынша, барлық беттерден."
+
+msgid "panel.analyses.orphan_hint"
+msgstr "Аккаунт жойылған, жазба ескі нұсқадан қалған — `flask purge-orphans` мұндай жазбаларды жояды"
+
+msgid "panel.analyses.review_only"
+msgstr "Тек тексеруді қажет ететіндер"
+
+msgid "panel.analyses.search_user"
+msgstr "Пайдаланушы бойынша іздеу…"
+
+msgid "panel.analyses.subtitle"
+msgstr "Жүйенің барлық пайдаланушыларының талдау нәтижелері."
+
+msgid "panel.col.registered"
+msgstr "Тіркелген күні"
+
+msgid "panel.col.review"
+msgstr "Тексеру"
+
+msgid "panel.col.user"
+msgstr "Пайдаланушы"
+
+msgid "panel.stats.analyses_done"
+msgstr "Орындалған талдаулар"
+
+msgid "panel.stats.backend"
+msgstr "Талдау бэкенді"
+
+msgid "panel.stats.by_role"
+msgstr "Рөлдер бойынша пайдаланушылар"
+
+msgid "panel.stats.default"
+msgstr "· әдепкі:"
+
+msgid "panel.stats.details"
+msgstr "Толық күйі →"
+
+msgid "panel.stats.heading"
+msgstr "Жүйеге шолу"
+
+msgid "panel.stats.high"
+msgstr "Жоғары тәуекел"
+
+msgid "panel.stats.online"
+msgstr "Желіде"
+
+msgid "panel.stats.subtitle"
+msgstr "Пайдаланушылар мен талдау нәтижелері бойынша жиынтық."
+
+msgid "panel.stats.users_total"
+msgstr "Барлық пайдаланушылар"
+
+msgid "panel.stats.waiting_review"
+msgstr "Адамның тексеруін күтуде"
+
+msgid "panel.user.all_history"
+msgstr "Бүкіл тарих (%(count)s) →"
+
+msgid "panel.user.block"
+msgstr "Бұғаттау"
+
+msgid "panel.user.clear_history"
+msgstr "Тарихты тазарту (%(count)s)"
+
+msgid "panel.user.clear_history.confirm"
+msgstr "«%(username)s» пайдаланушысының бүкіл тарихын (%(count)s дана) суреттерімен бірге жою керек пе? Мұны қайтару мүмкін емес."
+
+msgid "panel.user.delete.hint"
+msgstr "Бұл қайтарылмайды: «%(username)s» пайдаланушысының аккаунты мен бүкіл талдау тарихы жойылады. Растау үшін төмендегі пәрменді осы пайдаланушының логинімен қолмен енгізіңіз (оны көшіруге болмайды):"
+
+msgid "panel.user.no_analyses"
+msgstr "Бұл пайдаланушыда аяқталған талдаулар жоқ."
+
+msgid "panel.user.no_email"
+msgstr "Email көрсетілмеген"
+
+msgid "panel.user.no_rights"
+msgstr "Бұл пайдаланушыны өзгертуге құқығыңыз жоқ."
+
+msgid "panel.user.profile_data"
+msgstr "Профиль деректері"
+
+msgid "panel.user.registered"
+msgstr "· тіркелген күні: %(date)s"
+
+msgid "panel.user.save_role"
+msgstr "Рөлді сақтау"
+
+msgid "panel.user.unblock"
+msgstr "Бұғаттан шығару"
+
+msgid "panel.user_history.back"
+msgstr "← Профильге"
+
+msgid "panel.user_history.heading"
+msgstr "Тарих: %(username)s"
+
+msgid "panel.user_history.title"
+msgstr "Тарих · %(username)s"
+
+msgid "panel.user_history.total"
+msgstr "Аяқталған талдаулар: %(total)s"
+
+msgid "panel.users.all_roles"
+msgstr "Барлық рөлдер"
+
+msgid "panel.users.filter"
+msgstr "Сүзу"
+
+msgid "panel.users.search"
+msgstr "Логин бойынша іздеу…"
+
+msgid "panel.users.subtitle"
+msgstr "Рөлдер мен бұғаттауларды басқару."
+
+msgid "plural.files.one"
+msgid_plural "plural.files.other"
+msgstr[0] "%(n)s файл"
+msgstr[1] "%(n)s файл"
+
+msgid "plural.links.one"
+msgid_plural "plural.links.other"
+msgstr[0] "%(n)s сілтеме"
+msgstr[1] "%(n)s сілтеме"
+
+msgid "plural.records.one"
+msgid_plural "plural.records.other"
+msgstr[0] "%(n)s жазба"
+msgstr[1] "%(n)s жазба"
+
+msgid "profile.avatar.anim_note"
+msgstr "Анимациялық файл: алдын ала қарау тірі, ал қорытынды кадрларды сервер өңдейді. Бастапқы файл өлшемі — %(size)s МБ-қа дейін."
+
+msgid "profile.avatar.change"
+msgstr "Аватарды өзгерту"
+
+msgid "profile.avatar.ctl.bri"
+msgstr "Жарықтық"
+
+msgid "profile.avatar.ctl.con"
+msgstr "Контраст"
+
+msgid "profile.avatar.ctl.dx"
+msgstr "X бойынша орны"
+
+msgid "profile.avatar.ctl.dy"
+msgstr "Y бойынша орны"
+
+msgid "profile.avatar.ctl.hue"
+msgstr "Реңк"
+
+msgid "profile.avatar.ctl.rot"
+msgstr "Бұру"
+
+msgid "profile.avatar.ctl.sat"
+msgstr "Қанықтық"
+
+msgid "profile.avatar.ctl.sx"
+msgstr "X бойынша созу"
+
+msgid "profile.avatar.ctl.sy"
+msgstr "Y бойынша созу"
+
+msgid "profile.avatar.ctl.zoom"
+msgstr "Масштаб"
+
+msgid "profile.avatar.delete.confirm"
+msgstr "Аватарды жою керек пе?"
+
+msgid "profile.avatar.drag_hint"
+msgstr "Тінтуірмен немесе саусақпен тартыңыз — жылжыту. Тінтуір дөңгелегі — масштаб. Шеңбердің ішінде — аватардың мәзірде қалай көрінетіні."
+
+msgid "profile.avatar.flip_btn"
+msgstr "Шағылыстыру"
+
+msgid "profile.avatar.flip_title"
+msgstr "Көлденеңінен шағылыстыру"
+
+msgid "profile.avatar.hint"
+msgstr "PNG, JPEG, WebP, GIF немесе BMP. Шеңберді немесе «Фото жүктеу» түймесін басыңыз. GIF және анимациялық WebP анимациясымен сақталады. Фотосыз аватар сіздің түсіңізбен боялады (оны төменнен таңдауға болады). Аватарды басқа пайдаланушылар көреді."
+
+msgid "profile.avatar.pick_title"
+msgstr "Жаңа фотоны таңдау үшін басыңыз"
+
+msgid "profile.avatar.preview"
+msgstr "Аватарды алдын ала қарау"
+
+msgid "profile.avatar.reset_all"
+msgstr "Барлығын қалпына келтіру"
+
+msgid "profile.avatar.reset_one"
+msgstr "Қалпына келтіру: %(label)s"
+
+msgid "profile.avatar.rotate_left"
+msgstr "Солға 90° бұру"
+
+msgid "profile.avatar.rotate_right"
+msgstr "Оңға 90° бұру"
+
+msgid "profile.avatar.save"
+msgstr "Аватарды сақтау"
+
+msgid "profile.avatar.title"
+msgstr "Аватар"
+
+msgid "profile.avatar.upload"
+msgstr "Фото жүктеу"
+
+msgid "profile.delete.hint"
+msgstr "Бұл қайтарылмайды: аккаунтыңыз бен бүкіл талдау тарихыңыз жойылады. Растау үшін төмендегі пәрменді өз логиніңізбен қолмен енгізіңіз (оны көшіруге болмайды):"
+
+msgid "profile.history.empty"
+msgstr "Сізде әзірге аяқталған талдаулар жоқ."
+
+msgid "profile.subtitle"
+msgstr "Аккаунтыңыздың негізгі деректері."
+
+msgid "prompts.categories.empty"
+msgstr "Санаттар әзірге жоқ."
+
+msgid "prompts.categories.import"
+msgstr "Талдау серверінен жүктеу"
+
+msgid "prompts.categories.subtitle"
+msgstr "Талдау сервері суреттен іздейтін сигналдар. Тек осында сақталады — әр талдау кезінде ағымдағы жиынтық толығымен серверге бір реттік санаттар ретінде жіберіледі."
+
+msgid "prompts.categories.title"
+msgstr "Бағалау санаттары"
+
+msgid "prompts.category.add"
+msgstr "Санат қосу"
+
+msgid "prompts.category.delete.confirm"
+msgstr "«%(name)s» санатын жою керек пе? Мұны қайтару мүмкін емес."
+
+msgid "prompts.category.disable"
+msgstr "Өшіру"
+
+msgid "prompts.category.enable"
+msgstr "Қосу"
+
+msgid "prompts.category.off"
+msgstr "өшірулі"
+
+msgid "prompts.category.on"
+msgstr "қосулы"
+
+msgid "prompts.chat.count"
+msgstr " Таңба: {n} / {max}."
+
+msgid "prompts.chat.hint"
+msgstr "Чаттағы көмекшінің рөлін, мәнерін және жауаптардың жалпы ережелерін белгілейді. Келесі хабарламадан бастап, барлық чаттарда қолданылады. Құралдардың сипаттамасын (талдаулар мен пайдаланушылар бойынша іздеу, суреттерді кезекке қою) жүйе осы мәтіннен кейін өзі қосады — оны қайталаудың қажеті жоқ және мұнда өзгертуге болмайды. Бос өріс — стандартты мәтінді қайтару."
+
+msgid "prompts.chat.reset"
+msgstr "Стандартқа қайтару"
+
+msgid "prompts.chat.reset.confirm"
+msgstr "Чаттың стандартты жүйелік промптын қайтару керек пе? Сіздің мәтініңіз жойылады."
+
+msgid "prompts.chat.save"
+msgstr "Промптты сақтау"
+
+msgid "prompts.chat.show_default"
+msgstr "Стандартты мәтінді көрсету"
+
+msgid "prompts.chat.tag.changed"
+msgstr "өзгертілген"
+
+msgid "prompts.chat.tag.default"
+msgstr "стандартты"
+
+msgid "prompts.chat.title"
+msgstr "Чаттың жүйелік промпты"
+
+msgid "prompts.col.actions"
+msgstr "Әрекеттер"
+
+msgid "prompts.col.name"
+msgstr "Аты"
+
+msgid "prompts.col.order"
+msgstr "Реті"
+
+msgid "prompts.col.status"
+msgstr "Күйі"
+
+msgid "prompts.col.title"
+msgstr "Атауы"
+
+msgid "prompts.subtitle"
+msgstr "Модельдің мінез-құлқын анықтайтын мәтіндер: чаттағы көмекшінің рөлі және бағалау санаттары."
+
+msgid "queue.cancel"
+msgstr "Кезектен алып тастау"
+
+msgid "queue.error.file_missing"
+msgstr "Сурет файлы дискіден табылмады."
+
+msgid "queue.error.internal"
+msgstr "Өңдеудің ішкі қатесі: %(error)s"
+
+msgid "queue.error.link_failed"
+msgstr "Сілтеме бойынша суретті алу мүмкін болмады."
+
+msgid "queue.error.save_failed"
+msgstr "Жүктелген суретті сақтау мүмкін болмады: %(error)s"
+
+msgid "queue.status.next"
+msgstr "Кезекте · келесі"
+
+msgid "queue.status.processing"
+msgstr "Өңделуде · %(time)s"
+
+msgid "queue.status.waiting"
+msgstr "Кезекте · сіздің алдыңызда: %(ahead)s"
+
+msgid "result.back_to_queue"
+msgstr "← Кезекке"
+
+msgid "result.card.context"
+msgstr "Контекст"
+
+msgid "result.card.context_short"
+msgstr "контекст"
+
+msgid "result.card.description"
+msgstr "Сипаттама"
+
+msgid "result.card.raw"
+msgstr "Модель жауабы (JSON емес)"
+
+msgid "result.card.reasoning"
+msgstr "Негіздеме"
+
+msgid "result.card.recommendation"
+msgstr "Ұсыныс"
+
+msgid "result.card.signals"
+msgstr "Сигналдар"
+
+msgid "result.card.text_in_image"
+msgstr "Суреттегі мәтін"
+
+msgid "result.delete"
+msgstr "Нәтижені жою"
+
+msgid "result.delete.confirm"
+msgstr "Бұл нәтижені суретімен бірге жою керек пе? Мұны қайтару мүмкін емес."
+
+msgid "result.error.title"
+msgstr "Талдау қатесі"
+
+msgid "result.id_hint"
+msgstr "Талдау нөмірі — ол бойынша жазбаны тарихтан және чаттан табуға болады"
+
+msgid "result.owner"
+msgstr "· пайдаланушы %(user)s"
+
+msgid "result.pending"
+msgstr "Талдау әлі аяқталған жоқ. Бет өздігінен жаңарады — нәтиже осында және тарихта пайда болады."
+
+msgid "result.raw_note"
+msgstr "Модель есеп пішімінде жауап бермеді, сондықтан оны талдау мүмкін болмады. Оның жауабы төменде сол күйінде берілген."
+
+msgid "result.rename.hint"
+msgstr "Атауын өзгерту үшін екі рет басыңыз"
+
+msgid "result.rename.label"
+msgstr "Атауы"
+
+msgid "result.source"
+msgstr "· көзі:"
+
+msgid "result.tag.backend"
+msgstr "бэкенд: %(name)s"
+
+msgid "result.tag.needs_review"
+msgstr "Адамның тексеруін қажет етеді"
+
+msgid "result.title"
+msgstr "Талдау нәтижесі"
+
+msgid "result.uploaded"
+msgstr "Жүктелген күні: %(date)s"
+
+msgid "risk.level.high"
+msgstr "Жоғары"
+
+msgid "risk.level.low"
+msgstr "Төмен"
+
+msgid "risk.level.medium"
+msgstr "Орташа"
+
+msgid "risk.level.unknown"
+msgstr "Анықталмаған"
+
+msgid "role.admin"
+msgstr "Әкімші"
+
+msgid "role.blocked"
+msgstr "Бұғатталған"
+
+msgid "role.head_admin"
+msgstr "Бас әкімші"
+
+msgid "role.user"
+msgstr "Пайдаланушы"
+
+msgid "services.credential.default_label"
+msgstr "API-кілт"
+
+msgid "services.error.bad_categories"
+msgstr "Сервер санаттардың дұрыс емес тізімін қайтарды."
+
+msgid "services.error.bad_category"
+msgstr "Сервер «%(name)s» санатының дұрыс емес сипаттамасын қайтарды."
+
+msgid "services.error.bad_embeddings"
+msgstr "Сервер /embeddings үшін дұрыс емес жауап қайтарды."
+
+msgid "services.error.bad_json"
+msgstr "Сервер дұрыс емес JSON-жауап қайтарды."
+
+msgid "services.error.connect"
+msgstr "Суретті талдау серверіне қосылу мүмкін болмады."
+
+msgid "services.error.connect_hint"
+msgstr "Суретті талдау серверіне қосылу мүмкін болмады. vision_analyzer_server.py іске қосылғанын тексеріңіз."
+
+msgid "services.error.embeddings_loading"
+msgstr "Эмбеддинг моделі әлі жүктелуде."
+
+msgid "services.error.embeddings_status"
+msgstr "Эмбеддингтердің күйін алу мүмкін болмады: %(error)s"
+
+msgid "services.error.expected_object"
+msgstr "JSON-объект күтілген"
+
+msgid "services.error.no_embeddings_status"
+msgstr "Талдау сервері эмбеддингтердің күйін бермейді (ескірген нұсқа ма?)."
+
+msgid "services.error.no_link_image"
+msgstr "Талдау сервері сілтемеден суретті қайтармады (return_images жоқ ескірген сервер нұсқасы ма?)."
+
+msgid "services.error.no_model_answer"
+msgstr "Сервер модельдің жауабын қайтармады."
+
+msgid "services.error.no_params"
+msgstr "Сақтайтын параметрлер жоқ."
+
+msgid "services.error.no_providers"
+msgstr "Талдау сервері провайдерлер тізімін бермейді (ескірген нұсқа ма?)."
+
+msgid "services.error.no_results"
+msgstr "Сервер талдаудың бірде-бір нәтижесін қайтармады."
+
+msgid "services.error.request"
+msgstr "Талдау серверіне сұраныс қатесі: %(error)s"
+
+msgid "services.error.server"
+msgstr "Сервер қате қайтарды (%(status)s): %(message)s"
+
+msgid "services.error.status"
+msgstr "Сервер күйін алу мүмкін болмады: %(error)s"
+
+msgid "services.error.timeout"
+msgstr "Суретті талдау сервері жауап бермейді (күту уақыты асты)."
+
+msgid "services.error.timeout_late"
+msgstr "Суретті талдау сервері уақытында жауап бермеді (күту уақыты асты)."
+
+msgid "services.error.timeout_short"
+msgstr "Сервер уақытында жауап бермеді (күту уақыты асты)."
+
+msgid "settings.allowed"
+msgstr "Рұқсат етілген:"
+
+msgid "settings.allowed.from"
+msgstr "%(value)s-тен"
+
+msgid "settings.allowed.to"
+msgstr "%(value)s-ке дейін"
+
+msgid "settings.body_marks_check_default_limit.label"
+msgstr "Денедегі белгілерді тексеру: бір шақыруға суреттер"
+
+msgid "settings.body_marks_check_max_limit.label"
+msgstr "Денедегі белгілерді тексеру: бір шақыруға ең көп суреттер"
+
+msgid "settings.body_marks_check_time_budget.label"
+msgstr "Денедегі белгілерді тексеру: бір шақыруға уақыт, сек"
+
+msgid "settings.bulk_delete_max_ids.label"
+msgstr "Бір жаппай жоюдағы жазбалар"
+
+msgid "settings.caption_max_chars.label"
+msgstr "Суретке жазу ұзындығы, таңба"
+
+msgid "settings.chat_action_max_pending.label"
+msgstr "Чаттағы әрекеттер: расталмаған өтінімдер"
+
+msgid "settings.chat_action_ttl_minutes.label"
+msgstr "Чаттағы әрекеттер: өтінім мерзімі, мин"
+
+msgid "settings.chat_attachment_cache_seconds.label"
+msgstr "Браузердегі тіркемелер кэші, сек"
+
+msgid "settings.chat_attachment_name_max.label"
+msgstr "Тіркеме атауының ұзындығы, таңба"
+
+msgid "settings.chat_context_images.hint"
+msgstr "Әр сурет шамамен 1–1,5 мың контекст токенін алады."
+
+msgid "settings.chat_context_images.label"
+msgstr "Модель тікелей «көретін» тіркемелер"
+
+msgid "settings.chat_job_answer_chars.label"
+msgstr "Талдау нәтижесі: жауап ұзындығы, таңба"
+
+msgid "settings.chat_job_category_chars.label"
+msgstr "Талдау нәтижесі: санат ұзындығы, таңба"
+
+msgid "settings.chat_job_detail_chars.label"
+msgstr "Талдау нәтижесі: бөлшек ұзындығы, таңба"
+
+msgid "settings.chat_job_field_chars.label"
+msgstr "Талдау нәтижесі: өріс ұзындығы, таңба"
+
+msgid "settings.chat_job_max_signals.label"
+msgstr "Талдау нәтижесі: сигналдар саны"
+
+msgid "settings.chat_max_history_messages.label"
+msgstr "Модельге жіберілетін тарих хабарламалары"
+
+msgid "settings.chat_max_image_bytes.hint"
+msgstr "Сұраныстың жалпы шегі — «Сұраныстың ең үлкен өлшемі»."
+
+msgid "settings.chat_max_image_bytes.label"
+msgstr "Бір суреттің ең үлкен өлшемі, МБ"
+
+msgid "settings.chat_max_images_per_message.label"
+msgstr "Бір хабарламадағы суреттер"
+
+msgid "settings.chat_max_message_len.label"
+msgstr "Хабарламаның ең ұзын ұзындығы, таңба"
+
+msgid "settings.chat_max_tool_calls.label"
+msgstr "Бір қадамдағы құралдарға жүгінулер"
+
+msgid "settings.chat_model_jpeg_quality.label"
+msgstr "Модельге арналған JPEG сапасы"
+
+msgid "settings.chat_model_max_side.label"
+msgstr "Модельге арналған сурет жағының ең үлкені, px"
+
+msgid "settings.chat_model_passthrough_bytes.label"
+msgstr "Осы өлшемге дейінгі файлдар модельге сол күйінде жіберіледі, байт"
+
+msgid "settings.chat_prompt_max_chars.hint"
+msgstr "«Промптар» бөліміндегі «Чаттың жүйелік промпты» өрісіне шектеу."
+
+msgid "settings.chat_prompt_max_chars.label"
+msgstr "Чаттың жүйелік промптының ұзындығы, таңба"
+
+msgid "settings.chat_title_len.label"
+msgstr "Чаттың авто-атауының ұзындығы, таңба"
+
+msgid "settings.chat_turn_stale_seconds.hint"
+msgstr "Егер сервер жауап беру кезінде құлап қалса, чат осы уақыттан кейін қайтадан хабарлама қабылдайды."
+
+msgid "settings.chat_turn_stale_seconds.label"
+msgstr "Модель жауабының «ескіруі», сек"
+
+msgid "settings.collapse_all"
+msgstr "Барлығын жию"
+
+msgid "settings.dashboard_recent_limit.label"
+msgstr "Басты бет: соңғы талдаулар"
+
+msgid "settings.date_format.label"
+msgstr "Күні"
+
+msgid "settings.datetime_chat_format.label"
+msgstr "Чаттар тізіміндегі күні"
+
+msgid "settings.datetime_format.label"
+msgstr "Күні мен уақыты"
+
+msgid "settings.datetime_short_format.label"
+msgstr "Жылсыз күні мен уақыты"
+
+msgid "settings.dedup_cli_batch.label"
+msgstr "Хештер: CLI-дағы бір өтудегі жазбалар"
+
+msgid "settings.dedup_default_batch.label"
+msgstr "Хештер: әдепкі жазбалар"
+
+msgid "settings.dedup_idle_batch.label"
+msgstr "Хештер: бос өтудегі жазбалар"
+
+msgid "settings.dedup_idle_pause.label"
+msgstr "Хештер: санайтын ештеңе болмағандағы үзіліс, сек"
+
+msgid "settings.default_lang.hint"
+msgstr "Интерфейс тілі белгісіз болса, қосалқы нұсқа (мысалы, кезектегі ескі тапсырмаларда). Басқа жағдайларда серверге тіл ауыстырғышпен (RU/EN/KZ) таңдалған тіл жіберіледі."
+
+msgid "settings.default_lang.label"
+msgstr "Модель жауаптарының тілі"
+
+msgid "settings.default_value"
+msgstr "әдепкі мән"
+
+msgid "settings.embedding_batch_size.hint"
+msgstr "Сервер бір сұранысқа ең көбі 64 мәтін қабылдайды."
+
+msgid "settings.embedding_batch_size.label"
+msgstr "Сервер үшін батч өлшемі"
+
+msgid "settings.embedding_idle_batches.label"
+msgstr "Бір бос өтудегі батчтар"
+
+msgid "settings.embedding_idle_pause_nothing.label"
+msgstr "Үзіліс: индекстейтін ештеңе жоқ, сек"
+
+msgid "settings.embedding_idle_pause_retry.label"
+msgstr "Үзіліс: модель жүктелуде / ақау, сек"
+
+msgid "settings.embedding_idle_pause_unavailable.label"
+msgstr "Үзіліс: эмбеддингтер өшірулі/қолжетімсіз, сек"
+
+msgid "settings.embedding_max_matched_ids.label"
+msgstr "Статистика үшін шектен жоғары қанша id ұстау"
+
+msgid "settings.embedding_max_text_chars.hint"
+msgstr "Сервер шегі — 8000."
+
+msgid "settings.embedding_max_text_chars.label"
+msgstr "Эмбеддинг үшін мәтіннің ең үлкен ұзындығы, таңба"
+
+msgid "settings.embedding_memory_cache.hint"
+msgstr "Векторларды әр іздеу сайын деректер қорынан оқымау. Өшірсеңіз — іздеу бұрынғыдай жұмыс істейді, бірақ баяуырақ."
+
+msgid "settings.embedding_memory_cache.label"
+msgstr "Жадтағы векторлар кэші"
+
+msgid "settings.embedding_min_similarity.hint"
+msgstr "Осы мәннен төмен нәтиже шығарылымға кірмейді. Шығарылым шулы болса — көтеріңіз."
+
+msgid "settings.embedding_min_similarity.label"
+msgstr "Ұқсастық шегі (cosine)"
+
+msgid "settings.embedding_relative_margin.hint"
+msgstr "Шығарылымға «үздік скор − шегініс» мәнінен төмен емесі ғана түседі. 0 — өшіру."
+
+msgid "settings.embedding_relative_margin.label"
+msgstr "Үздік нәтижеден шегініс"
+
+msgid "settings.embedding_scan_limit.label"
+msgstr "Бір сұранысқа қанша вектор салыстыру"
+
+msgid "settings.enabled"
+msgstr "қосулы"
+
+msgid "settings.err.bounds"
+msgstr "«%(lo)s» мәні «%(hi)s» мәнінен үлкен бола алмайды."
+
+msgid "settings.err.choice"
+msgstr "«%(label)s»: мәндердің бірі ғана рұқсат етіледі — %(choices)s."
+
+msgid "settings.err.date_format"
+msgstr "«%(label)s»: күн пішімі дұрыс емес."
+
+msgid "settings.err.empty"
+msgstr "«%(label)s»: мән бос болуы мүмкін емес."
+
+msgid "settings.err.enter"
+msgstr "«%(label)s»: %(kind)s енгізіңіз."
+
+msgid "settings.err.kind_int"
+msgstr "бүтін сан"
+
+msgid "settings.err.kind_number"
+msgstr "сан"
+
+msgid "settings.err.max"
+msgstr "«%(label)s»: мән %(value)s-тен үлкен бола алмайды."
+
+msgid "settings.err.min"
+msgstr "«%(label)s»: мән %(value)s-тен кіші бола алмайды."
+
+msgid "settings.err.timezone"
+msgstr "«%(label)s»: «%(value)s» уақыт белдеуі белгісіз."
+
+msgid "settings.err.too_long"
+msgstr "«%(label)s»: мән тым ұзын."
+
+msgid "settings.err.url"
+msgstr "«%(label)s»: мекенжай http:// немесе https:// деп басталуы керек."
+
+msgid "settings.expand_all"
+msgstr "Барлығын жаю"
+
+msgid "settings.file_hash_chunk_bytes.label"
+msgstr "SHA-256 үшін файлды оқу кезіндегі бөлік, байт"
+
+msgid "settings.filter.placeholder"
+msgstr "Баптауды атауы немесе аты бойынша табу…"
+
+msgid "settings.group.changed"
+msgstr "· өзгертілген: %(count)s"
+
+msgid "settings.group.g1.desc"
+msgstr "vision-сервер клиенті: мекенжай, күту уақыттары, жауап тілі."
+
+msgid "settings.group.g1.title"
+msgstr "Талдау сервері"
+
+msgid "settings.group.g10.desc"
+msgstr "Құпиясөздер, сессиялар, cookie және CSRF."
+
+msgid "settings.group.g10.title"
+msgstr "Қауіпсіздік және сессиялар"
+
+msgid "settings.group.g11.title"
+msgstr "Деректер қоры"
+
+msgid "settings.group.g2.desc"
+msgstr "Жүктелген суреттерді фонда өңдеу."
+
+msgid "settings.group.g2.title"
+msgstr "Талдаулар кезегі"
+
+msgid "settings.group.g3.desc"
+msgstr "Жоғарыдағы мәндерді таңдауға болатын шектер. Төменгі шек жоғарғыдан үлкен бола алмайды."
+
+msgid "settings.group.g3.title"
+msgstr "Рұқсат етілген мәндердің шекаралары"
+
+msgid "settings.group.g4.desc"
+msgstr "Эмбеддингтер және талдау сипаттамаларын фонда индекстеу."
+
+msgid "settings.group.g4.title"
+msgstr "Мағына бойынша іздеу"
+
+msgid "settings.group.g5.desc"
+msgstr "Модельмен чаттағы хабарламалар, тарих және суреттер."
+
+msgid "settings.group.g5.title"
+msgstr "Чат"
+
+msgid "settings.group.g6.desc"
+msgstr "Модельге арналған талдау нәтижелері және талдаулар мен пайдаланушылар бойынша іздеу. Сандар модель промптына түседі."
+
+msgid "settings.group.g6.title"
+msgstr "Чат құралдары"
+
+msgid "settings.group.g7.desc"
+msgstr "Өлшемдер, кэш және файл хештерін фонда санау."
+
+msgid "settings.group.g7.title"
+msgstr "Жүктеу, файлдар және миниатюралар"
+
+msgid "settings.group.g8.desc"
+msgstr "Беттерде қанша жазба көрсету."
+
+msgid "settings.group.g8.title"
+msgstr "Тізімдер және беттеу"
+
+msgid "settings.group.g9.desc"
+msgstr "Уақыт белдеуі және күн пішімдері (strftime синтаксисі: %d.%m.%Y %H:%M)."
+
+msgid "settings.group.g9.title"
+msgstr "Күні мен уақыты"
+
+msgid "settings.history_per_page.label"
+msgstr "«Менің тарихым»: беттегі жазбалар"
+
+msgid "settings.max_content_length.hint"
+msgstr "Қатаң шек: одан үлкен файлдар қабылданбайды (HTTP 413)."
+
+msgid "settings.max_content_length.label"
+msgstr "Сұраныстың ең үлкен өлшемі, МБ"
+
+msgid "settings.model_name_max_len.label"
+msgstr "«Сервер күйіндегі» модель атауының ұзындығы"
+
+msgid "settings.models_cache_ttl.hint"
+msgstr "Бұлттық провайдердің модельдер тізімі автожаңартуға дейін деректер қорында қанша сақталады. 0 — кэштемеу."
+
+msgid "settings.models_cache_ttl.label"
+msgstr "Бұлттық провайдер модельдері тізімінің кэші, сек"
+
+msgid "settings.panel_per_page.label"
+msgstr "Әкімші панелі: беттегі жазбалар"
+
+msgid "settings.password_min_length.label"
+msgstr "Құпиясөздің ең аз ұзындығы"
+
+msgid "settings.password_username_min_len.label"
+msgstr "Қысқа логиндер құпиясөзбен салыстырылмайды"
+
+msgid "settings.password_username_similarity.label"
+msgstr "Құпиясөздің логинге ұқсастық шегі"
+
+msgid "settings.permanent_session_lifetime.hint"
+msgstr "Өзгерістен кейін ұзартылатын сессияларға әсер етеді."
+
+msgid "settings.permanent_session_lifetime.label"
+msgstr "Сессияның өмір сүру уақыты, күн"
+
+msgid "settings.queue_claim_retries.label"
+msgstr "Жарыс кезінде тапсырманы иелену талпыныстары"
+
+msgid "settings.queue_error_pause_seconds.label"
+msgstr "Цикл қатесінен кейінгі үзіліс, сек"
+
+msgid "settings.queue_max_files_per_upload.label"
+msgstr "Бір жүктеудегі файлдар"
+
+msgid "settings.queue_max_files_per_upload_max.label"
+msgstr "Бір жүктеудегі файлдар: ең көбі"
+
+msgid "settings.queue_max_files_per_upload_min.label"
+msgstr "Бір жүктеудегі файлдар: ең азы"
+
+msgid "settings.queue_max_pending_per_user.label"
+msgstr "Пайдаланушыға кезектегі тапсырмалар"
+
+msgid "settings.queue_max_pending_per_user_max.label"
+msgstr "Пайдаланушыға тапсырмалар: ең көбі"
+
+msgid "settings.queue_max_pending_per_user_min.label"
+msgstr "Пайдаланушыға тапсырмалар: ең азы"
+
+msgid "settings.queue_max_pending_total.hint"
+msgstr "Кезек пен өңдеудің жалпы шегі. Пайдаланушыға шек бөлек әрекет етеді."
+
+msgid "settings.queue_max_pending_total.label"
+msgstr "Кезектегі тапсырмалардың барлығы (барлық пайдаланушыларға)"
+
+msgid "settings.queue_max_pending_total_max.label"
+msgstr "Барлық тапсырмалар: ең көбі"
+
+msgid "settings.queue_max_pending_total_min.label"
+msgstr "Барлық тапсырмалар: ең азы"
+
+msgid "settings.queue_poll_seconds.hint"
+msgstr "Өңдеуші бос кезекті қаншалықты жиі тексереді."
+
+msgid "settings.queue_poll_seconds.label"
+msgstr "Кезекті сұрау аралығы, сек"
+
+msgid "settings.queue_poll_seconds_max.label"
+msgstr "Сұрау аралығы: ең көбі, сек"
+
+msgid "settings.queue_poll_seconds_min.label"
+msgstr "Сұрау аралығы: ең азы, сек"
+
+msgid "settings.queue_stop_join_timeout.label"
+msgstr "Ағынның тоқтауын күту, сек"
+
+msgid "settings.queue_worker_enabled.hint"
+msgstr "Өшірсеңіз, жүктелген файлдар өңделмей кезекте жинала береді."
+
+msgid "settings.queue_worker_enabled.label"
+msgstr "Кезекті өңдеу қосулы"
+
+msgid "settings.queue_workers.hint"
+msgstr "Қанша талдауды қатар орындау."
+
+msgid "settings.queue_workers.label"
+msgstr "Өңдеуші ағындар"
+
+msgid "settings.queue_workers_max.hint"
+msgstr "Шек 100 ағын сияқты қателіктен қорғайды."
+
+msgid "settings.queue_workers_max.label"
+msgstr "Өңдеуші ағындар: ең көбі"
+
+msgid "settings.queue_workers_min.label"
+msgstr "Өңдеуші ағындар: ең азы"
+
+msgid "settings.rejected_files_shown.label"
+msgstr "Хабарламадағы қабылданбаған файлдар"
+
+msgid "settings.reset"
+msgstr "қалпына келтіру"
+
+msgid "settings.reset_done"
+msgstr "қалпына келтірілді"
+
+msgid "settings.save_hint"
+msgstr "Форма түгелдей сақталады: кем дегенде бір мән дұрыс болмаса, ештеңе өзгермейді."
+
+msgid "settings.search_default_limit.label"
+msgstr "Талдауларды іздеу: әдепкі жазбалар"
+
+msgid "settings.search_desc_chars.label"
+msgstr "Талдауларды іздеу: сипаттама ұзындығы, таңба"
+
+msgid "settings.search_max_cards.label"
+msgstr "Талдауларды іздеу: жауап астындағы карточкалар"
+
+msgid "settings.search_max_keywords.label"
+msgstr "Талдауларды іздеу: кілт сөздер"
+
+msgid "settings.search_max_limit.label"
+msgstr "Талдауларды іздеу: ең көп жазба"
+
+msgid "settings.search_max_query_chars.label"
+msgstr "Талдауларды іздеу: сұраныс ұзындығы, таңба"
+
+msgid "settings.search_max_since_days.label"
+msgstr "Талдауларды іздеу: тереңдігі, күн"
+
+msgid "settings.search_scan_limit.label"
+msgstr "Талдауларды іздеу: талдауға арналған жолдар"
+
+msgid "settings.session_cookie_httponly.label"
+msgstr "Сессия cookie-і JavaScript үшін қолжетімсіз (HttpOnly)"
+
+msgid "settings.session_cookie_samesite.hint"
+msgstr "None тек «Cookie тек HTTPS арқылы» қосулы болғанда жұмыс істейді."
+
+msgid "settings.session_cookie_samesite.label"
+msgstr "Сессия cookie-і: SameSite"
+
+msgid "settings.session_cookie_secure.hint"
+msgstr "Сайт HTTPS арқылы ашылғанда ғана қосыңыз: әйтпесе кіру сіздің қоса алғанда барлығында жұмыс істемей қалады. Қайтаруға `flask reset-settings SESSION_COOKIE_SECURE` пәрмені көмектеседі."
+
+msgid "settings.session_cookie_secure.label"
+msgstr "Сессия cookie-і тек HTTPS арқылы"
+
+msgid "settings.setting_str_max_len.label"
+msgstr "Жолдық баптаудың ең үлкен ұзындығы"
+
+msgid "settings.sql_in_chunk.hint"
+msgstr "SQL параметрлері санының шегі (SQLite-та — 999)."
+
+msgid "settings.sql_in_chunk.label"
+msgstr "DELETE/IN ішіндегі id пакетінің өлшемі"
+
+msgid "settings.subtitle"
+msgstr "<code>config.py</code> ішіндегі жұмыс барысында қауіпсіз өзгертуге болатын барлық параметрлер — сақталғаннан кейін қайта іске қоспай-ақ бірден әрекет етеді. «Әдепкі» мәні <code>config.py</code> мен орта айнымалыларынан алынады. Тема, қаріптер және интерфейс өлшемдері <a href=\"%(url)s\">«Безендіру»</a> бөлімінде бапталады — ол барлық пайдаланушыларға қолжетімді."
+
+msgid "settings.thumb_cache_seconds.label"
+msgstr "Браузердегі миниатюралар кэші, сек"
+
+msgid "settings.thumb_quality.label"
+msgstr "Миниатюралардың JPEG сапасы"
+
+msgid "settings.thumb_size.hint"
+msgstr "Бұрын жасалған миниатюралар алдыңғы өлшемінде қалады."
+
+msgid "settings.thumb_size.label"
+msgstr "Миниатюра өлшемі, px"
+
+msgid "settings.time_format.label"
+msgstr "Уақыты"
+
+msgid "settings.timezone.hint"
+msgstr "IANA қорындағы атау, мысалы Asia/Aqtobe."
+
+msgid "settings.timezone.label"
+msgstr "Уақыт белдеуі"
+
+msgid "settings.user_recent_analyses_limit.label"
+msgstr "Профиль және пайдаланушы карточкасы: соңғы талдаулар"
+
+msgid "settings.user_search_default_limit.label"
+msgstr "Пайдаланушыларды іздеу: әдепкі жазбалар"
+
+msgid "settings.user_search_max_cards.label"
+msgstr "Пайдаланушыларды іздеу: жауап астындағы карточкалар"
+
+msgid "settings.user_search_max_limit.label"
+msgstr "Пайдаланушыларды іздеу: ең көп жазба"
+
+msgid "settings.user_search_max_since_days.label"
+msgstr "Пайдаланушыларды іздеу: тереңдігі, күн"
+
+msgid "settings.vision_api_backend_name_chars.hint"
+msgstr "32-ден көп емес — деректер қоры бағанына осыншасы сыяды."
+
+msgid "settings.vision_api_backend_name_chars.label"
+msgstr "Бэкенд атауының ұзындығы, таңба"
+
+msgid "settings.vision_api_base_url.hint"
+msgstr "Мысалы, http://127.0.0.1:6769"
+
+msgid "settings.vision_api_base_url.label"
+msgstr "Талдау сервері мекенжайы"
+
+msgid "settings.vision_api_call_timeout.hint"
+msgstr "/models, /providers/<аты>/settings, /categories және т. б."
+
+msgid "settings.vision_api_call_timeout.label"
+msgstr "Көмекші сұраныстардың күту уақыты, сек"
+
+msgid "settings.vision_api_embed_timeout.label"
+msgstr "POST /embeddings күту уақыты, сек"
+
+msgid "settings.vision_api_error_chars.hint"
+msgstr "Қате жауабының қанша таңбасын пайдаланушыға көрсету."
+
+msgid "settings.vision_api_error_chars.label"
+msgstr "Сервер қатесі мәтінінің ұзындығы, таңба"
+
+msgid "settings.vision_api_fallback.hint"
+msgstr "Егер бэкенд қолжетімсіз болса немесе 5xx қайтарса — сервер келесісін байқап көреді: алдымен жергілікті, содан кейін бұлттық (бұлттық — тек серверде рұқсат етілсе және кілт берілсе). Бэкендті қолмен таңдағанда да жұмыс істейді."
+
+msgid "settings.vision_api_fallback.label"
+msgstr "Іркіліс кезінде басқа бэкендке фолбэк"
+
+msgid "settings.vision_api_health_timeout.label"
+msgstr "/health және GET /embeddings күту уақыты, сек"
+
+msgid "settings.vision_api_model_name_chars.hint"
+msgstr "120-дан көп емес — деректер қоры бағанына осыншасы сыяды."
+
+msgid "settings.vision_api_model_name_chars.label"
+msgstr "Модель атауының ұзындығы, таңба"
+
+msgid "settings.vision_api_models_timeout.hint"
+msgstr "Бұлттық провайдерлердің /models (Gemini, Anthropic); көмекші сұраныстардың жалпы күту уақытынан бөлек."
+
+msgid "settings.vision_api_models_timeout.label"
+msgstr "Бұлттық провайдер модельдері тізімінің күту уақыты, сек"
+
+msgid "settings.vision_api_raw_text_chars.hint"
+msgstr "Жарамды JSON жоқ жауаптар үшін."
+
+msgid "settings.vision_api_raw_text_chars.label"
+msgstr "Модельдің «шикі» жауабын қысқарту, таңба"
+
+msgid "settings.vision_api_timeout.label"
+msgstr "/analyze және /chat күту уақыты, сек"
+
+msgid "settings.vision_api_timeout_max.label"
+msgstr "/analyze күту уақыты: ең көбі, сек"
+
+msgid "settings.vision_api_timeout_min.label"
+msgstr "/analyze күту уақыты: ең азы, сек"
+
+msgid "settings.warn.out_of_bounds"
+msgstr "«%(label)s»: ағымдағы мән %(value)s жаңа шекаралардан тыс."
+
+msgid "settings.wtf_csrf_time_limit.hint"
+msgstr "0 — шектеусіз (токен сессиямен бірдей уақыт өмір сүреді)."
+
+msgid "settings.wtf_csrf_time_limit.label"
+msgstr "CSRF-токеннің өмір сүру уақыты, сек"
+
+msgid "stats.row.account_age"
+msgstr "Аккаунт жасы"
+
+msgid "stats.row.account_days"
+msgstr "%(days)s күн"
+
+msgid "stats.row.active"
+msgstr "Кезекте / өңделуде"
+
+msgid "stats.row.by_link"
+msgstr "Жазбаға сілтеме бойынша"
+
+msgid "stats.row.chats"
+msgstr "Чаттар / хабарламалар"
+
+msgid "stats.row.first"
+msgstr "Бірінші талдау"
+
+msgid "stats.row.last"
+msgstr "Соңғы талдау"
+
+msgid "stats.row.last_days"
+msgstr "7 / 30 күнде"
+
+msgid "stats.row.risk_mid_low"
+msgstr "Тәуекел орташа / төмен"
+
+msgid "stats.row.unknown"
+msgstr "· анықталмаған: %(count)s"
+
+msgid "stats.row.with_error"
+msgstr "Қатемен"
+
+msgid "stats.tile.done"
+msgstr "аяқталды"
+
+msgid "stats.tile.high"
+msgstr "жоғары тәуекел"
+
+msgid "stats.tile.review"
+msgstr "тексеруге"
+
+msgid "stats.tile.total"
+msgstr "барлық талдаулар"
+
+msgid "stats.title"
+msgstr "Статистика"
+
+msgid "status.done"
+msgstr "Дайын"
+
+msgid "status.processing"
+msgstr "Өңделуде"
+
+msgid "status.queued"
+msgstr "Кезекте"
+
+msgid "theme.abyss.hint"
+msgstr "Терең қою көк"
+
+msgid "theme.andromeda.hint"
+msgstr "Ғарыштық көгілдір"
+
+msgid "theme.ayu_dark.hint"
+msgstr "Сары акцентті графит"
+
+msgid "theme.ayu_dark.label"
+msgstr "Ayu қараңғы"
+
+msgid "theme.ayu_light.hint"
+msgstr "Қызғылт сары акцентті бейтарап"
+
+msgid "theme.ayu_light.label"
+msgstr "Ayu ашық"
+
+msgid "theme.ayu_mirage.hint"
+msgstr "Жұмсақ көкшіл-сұр"
+
+msgid "theme.bluloco_light.hint"
+msgstr "Көк реңді бейтарап"
+
+msgid "theme.bluloco_light.label"
+msgstr "Bluloco ашық"
+
+msgid "theme.carbon.hint"
+msgstr "IBM стиліндегі қатаң сұр"
+
+msgid "theme.carbon_light.hint"
+msgstr "IBM стиліндегі қатаң ашық"
+
+msgid "theme.carbon_light.label"
+msgstr "Carbon ашық"
+
+msgid "theme.catppuccin_frappe.hint"
+msgstr "Пастельді, жұмсақ"
+
+msgid "theme.catppuccin_latte.hint"
+msgstr "Жұмсақ пастельді реңдер"
+
+msgid "theme.catppuccin_macchiato.hint"
+msgstr "Пастельді, орташа тереңдікті"
+
+msgid "theme.catppuccin_mocha.hint"
+msgstr "Жұмсақ пастельді реңдер"
+
+msgid "theme.challenger_deep.hint"
+msgstr "Терең көк-күлгін"
+
+msgid "theme.cobalt2.hint"
+msgstr "Қою көк"
+
+msgid "theme.coffee.hint"
+msgstr "Жылы қоңыр"
+
+msgid "theme.coffee.label"
+msgstr "Кофе"
+
+msgid "theme.contrast.hint"
+msgstr "Ең жоғары оқылымдылық"
+
+msgid "theme.contrast.label"
+msgstr "Контрастты"
+
+msgid "theme.contrast_light.hint"
+msgstr "Ақ түстегі қара"
+
+msgid "theme.contrast_light.label"
+msgstr "Контрастты ашық"
+
+msgid "theme.cyberpunk.hint"
+msgstr "Неонды түн"
+
+msgid "theme.darcula.hint"
+msgstr "IntelliJ IDEA сияқты"
+
+msgid "theme.dark.hint"
+msgstr "Стандартты"
+
+msgid "theme.dark.label"
+msgstr "Қараңғы"
+
+msgid "theme.dayfox.hint"
+msgstr "Nightfox-тың күндізгі нұсқасы"
+
+msgid "theme.dracula.hint"
+msgstr "Күлгін-қызғылт классика"
+
+msgid "theme.everblush.hint"
+msgstr "Салқын жасыл-сұр"
+
+msgid "theme.everforest_dark.hint"
+msgstr "Тыныш орман"
+
+msgid "theme.everforest_dark.label"
+msgstr "Everforest қараңғы"
+
+msgid "theme.everforest_light.hint"
+msgstr "Тыныш ашық орман"
+
+msgid "theme.everforest_light.label"
+msgstr "Everforest ашық"
+
+msgid "theme.flexoki_dark.hint"
+msgstr "Қағаздағы жылы сия"
+
+msgid "theme.flexoki_dark.label"
+msgstr "Flexoki қараңғы"
+
+msgid "theme.flexoki_light.hint"
+msgstr "Жылы қағаз түстес"
+
+msgid "theme.flexoki_light.label"
+msgstr "Flexoki ашық"
+
+msgid "theme.forest.hint"
+msgstr "Қою жасыл"
+
+msgid "theme.forest.label"
+msgstr "Орман"
+
+msgid "theme.github_dark.hint"
+msgstr "Таныс көкшіл графит"
+
+msgid "theme.github_dark.label"
+msgstr "GitHub қараңғы"
+
+msgid "theme.github_dark_hc.hint"
+msgstr "GitHub-тың жоғары контрасты"
+
+msgid "theme.github_dark_hc.label"
+msgstr "GitHub контрастты"
+
+msgid "theme.github_dimmed.hint"
+msgstr "GitHub-тың стандартты қараңғысынан жұмсақ"
+
+msgid "theme.github_dimmed.label"
+msgstr "GitHub бәсеңдетілген"
+
+msgid "theme.github_light.hint"
+msgstr "Таза және бейтарап"
+
+msgid "theme.github_light.label"
+msgstr "GitHub ашық"
+
+msgid "theme.graphite.hint"
+msgstr "Бейтарап сұр"
+
+msgid "theme.graphite.label"
+msgstr "Графит"
+
+msgid "theme.group.contrast"
+msgstr "Контрастты"
+
+msgid "theme.group.dark"
+msgstr "Қараңғы"
+
+msgid "theme.group.light"
+msgstr "Ашық"
+
+msgid "theme.gruvbox_dark.hint"
+msgstr "Жылы ретро-палитра"
+
+msgid "theme.gruvbox_dark.label"
+msgstr "Gruvbox қараңғы"
+
+msgid "theme.gruvbox_light.hint"
+msgstr "Жылы ретро-палитра"
+
+msgid "theme.gruvbox_light.label"
+msgstr "Gruvbox ашық"
+
+msgid "theme.hackthebox.hint"
+msgstr "Лайм түстес қою көк"
+
+msgid "theme.hc_amber.hint"
+msgstr "Қара түстегі янтарь"
+
+msgid "theme.hc_amber.label"
+msgstr "Янтарь терминал"
+
+msgid "theme.hc_green.hint"
+msgstr "Қара түстегі жасыл"
+
+msgid "theme.hc_green.label"
+msgstr "Жасыл терминал"
+
+msgid "theme.hc_yellow.hint"
+msgstr "Көру қабілеті әлсіздерге арналған"
+
+msgid "theme.hc_yellow.label"
+msgstr "Қара түстегі сары"
+
+msgid "theme.horizon.hint"
+msgstr "Маржан түсті жылы қараңғы"
+
+msgid "theme.horizon_bright.hint"
+msgstr "Ашық маржан түсті"
+
+msgid "theme.iceberg.hint"
+msgstr "Салқын көк"
+
+msgid "theme.jellybeans.hint"
+msgstr "Бәсеңдетілген графит"
+
+msgid "theme.kanagawa.hint"
+msgstr "Жапон гравюрасы"
+
+msgid "theme.kimbie_dark.hint"
+msgstr "Жылы қоңыр"
+
+msgid "theme.laserwave.hint"
+msgstr "Ретро-лазер"
+
+msgid "theme.lavender.hint"
+msgstr "Ашық сиреньді"
+
+msgid "theme.lavender.label"
+msgstr "Лаванда"
+
+msgid "theme.light.hint"
+msgstr "Жарық жарықтандыруға арналған"
+
+msgid "theme.light.label"
+msgstr "Ашық"
+
+msgid "theme.material_lighter.hint"
+msgstr "Material ашық"
+
+msgid "theme.material_ocean.hint"
+msgstr "Терең қою көк"
+
+msgid "theme.material_palenight.hint"
+msgstr "Пастельді күлгін-көк"
+
+msgid "theme.melange_dark.hint"
+msgstr "Жылы қоңыр-сұр"
+
+msgid "theme.melange_dark.label"
+msgstr "Melange қараңғы"
+
+msgid "theme.melange_light.hint"
+msgstr "Жылы қағаз түстес"
+
+msgid "theme.melange_light.label"
+msgstr "Melange ашық"
+
+msgid "theme.midnight.hint"
+msgstr "Терең көк"
+
+msgid "theme.midnight.label"
+msgstr "Түн ортасы"
+
+msgid "theme.min_light.hint"
+msgstr "Минималистік"
+
+msgid "theme.min_light.label"
+msgstr "Min ашық"
+
+msgid "theme.mint.hint"
+msgstr "Ашық жасылдау"
+
+msgid "theme.mint.label"
+msgstr "Жалбыз"
+
+msgid "theme.molokai.hint"
+msgstr "Vim классикасы"
+
+msgid "theme.monokai.hint"
+msgstr "Редактордың жылы палитрасы"
+
+msgid "theme.monokai_pro.hint"
+msgstr "Жылы заманауи Monokai"
+
+msgid "theme.moonlight.hint"
+msgstr "Айлы көк-күлгін"
+
+msgid "theme.night_owl.hint"
+msgstr "Түнде жұмыс істеуге арналған терең көк"
+
+msgid "theme.night_owl_light.hint"
+msgstr "Night Owl-дың ашық нұсқасы"
+
+msgid "theme.night_owl_light.label"
+msgstr "Night Owl ашық"
+
+msgid "theme.nightfox.hint"
+msgstr "Көк-болат түсті"
+
+msgid "theme.nord.hint"
+msgstr "Салқын көк-сұр"
+
+msgid "theme.nord.label"
+msgstr "Арктика"
+
+msgid "theme.nord_light.hint"
+msgstr "Nord-тың қарлы нұсқасы"
+
+msgid "theme.nord_light.label"
+msgstr "Nord ашық"
+
+msgid "theme.oceanic_next.hint"
+msgstr "Көк-сұр мұхит"
+
+msgid "theme.oled.hint"
+msgstr "Үнемдеуге арналған қара фон"
+
+msgid "theme.one_dark.hint"
+msgstr "Atom және VS Code сияқты"
+
+msgid "theme.one_light.hint"
+msgstr "Atom-ның ашық нұсқасы"
+
+msgid "theme.panda.hint"
+msgstr "Қызғылт реңді қараңғы"
+
+msgid "theme.paper.hint"
+msgstr "Кітап беті сияқты жылы"
+
+msgid "theme.paper.label"
+msgstr "Қағаз"
+
+msgid "theme.papercolor_light.hint"
+msgstr "Жұмсақ қағаз түстес ашық"
+
+msgid "theme.papercolor_light.label"
+msgstr "PaperColor ашық"
+
+msgid "theme.peach.hint"
+msgstr "Ашық жылы қызғылтым"
+
+msgid "theme.peach.label"
+msgstr "Шабдалы"
+
+msgid "theme.plum.hint"
+msgstr "Қою күлгін"
+
+msgid "theme.plum.label"
+msgstr "Қара өрік"
+
+msgid "theme.poimandres.hint"
+msgstr "Салқын жалбыз-көк"
+
+msgid "theme.quiet_light.hint"
+msgstr "Тыныш ашық"
+
+msgid "theme.rose_pine.hint"
+msgstr "Бәсеңдетілген пудра түсті"
+
+msgid "theme.rose_pine_dawn.hint"
+msgstr "Жылы пудра түсті ашық"
+
+msgid "theme.rose_pine_moon.hint"
+msgstr "Пудра түсті, әдеттегіден ашығырақ"
+
+msgid "theme.sepia.hint"
+msgstr "Ескі қағаз сияқты жылы"
+
+msgid "theme.sepia.label"
+msgstr "Сепия"
+
+msgid "theme.shades_of_purple.hint"
+msgstr "Жарқын күлгін"
+
+msgid "theme.sky.hint"
+msgstr "Ашық көгілдір"
+
+msgid "theme.sky.label"
+msgstr "Аспан"
+
+msgid "theme.snazzy_light.hint"
+msgstr "Таза ашық"
+
+msgid "theme.snazzy_light.label"
+msgstr "Snazzy ашық"
+
+msgid "theme.solarized_dark.hint"
+msgstr "Код үшін классика"
+
+msgid "theme.solarized_dark.label"
+msgstr "Solarized қараңғы"
+
+msgid "theme.solarized_light.hint"
+msgstr "Код үшін классика"
+
+msgid "theme.solarized_light.label"
+msgstr "Solarized ашық"
+
+msgid "theme.sonokai.hint"
+msgstr "Бәсеңдетілген Monokai"
+
+msgid "theme.spacegray.hint"
+msgstr "Салқын сұр-көк"
+
+msgid "theme.srcery.hint"
+msgstr "Жылы ретро-палитра"
+
+msgid "theme.synthwave_84.hint"
+msgstr "Неонды ретро-толқын"
+
+msgid "theme.tokyo_night.hint"
+msgstr "Салқын көк-күлгін"
+
+msgid "theme.tokyo_night_day.hint"
+msgstr "Tokyo Night-тың күндізгі нұсқасы"
+
+msgid "theme.tokyo_night_storm.hint"
+msgstr "Әдеттегі Tokyo Night-тан ашығырақ"
+
+msgid "theme.tomorrow.hint"
+msgstr "Классикалық ашық"
+
+msgid "theme.tomorrow_night.hint"
+msgstr "Tomorrow классикасы"
+
+msgid "theme.tomorrow_night_blue.hint"
+msgstr "Қою көк классика"
+
+msgid "theme.tomorrow_night_bright.hint"
+msgstr "Қара және жарқын"
+
+msgid "theme.vesper.hint"
+msgstr "Шабдалы түсті минималистік қара"
+
+msgid "theme.vscode_dark.hint"
+msgstr "VS Code-тағы Dark+ сияқты"
+
+msgid "theme.vscode_dark.label"
+msgstr "VS Code қараңғы"
+
+msgid "theme.vscode_light.hint"
+msgstr "VS Code-тағы Light+ сияқты"
+
+msgid "theme.vscode_light.label"
+msgstr "VS Code ашық"
+
+msgid "theme.zenburn.hint"
+msgstr "Ұзақ жұмысқа арналған төмен контраст"
+

@@ -108,11 +108,11 @@ def test_profile_falls_back_to_russian_for_unknown_language(app):
 
 
 def test_catalogs_have_nonempty_nonfuzzy_translations_with_matching_placeholders():
-    ru, en = _by_key(_po("ru")), _by_key(_po("en"))
-    assert set(ru) == set(en), f"ключи ru и en различаются: {set(ru) ^ set(en)}"
+    ru, en, kk = _by_key(_po("ru")), _by_key(_po("en")), _by_key(_po("kk"))
+    assert set(ru) == set(en) == set(kk), f"ключи ru/en/kk различаются: {set(ru) ^ set(en)} {set(ru) ^ set(kk)}"
     for key in ru:
         assert KEY_RE.match(key), f"в каталоге не ключ: {key!r}"
-        for loc, entries in (("ru", ru), ("en", en)):
+        for loc, entries in (("ru", ru), ("en", en), ("kk", kk)):
             entry = entries[key]
             text = _text(entry.string)
             assert text.strip(), f"[{loc}] пустой перевод для {key!r}"
@@ -120,6 +120,8 @@ def test_catalogs_have_nonempty_nonfuzzy_translations_with_matching_placeholders
             assert text != key, f"[{loc}] не переведён: {key!r}"
         ph_ru, ph_en = set(PH_RE.findall(_text(ru[key].string))), set(PH_RE.findall(_text(en[key].string)))
         assert ph_ru == ph_en, f"несовпадение %(...)s для {key!r}: ru={ph_ru} en={ph_en}"
+        ph_kk = set(PH_RE.findall(_text(kk[key].string)))
+        assert ph_ru == ph_kk, f"несовпадение %(...)s для {key!r}: ru={ph_ru} kk={ph_kk}"
 
 
 def test_po_in_sync_with_code_and_templates():
@@ -132,7 +134,7 @@ def test_po_in_sync_with_code_and_templates():
         if isinstance(key, str):
             found.add(key)
     assert all(KEY_RE.match(k) for k in found), f"в коде не ключи: {[k for k in found if not KEY_RE.match(k)][:5]}"
-    for loc in ("ru", "en"):
+    for loc in ("ru", "en", "kk"):
         have = set(_by_key(_po(loc)))
         assert found == have, f"[{loc}] нет в .po: {found - have}; лишние в .po: {have - found}"
 
@@ -171,3 +173,26 @@ def test_flash_and_validation_messages_are_translated(app):
     assert "Wrong login or password." in html
     ru = app.test_client().post("/accounts/login/", data={"username": "alice", "password": "wrong"}).get_data(as_text=True)
     assert "Неверный логин или пароль." in ru
+
+
+def test_profile_is_kazakh_with_lang_cookie(app):
+    kk = _by_key(_po("kk"))[MSGID].string
+    c = _login(app, "alice")
+    c.set_cookie("lang", "kk")
+    html = _profile_html(c)
+    assert kk in html and kk != "Данные аккаунта"
+    assert '<html lang="kk"' in html
+
+
+def test_language_switch_sets_kk_cookie_and_rejects_unknown(app):
+    c = app.test_client()
+    r = c.get("/accounts/language/kk")
+    assert r.status_code == 302 and "lang=kk" in r.headers["Set-Cookie"]
+    assert c.get("/accounts/language/xx").status_code == 404
+
+
+def test_plural_forms_kk(app):
+    from flask_babel import ngettext
+    with app.test_request_context("/", headers={"Cookie": "lang=kk"}):
+        kk = [ngettext("plural.files.one", "plural.files.other", n, n=n) for n in (1, 2, 5)]
+        assert kk == ["1 файл", "2 файл", "5 файл"]

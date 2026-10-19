@@ -17,6 +17,7 @@ from .extensions import babel, csrf, db, login_manager, migrate
 from .logging_setup import setup_logging
 from .models import ROLE_CHOICES, ROLE_LABELS, RISK_LABELS, Role, User
 from .queue_worker import ensure_worker, worker_enabled
+from .services import LANG_LABELS, SUPPORTED_LANGS
 from .schema import backfill_user_fields, ensure_schema, migrate_legacy_names
 from .themes import theme_presets, themes_css, themes_version
 from . import settings_store
@@ -66,17 +67,20 @@ def create_app(config: dict | None = None) -> Flask:
     migrate.init_app(app, db)
     csrf.init_app(app)
     login_manager.init_app(app)
-    # --- i18n (Flask-Babel): язык берём только из cookie lang (en/ru), Accept-Language игнорируем ---
+    # --- i18n (Flask-Babel): язык берём только из cookie lang (ru/en/kk), Accept-Language игнорируем ---
     def _select_locale():
         # Фоновые потоки (очередь, чат) работают без запроса — там язык по умолчанию (ru).
-        if has_request_context() and request.cookies.get("lang") == "en":
-            return "en"
+        if has_request_context():
+            code = request.cookies.get("lang")
+            if code in SUPPORTED_LANGS:
+                return code
         return "ru"
 
     app.config.setdefault("BABEL_DEFAULT_LOCALE", "ru")
     babel.init_app(app, locale_selector=_select_locale)
     # get_locale() недоступен в шаблонах по умолчанию (Flask-Babel 4.x), регистрируем явно.
     app.jinja_env.globals["get_locale"] = get_locale
+    app.jinja_env.globals["LANG_LABELS"] = LANG_LABELS
 
     login_manager.login_view = "accounts.login"
     login_manager.login_message = None  # как в Django-версии: без служебного сообщения

@@ -163,7 +163,7 @@ SETTING_GROUPS: list[tuple[str, str, list[RuntimeSetting]]] = [
            hint=lazy_gettext("settings.vision_api_model_name_chars.hint")),
         _s("VISION_API_FALLBACK", lazy_gettext("settings.vision_api_fallback.label"), "bool",
            hint=lazy_gettext("settings.vision_api_fallback.hint")),
-        _s("DEFAULT_LANG", lazy_gettext("settings.default_lang.label"), "choice", choices=("ru", "en"),
+        _s("DEFAULT_LANG", lazy_gettext("settings.default_lang.label"), "choice", choices=("ru", "en", "kk"),
            hint=lazy_gettext("settings.default_lang.hint")),
     ]),
     (lazy_gettext("settings.group.g2.title"), lazy_gettext("settings.group.g2.desc"), [

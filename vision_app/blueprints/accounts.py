@@ -13,6 +13,7 @@ from ..extensions import db
 from ..forms import AccountForm, DeleteAccountForm, LoginForm, RegisterForm
 from ..history import delete_user_account
 from ..models import AnalysisResult, Role, Status, User, utcnow
+from ..services import SUPPORTED_LANGS
 from ..user_stats import user_stats
 from ..utils import is_safe_next
 
@@ -84,7 +85,7 @@ def login():
 def set_language(code: str):
     """Переключение языка. Не требует входа — ссылка доступна и на странице входа.
     Неизвестный язык → 404; при безопасном next — туда, иначе на главную страницу."""
-    if code not in ("ru", "en"):
+    if code not in SUPPORTED_LANGS:
         abort(404)
     next_url = request.args.get("next")
     target = next_url if is_safe_next(next_url) else "/"
