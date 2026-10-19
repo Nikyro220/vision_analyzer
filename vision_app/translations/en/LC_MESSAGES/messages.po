@@ -2043,6 +2043,9 @@ msgstr "System"
 msgid "nav.sidebar.collapse"
 msgstr "Collapse sidebar"
 
+msgid "nav.language"
+msgstr "Interface language"
+
 msgid "nav.system.appearance"
 msgstr "Appearance"
 
@@ -2686,7 +2689,7 @@ msgid "settings.dedup_idle_pause.label"
 msgstr "Hashes: pause when there is nothing to compute, sec"
 
 msgid "settings.default_lang.hint"
-msgstr "Passed to the analysis server as lang=..."
+msgstr "Fallback when the interface language is unknown (e.g. old queued jobs). Otherwise the server gets the RU/EN language selected in the interface."
 
 msgid "settings.default_lang.label"
 msgstr "Model response language"

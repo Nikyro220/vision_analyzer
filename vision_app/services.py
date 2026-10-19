@@ -28,8 +28,8 @@ from datetime import datetime, timedelta, timezone
 from urllib.parse import quote
 
 import requests
-from flask import has_app_context
-from flask_babel import gettext
+from flask import has_app_context, has_request_context
+from flask_babel import get_locale, gettext
 
 from . import credentials
 from .config import conf
@@ -53,6 +53,28 @@ class EmbeddingNotReady(VisionApiError):
     def __init__(self, message: str, retry_after: int | None = None):
         super().__init__(message)
         self.retry_after = retry_after
+
+
+# Языки, которые умеет сервер анализа (inference/locales/*.json) и которые есть в интерфейсе.
+SUPPORTED_LANGS = ("ru", "en")
+
+
+def ui_lang() -> str | None:
+    """Язык интерфейса текущего пользователя (cookie lang, см. _select_locale в __init__.py).
+
+    Нужен, чтобы сервер анализа отвечал на том же языке, что выбран в переключателе RU/EN.
+    Вне запроса (фоновая очередь) выбранного языка нет — возвращаем None; такие вызовы получают
+    язык, запомненный при постановке задачи в очередь (AnalysisResult.lang), либо DEFAULT_LANG.
+    """
+    if not has_request_context():
+        return None
+    code = str(get_locale() or "").lower()
+    return code if code in SUPPORTED_LANGS else None
+
+
+def resolve_lang(lang: str | None = None) -> str:
+    """Какой lang отправить серверу: явный -> язык интерфейса -> DEFAULT_LANG из настроек."""
+    return (lang or "").strip().lower() or ui_lang() or conf("DEFAULT_LANG")
 
 
 @dataclass
@@ -154,7 +176,7 @@ def _fetch_health() -> dict:
 def analyze_image(
     image_bytes: bytes,
     mime_type: str,
-    lang: str | None = None,  # None -> DEFAULT_LANG из настроек
+    lang: str | None = None,  # None -> язык интерфейса, вне запроса — DEFAULT_LANG из настроек
     backend: str = "",
     model: str = "",
     caption: str = "",
@@ -180,7 +202,7 @@ def analyze_image(
     туда просто не влезают уже на 4-5 включённых категориях.
     """
     url = f"{_base_url()}/analyze"
-    lang = lang or conf("DEFAULT_LANG")
+    lang = resolve_lang(lang)
 
     if categories:
         payload: dict = {
@@ -302,7 +324,7 @@ def analyze_link(
     получилось ничего (ошибка ссылки, сервер недоступен и т. п.).
     """
     url = f"{_base_url()}/analyze"
-    payload: dict = {"url": link, "lang": lang or conf("DEFAULT_LANG")}
+    payload: dict = {"url": link, "lang": resolve_lang(lang)}
     if categories:
         payload["categories"] = categories
     if backend:
@@ -690,7 +712,7 @@ def chat_with_model(
     images: list[str] | None = None,
     backend: str = "",
     model: str = "",
-    lang: str | None = None,  # None -> DEFAULT_LANG из настроек
+    lang: str | None = None,  # None -> язык интерфейса, вне запроса — DEFAULT_LANG из настроек
     system: str = "",
     system_mode: str = "",
 ) -> ChatOutcome:
@@ -707,7 +729,7 @@ def chat_with_model(
     ``system`` (так делает чат панели: роль задаётся в БД, см. chat_prompt.py).
     """
     url = f"{_base_url()}/chat"
-    lang = lang or conf("DEFAULT_LANG")
+    lang = resolve_lang(lang)
 
     payload: dict = {"message": message, "lang": lang}
     if history:

@@ -33,6 +33,7 @@ from .config import Config, conf
 from .extensions import db
 from .history import remove_image_files
 from .models import RISK_LABELS, AnalysisResult, ChatAnalysisJob, Status
+from .services import ui_lang
 from .utils import local_dt
 
 log = logging.getLogger("vision_app.chat_jobs")
@@ -124,6 +125,7 @@ def enqueue(user, session_id: int, image, caption: str = "") -> dict:
             image_hash=image_dedup.sha256_bytes(data),
             caption=(caption or "")[: conf("CAPTION_MAX_CHARS")],
             status=Status.QUEUED,
+            lang=ui_lang() or "",
         )
         db.session.add(row)
         db.session.flush()
@@ -179,6 +181,7 @@ def enqueue_link(user, session_id: int, url: str) -> dict:
             image_hash="",
             source_url=url,
             status=Status.QUEUED,
+            lang=ui_lang() or "",
         )
         db.session.add(row)
         db.session.flush()

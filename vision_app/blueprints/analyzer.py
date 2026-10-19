@@ -41,6 +41,7 @@ from ..services import (
     models_cached_at,
     reset_provider_settings,
     set_provider_settings,
+    ui_lang,
 )
 from ..settings_store import (
     clear_analysis_target, clear_chat_target, get_analysis_target, get_chat_target, has_chat_target,
@@ -150,6 +151,7 @@ def _enqueue_uploads(form: ImageUploadForm):
 
     now = datetime.now(timezone.utc)
     root = Path(current_app.config["UPLOAD_FOLDER"])
+    lang = ui_lang() or ""  # язык ответа модели = язык интерфейса сейчас (анализ пойдёт позже, в фоне)
     written: list[Path] = []
     added: list[AnalysisResult] = []
     try:
@@ -168,6 +170,7 @@ def _enqueue_uploads(form: ImageUploadForm):
                 image_hash=image_dedup.sha256_bytes(item.data),
                 caption=item.caption,
                 status=Status.QUEUED,
+                lang=lang,
             )
             db.session.add(row)
             added.append(row)
@@ -183,6 +186,7 @@ def _enqueue_uploads(form: ImageUploadForm):
                 image_hash="",
                 source_url=link,
                 status=Status.QUEUED,
+                lang=lang,
             )
             db.session.add(row)
             link_rows.append(row)

@@ -110,7 +110,7 @@ def claim_next() -> int | None:
     return None
 
 
-def _run_analysis(app, image_path: str, image_mime: str, caption: str = ""):
+def _run_analysis(app, image_path: str, image_mime: str, caption: str = "", lang: str = ""):
     """Возвращает (AnalysisOutcome | None, текст_ошибки)."""
     path = Path(app.config["UPLOAD_FOLDER"]) / image_path
     try:
@@ -129,7 +129,7 @@ def _run_analysis(app, image_path: str, image_mime: str, caption: str = ""):
 
     try:
         outcome = analyze_image(
-            data, mime, backend=backend, model=model, caption=caption, categories=categories,
+            data, mime, lang=lang or None, backend=backend, model=model, caption=caption, categories=categories,
         )
         return outcome, ""
     except VisionApiError as exc:
@@ -175,13 +175,13 @@ def _finish(job_id: int, outcome, error: str) -> None:
 # ----------------------------------------------------------------------------
 # Задачи-ссылки: картинку скачивает сервер анализа (yt-dlp / Open Graph)
 # ----------------------------------------------------------------------------
-def _run_link_analysis(url: str):
+def _run_link_analysis(url: str, lang: str = ""):
     """Возвращает (LinkOutcome | None, текст_ошибки)."""
     backend, model = get_analysis_target()
     categories = build_categories_payload()
     db.session.rollback()  # не держим транзакцию на время долгого HTTP-запроса
     try:
-        return analyze_link(url, backend=backend, model=model, categories=categories), ""
+        return analyze_link(url, lang=lang or None, backend=backend, model=model, categories=categories), ""
     except VisionApiError as exc:
         return None, str(exc)
     except Exception as exc:  # noqa: BLE001 — задача не должна навсегда застревать в «обрабатывается»
@@ -197,7 +197,9 @@ def _ext_for(mime: str) -> str:
     return f".{tail}" if tail else ".jpg"
 
 
-def _finish_link(app, job_id: int, user_id: int, url: str, result: LinkOutcome | None, error: str) -> None:
+def _finish_link(
+    app, job_id: int, user_id: int, url: str, result: LinkOutcome | None, error: str, lang: str = "",
+) -> None:
     """Сохраняет результат задачи-ссылки.
 
     Первая картинка поста заполняет саму задачу, остальные (карусель, галерея) становятся
@@ -251,7 +253,7 @@ def _finish_link(app, job_id: int, user_id: int, url: str, result: LinkOutcome |
         row = AnalysisResult(
             user_id=user_id, image_path=rel, original_name=item.name[:255], image_mime=item.mime,
             image_hash=digest, caption=item.caption, source_url=url, status=Status.DONE,
-            started_at=finished, finished_at=finished, is_new=True, **_outcome_values(item.outcome),
+            started_at=finished, finished_at=finished, is_new=True, lang=lang, **_outcome_values(item.outcome),
         )
         db.session.add(row)
         extra_rows.append(row)
@@ -273,7 +275,7 @@ def process_next(app) -> bool:
             row = db.session.execute(
                 select(
                     AnalysisResult.image_path, AnalysisResult.image_mime, AnalysisResult.caption,
-                    AnalysisResult.source_url, AnalysisResult.user_id,
+                    AnalysisResult.source_url, AnalysisResult.user_id, AnalysisResult.lang,
                 )
                 .where(AnalysisResult.id == job_id)
             ).one()
@@ -282,11 +284,11 @@ def process_next(app) -> bool:
             started = time.monotonic()
             if row.source_url and not row.image_path:  # анализ по ссылке: файла ещё нет
                 log.info("Очередь: начинаю анализ задачи %s (ссылка %s)", job_id, row.source_url)
-                link_result, error = _run_link_analysis(row.source_url)
-                _finish_link(app, job_id, row.user_id, row.source_url, link_result, error)
+                link_result, error = _run_link_analysis(row.source_url, row.lang)
+                _finish_link(app, job_id, row.user_id, row.source_url, link_result, error, row.lang)
             else:
                 log.info("Очередь: начинаю анализ задачи %s (%s)", job_id, row.image_path)
-                outcome, error = _run_analysis(app, row.image_path, row.image_mime, row.caption)
+                outcome, error = _run_analysis(app, row.image_path, row.image_mime, row.caption, row.lang)
                 _finish(job_id, outcome, error)
             log.info(
                 "Очередь: задача %s завершена за %.1f с (%s)",

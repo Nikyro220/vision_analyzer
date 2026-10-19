@@ -2043,6 +2043,9 @@ msgstr "Система"
 msgid "nav.sidebar.collapse"
 msgstr "Свернуть панель"
 
+msgid "nav.language"
+msgstr "Язык интерфейса"
+
 msgid "nav.system.appearance"
 msgstr "Оформление"
 
@@ -2689,7 +2692,7 @@ msgid "settings.dedup_idle_pause.label"
 msgstr "Хеши: пауза, когда считать нечего, сек"
 
 msgid "settings.default_lang.hint"
-msgstr "Передаётся серверу анализа как lang=..."
+msgstr "Запасной вариант, если язык интерфейса неизвестен (например, у старых задач в очереди). В остальных случаях серверу уходит язык, выбранный переключателем RU/EN."
 
 msgid "settings.default_lang.label"
 msgstr "Язык ответов модели"

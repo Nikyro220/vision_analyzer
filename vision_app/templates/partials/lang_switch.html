@@ -1,5 +1,9 @@
-{# Переключатель языка RU/EN. Общий для боковой панели и гостевых страниц (вход/регистрация). #}
-<div class="lang-switch">
-    <a class="lang-link {% if get_locale() == 'ru' %}is-active{% endif %}" href="{{ url_for('accounts.set_language', code='ru', next=request.full_path) }}">RU</a>
-    <a class="lang-link {% if get_locale() == 'en' %}is-active{% endif %}" href="{{ url_for('accounts.set_language', code='en', next=request.full_path) }}">EN</a>
+{# Переключатель языка RU/EN (сегментированная кнопка). Общий для боковой панели и гостевых страниц. #}
+{% set _loc = get_locale()|string %}
+<div class="lang-switch" role="group" aria-label="{{ _('nav.language') }}">
+    {% for code, label in (('ru', 'RU'), ('en', 'EN')) %}
+    <a class="lang-link {% if _loc == code %}is-active{% endif %}"
+       href="{{ url_for('accounts.set_language', code=code, next=request.full_path) }}"
+       hreflang="{{ code }}" lang="{{ code }}"{% if _loc == code %} aria-current="true"{% endif %}>{{ label }}</a>
+    {% endfor %}
 </div>

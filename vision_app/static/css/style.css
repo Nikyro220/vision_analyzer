@@ -2227,8 +2227,38 @@ a.chat-head-toggle { text-decoration: none; }
 .log-warning { border-left-color: var(--risk-medium); }
 .log-error, .log-critical { border-left-color: var(--danger); color: var(--danger-strong); }
 .log-critical { font-weight: 600; }
-/* Переключатель языка (RU/EN) в футере боковой панели — см. i18n, шаг 2 */
-.lang-switch { display: flex; gap: 6px; align-items: center; margin-bottom: 8px; }
-.lang-link { color: var(--text-dim, #888); text-decoration: none; font-size: 13px; }
-.lang-link:hover { color: var(--text, #222); }
-.lang-link.is-active { font-weight: 600; color: var(--accent, #2563eb); }
+/* Переключатель языка (RU/EN): сегментированная кнопка. Цвета — только из переменных темы,
+   поэтому подходит любому пресету; активный сегмент закрашен акцентом. */
+.lang-switch {
+    display: flex;
+    gap: 2px;
+    padding: 2px;
+    background: var(--bg-elevated);
+    border: 1px solid var(--border-soft);
+    border-radius: var(--radius);
+}
+.lang-link {
+    flex: 1;
+    min-width: 0;
+    padding: 5px 0;
+    text-align: center;
+    font-family: var(--font-mono);
+    font-size: 0.7867rem;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    line-height: 1.2;
+    color: var(--text-dim);
+    border-radius: max(var(--radius) - 1px, 0px);
+    transition: background-color 0.12s ease, color 0.12s ease;
+}
+.lang-link:hover { color: var(--text); background: var(--bg-hover); text-decoration: none; }
+.lang-link.is-active,
+.lang-link.is-active:hover { background: var(--accent); color: var(--on-accent); cursor: default; }
+.lang-link:focus-visible { outline: 2px solid var(--accent-strong); outline-offset: 1px; }
+
+/* В боковой панели — на всю ширину; в свёрнутой (68px) остаётся компактным. */
+.sidebar-footer .lang-switch { width: 100%; }
+
+/* На гостевых страницах (вход/регистрация) — в правом верхнем углу. */
+.lang-switch-guest { position: fixed; top: 16px; right: 16px; z-index: 10; }
+.lang-switch-guest .lang-switch { width: 96px; }

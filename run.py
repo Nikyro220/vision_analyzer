@@ -125,7 +125,7 @@ def _stop_vision_analyzer() -> None:
 
 
 if __name__ == "__main__":
-    debug = os.environ.get("FLASK_DEBUG", "0") == "1"
+    debug = os.environ.get("FLASK_DEBUG", "1") == "1"
 
     # С включённым Flask-реloader'ом (debug=True) этот файл импортируется
     # дважды: в процессе-наблюдателе и в реальном рабочем процессе.

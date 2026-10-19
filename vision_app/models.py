@@ -305,6 +305,10 @@ class AnalysisResult(db.Model):
     # Ссылка на пост, из которой взято изображение (анализ «по ссылке»). Пока задача в очереди,
     # image_path пуст: сервер анализа сам скачивает картинку, и файл появляется при обработке.
     source_url = db.Column(db.Text, nullable=False, default="", server_default="")
+    # Язык интерфейса на момент постановки в очередь (ru/en). Анализ идёт в фоне, где cookie уже нет,
+    # поэтому язык ответа модели запоминаем здесь и отправляем серверу как lang. "" — не задан
+    # (старые записи): тогда действует DEFAULT_LANG из настроек.
+    lang = db.Column(db.String(8), nullable=False, default="", server_default="")
 
     @property
     def owner_label(self) -> str:
