@@ -537,7 +537,7 @@ def _search_semantic(user: User, args: dict, warnings: list[str]) -> ToolResult:
         needs_review = 0
         for aid in rep_ids:
             _, risk, review = meta.get(aid, (None, "unknown", False))
-            label = RISK_LABELS.get(risk, risk)
+            label = str(RISK_LABELS.get(risk, risk))
             by_risk[label] = by_risk.get(label, 0) + 1
             needs_review += 1 if review else 0
     except EmbeddingNotReady:
@@ -653,7 +653,7 @@ def search_analyses(user: User, raw_args) -> ToolResult:
     show_user = user.is_head_admin and not args["own_only"]
     by_risk: dict[str, int] = {}
     for row in rows:
-        label = RISK_LABELS.get(row.risk_level, row.risk_level)
+        label = str(RISK_LABELS.get(row.risk_level, row.risk_level))
         by_risk[label] = by_risk.get(label, 0) + 1
 
     payload: dict = {

@@ -1,6 +1,7 @@
 from functools import wraps
 
 from flask import current_app, flash, redirect, url_for
+from flask_babel import gettext
 from flask_login import current_user
 
 from .models import Role
@@ -21,7 +22,7 @@ def role_required(*allowed_roles):
             if current_user.role == Role.BLOCKED:
                 return redirect(url_for("accounts.blocked"))
             if current_user.role not in allowed_roles:
-                flash("Недостаточно прав для доступа к этой странице.", "error")
+                flash(gettext("flash.forbidden"), "error")
                 return redirect(url_for("analyzer.dashboard"))
             return view_func(*args, **kwargs)
 

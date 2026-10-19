@@ -29,6 +29,7 @@ from urllib.parse import quote
 
 import requests
 from flask import has_app_context
+from flask_babel import gettext
 
 from . import credentials
 from .config import conf
@@ -139,15 +140,15 @@ def _fetch_health() -> dict:
         )
         data = resp.json()
         if not isinstance(data, dict):
-            raise ValueError("ожидался JSON-объект")
+            raise ValueError(gettext("services.error.expected_object"))
         data["_http_status"] = resp.status_code
         return data
     except requests.exceptions.ConnectionError as exc:
-        raise VisionApiError("Не удалось подключиться к серверу анализа изображений.") from exc
+        raise VisionApiError(gettext("services.error.connect")) from exc
     except requests.exceptions.Timeout as exc:
-        raise VisionApiError("Сервер анализа изображений не отвечает (таймаут).") from exc
+        raise VisionApiError(gettext("services.error.timeout")) from exc
     except Exception as exc:  # noqa: BLE001
-        raise VisionApiError(f"Не удалось получить статус сервера: {exc}") from exc
+        raise VisionApiError(gettext("services.error.status", error=exc)) from exc
 
 
 def analyze_image(
@@ -212,11 +213,10 @@ def analyze_image(
         resp = requests.post(url, timeout=_timeout(), **request_kwargs)
     except requests.exceptions.ConnectionError as exc:
         raise VisionApiError(
-            "Не удалось подключиться к серверу анализа изображений. "
-            "Проверьте, что vision_analyzer_server.py запущен."
+            gettext("services.error.connect_hint")
         ) from exc
     except requests.exceptions.Timeout as exc:
-        raise VisionApiError("Сервер анализа изображений не ответил вовремя (таймаут).") from exc
+        raise VisionApiError(gettext("services.error.timeout_late")) from exc
 
     if resp.status_code >= 400:
         try:
@@ -224,16 +224,16 @@ def analyze_image(
             message = payload.get("error", resp.text) if isinstance(payload, dict) else resp.text
         except ValueError:
             message = resp.text
-        raise VisionApiError(f"Сервер вернул ошибку ({resp.status_code}): {message}")
+        raise VisionApiError(gettext("services.error.server", status=resp.status_code, message=message))
 
     try:
         payload = resp.json()
     except ValueError as exc:
-        raise VisionApiError("Сервер вернул некорректный JSON-ответ.") from exc
+        raise VisionApiError(gettext("services.error.bad_json")) from exc
 
     results = payload.get("results") if isinstance(payload, dict) else None
     if not results:
-        raise VisionApiError("Сервер не вернул ни одного результата анализа.")
+        raise VisionApiError(gettext("services.error.no_results"))
 
     first = results[0] if isinstance(results[0], dict) else {}
     return _outcome_from_result(first)
@@ -316,11 +316,10 @@ def analyze_link(
         )
     except requests.exceptions.ConnectionError as exc:
         raise VisionApiError(
-            "Не удалось подключиться к серверу анализа изображений. "
-            "Проверьте, что vision_analyzer_server.py запущен."
+            gettext("services.error.connect_hint")
         ) from exc
     except requests.exceptions.Timeout as exc:
-        raise VisionApiError("Сервер анализа изображений не ответил вовремя (таймаут).") from exc
+        raise VisionApiError(gettext("services.error.timeout_late")) from exc
 
     try:
         data = resp.json()
@@ -329,9 +328,9 @@ def analyze_link(
 
     if resp.status_code >= 400:
         message = data.get("error", resp.text) if isinstance(data, dict) else resp.text
-        raise VisionApiError(f"Сервер вернул ошибку ({resp.status_code}): {message}")
+        raise VisionApiError(gettext("services.error.server", status=resp.status_code, message=message))
     if not isinstance(data, dict):
-        raise VisionApiError("Сервер вернул некорректный JSON-ответ.")
+        raise VisionApiError(gettext("services.error.bad_json"))
 
     outcome = LinkOutcome(
         errors=[str(e.get("error", "")) for e in data.get("link_errors") or [] if isinstance(e, dict)],
@@ -347,7 +346,7 @@ def analyze_link(
             image_bytes = b""
         if not image_bytes:
             outcome.errors.append(
-                "Сервер анализа не вернул картинку из ссылки (устаревшая версия сервера без return_images?)."
+                gettext("services.error.no_link_image")
             )
             continue
         outcome.items.append(
@@ -361,7 +360,7 @@ def analyze_link(
         )
 
     if not outcome.items:
-        raise VisionApiError(outcome.errors[0] if outcome.errors else "Сервер не вернул ни одного результата анализа.")
+        raise VisionApiError(outcome.errors[0] if outcome.errors else gettext("services.error.no_results"))
     return outcome
 
 
@@ -377,13 +376,13 @@ def get_embedding_status() -> dict:
     try:
         resp = requests.get(f"{_base_url()}/embeddings", timeout=conf("VISION_API_HEALTH_TIMEOUT"))
     except requests.exceptions.RequestException as exc:
-        raise VisionApiError(f"Не удалось получить статус эмбеддингов: {exc}") from exc
+        raise VisionApiError(gettext("services.error.embeddings_status", error=exc)) from exc
     try:
         data = resp.json()
     except ValueError:
         data = None
     if not isinstance(data, dict):
-        raise VisionApiError("Сервер анализа не отдаёт статус эмбеддингов (устаревшая версия?).")
+        raise VisionApiError(gettext("services.error.no_embeddings_status"))
     return data
 
 
@@ -401,11 +400,11 @@ def embed_texts(texts: list[str], timeout: int | None = None) -> tuple[list[list
     try:
         resp = requests.post(f"{_base_url()}/embeddings", json={"texts": texts}, timeout=timeout)
     except requests.exceptions.ConnectionError as exc:
-        raise VisionApiError("Не удалось подключиться к серверу анализа изображений.") from exc
+        raise VisionApiError(gettext("services.error.connect")) from exc
     except requests.exceptions.Timeout as exc:
-        raise VisionApiError("Сервер анализа изображений не отвечает (таймаут).") from exc
+        raise VisionApiError(gettext("services.error.timeout")) from exc
     except requests.exceptions.RequestException as exc:
-        raise VisionApiError(f"Ошибка запроса к серверу анализа: {exc}") from exc
+        raise VisionApiError(gettext("services.error.request", error=exc)) from exc
 
     try:
         data = resp.json()
@@ -418,16 +417,16 @@ def embed_texts(texts: list[str], timeout: int | None = None) -> tuple[list[list
         except ValueError:
             retry_after = None
         raise EmbeddingNotReady(
-            "Модель эмбеддингов ещё скачивается или загружается.", retry_after=retry_after
+            gettext("services.error.embeddings_loading"), retry_after=retry_after
         )
     if resp.status_code >= 400:
         message = data.get("error") if isinstance(data, dict) and data.get("error") else resp.text
-        raise VisionApiError(f"Сервер вернул ошибку ({resp.status_code}): {str(message)[: conf('VISION_API_ERROR_CHARS')]}")
+        raise VisionApiError(gettext("services.error.server", status=resp.status_code, message=str(message)[: conf('VISION_API_ERROR_CHARS')]))
 
     vectors = data.get("embeddings") if isinstance(data, dict) else None
     model = data.get("model") if isinstance(data, dict) else None
     if not isinstance(vectors, list) or len(vectors) != len(texts) or not model:
-        raise VisionApiError("Сервер вернул некорректный ответ /embeddings.")
+        raise VisionApiError(gettext("services.error.bad_embeddings"))
     return vectors, str(model)
 
 
@@ -522,7 +521,7 @@ def _parse_provider(item: dict) -> ProviderInfo:
     credential = None
     if isinstance(cred, dict):
         credential = CredentialField(
-            label=str(cred.get("label") or "API-ключ"),
+            label=str(cred.get("label") or gettext("services.credential.default_label")),
             hint=str(cred.get("hint") or ""),
             header=str(cred.get("header") or ""),
         )
@@ -558,7 +557,7 @@ def get_providers(force: bool = False) -> list[ProviderInfo]:
             payload = _call("get", "/providers", keys=True)
             items = payload.get("providers") if isinstance(payload, dict) else None
             if not isinstance(items, list):
-                raise VisionApiError("Сервер анализа не отдаёт список провайдеров (устаревшая версия?).")
+                raise VisionApiError(gettext("services.error.no_providers"))
             data = [_parse_provider(i) for i in items if isinstance(i, dict) and i.get("name")]
         except VisionApiError as exc:
             st["failed_at"], st["error"] = now, str(exc)
@@ -606,11 +605,11 @@ def _call(method: str, path: str, *, keys: bool | str = False, **kwargs):
     try:
         resp = getattr(requests, method)(url, timeout=kwargs.pop("timeout", conf("VISION_API_CALL_TIMEOUT")), **kwargs)
     except requests.exceptions.ConnectionError as exc:
-        raise VisionApiError("Не удалось подключиться к серверу анализа изображений.") from exc
+        raise VisionApiError(gettext("services.error.connect")) from exc
     except requests.exceptions.Timeout as exc:
-        raise VisionApiError("Сервер анализа изображений не отвечает (таймаут).") from exc
+        raise VisionApiError(gettext("services.error.timeout")) from exc
     except requests.exceptions.RequestException as exc:
-        raise VisionApiError(f"Ошибка запроса к серверу анализа: {exc}") from exc
+        raise VisionApiError(gettext("services.error.request", error=exc)) from exc
 
     try:
         data = resp.json()
@@ -619,9 +618,9 @@ def _call(method: str, path: str, *, keys: bool | str = False, **kwargs):
 
     if resp.status_code >= 400:
         message = data.get("error") if isinstance(data, dict) and data.get("error") else resp.text
-        raise VisionApiError(f"Сервер вернул ошибку ({resp.status_code}): {str(message)[: conf('VISION_API_ERROR_CHARS')]}")
+        raise VisionApiError(gettext("services.error.server", status=resp.status_code, message=str(message)[: conf('VISION_API_ERROR_CHARS')]))
     if data is None:
-        raise VisionApiError("Сервер вернул некорректный JSON-ответ.")
+        raise VisionApiError(gettext("services.error.bad_json"))
     return data
 
 
@@ -729,11 +728,10 @@ def chat_with_model(
         resp = requests.post(url, json=payload, headers=_request_auth_headers(backend), timeout=_timeout())
     except requests.exceptions.ConnectionError as exc:
         raise VisionApiError(
-            "Не удалось подключиться к серверу анализа изображений. "
-            "Проверьте, что vision_analyzer_server.py запущен."
+            gettext("services.error.connect_hint")
         ) from exc
     except requests.exceptions.Timeout as exc:
-        raise VisionApiError("Сервер не ответил вовремя (таймаут).") from exc
+        raise VisionApiError(gettext("services.error.timeout_short")) from exc
 
     if resp.status_code >= 400:
         try:
@@ -741,15 +739,15 @@ def chat_with_model(
             message_err = data.get("error", resp.text) if isinstance(data, dict) else resp.text
         except ValueError:
             message_err = resp.text
-        raise VisionApiError(f"Сервер вернул ошибку ({resp.status_code}): {message_err}")
+        raise VisionApiError(gettext("services.error.server", status=resp.status_code, message=message_err))
 
     try:
         data = resp.json()
     except ValueError as exc:
-        raise VisionApiError("Сервер вернул некорректный JSON-ответ.") from exc
+        raise VisionApiError(gettext("services.error.bad_json")) from exc
 
     if not isinstance(data, dict) or "reply" not in data:
-        raise VisionApiError("Сервер не вернул ответ модели.")
+        raise VisionApiError(gettext("services.error.no_model_answer"))
 
     return ChatOutcome(
         reply=str(data.get("reply", "")),
@@ -847,7 +845,7 @@ def set_provider_settings(name: str, values: dict) -> dict:
     провайдеры не затрагиваются. Передаются только переданные ключи; сервер принимает всё или
     ничего. Возвращает новые значения провайдера."""
     if not values:
-        raise VisionApiError("Нет параметров для сохранения.")
+        raise VisionApiError(gettext("services.error.no_params"))
     data = _call("post", f"/providers/{quote(name, safe='')}/settings", json=values)
     invalidate_providers()
     return data.get("values", {}) if isinstance(data, dict) else {}
@@ -885,12 +883,12 @@ def fetch_server_categories() -> list[dict]:
     listing = _call("get", "/categories")
     order = listing.get("order") if isinstance(listing, dict) else listing
     if not isinstance(order, list) or not all(isinstance(n, str) for n in order):
-        raise VisionApiError("Сервер вернул некорректный список категорий.")
+        raise VisionApiError(gettext("services.error.bad_categories"))
 
     items: list[dict] = []
     for name in order:
         record = _call("get", f"/categories/{quote(name, safe='')}")
         if not isinstance(record, dict) or not isinstance(record.get("full"), str):
-            raise VisionApiError(f"Сервер вернул некорректное описание категории «{name}».")
+            raise VisionApiError(gettext("services.error.bad_category", name=name))
         items.append({**record, "name": name})
     return items

@@ -9,11 +9,11 @@
     var T = window.VTheme;
 
     var ACCENT_SWATCHES = [
-        ["#3fa7a0", "Бирюзовый"], ["#4c8dff", "Синий"], ["#8b7bff", "Фиолетовый"],
-        ["#e0609a", "Розовый"], ["#e5534b", "Красный"], ["#e08a3c", "Оранжевый"],
-        ["#d9c04a", "Жёлтый"], ["#4fae70", "Зелёный"]
+        ["#3fa7a0", _t("js.theme.color.teal")], ["#4c8dff", _t("js.theme.color.blue")], ["#8b7bff", _t("js.theme.color.violet")],
+        ["#e0609a", _t("js.theme.color.pink")], ["#e5534b", _t("js.theme.color.red")], ["#e08a3c", _t("js.theme.color.orange")],
+        ["#d9c04a", _t("js.theme.color.yellow")], ["#4fae70", _t("js.theme.color.green")]
     ];
-    var SAMPLE_TEXT = "Съешь ещё этих мягких французских булок, да выпей чаю 0123456789";
+    var SAMPLE_TEXT = _t("js.theme.sample_text");
 
     // ------------------------------------------------------------------ helpers
     function el(tag, opts) {
@@ -47,9 +47,9 @@
         syncers.push(function () {
             box.textContent = "";
             if (T.isOverridden(key)) {
-                box.appendChild(button("сбросить", "tag tag-accent tag-reset-btn", function () { T.resetValue(key); }));
+                box.appendChild(button(_t("js.settings.reset"), "tag tag-accent tag-reset-btn", function () { T.resetValue(key); }));
             } else {
-                box.appendChild(el("span", { cls: "tag", text: autoLabel || "по умолчанию" }));
+                box.appendChild(el("span", { cls: "tag", text: autoLabel || _t("js.theme.default") }));
             }
         });
         return box;
@@ -81,7 +81,7 @@
     }
 
     function swatchRow(f) {
-        var row = el("div", { cls: "vs-swatches", attrs: { role: "group", "aria-label": "Быстрый выбор акцента" } });
+        var row = el("div", { cls: "vs-swatches", attrs: { role: "group", "aria-label": _t("js.theme.accent.quick") } });
         var buttons = ACCENT_SWATCHES.map(function (s) {
             var b = el("button", { cls: "vs-swatch", attrs: { type: "button", title: s[1], "aria-label": s[1] } });
             b.style.background = s[0];
@@ -92,7 +92,7 @@
             row.appendChild(b);
             return [b, s[0]];
         });
-        var rnd = button("Случайный", "tag tag-reset-btn vs-random", function () {
+        var rnd = button(_t("js.theme.accent.random"), "tag tag-reset-btn vs-random", function () {
             // Средняя яркость, чтобы акцент читался на любой теме
             var h = Math.floor(Math.random() * 360);
             var c = hslToHex(h, 60 + Math.random() * 25, 50 + Math.random() * 8);
@@ -145,9 +145,9 @@
             var avail = available(), cur = Number(input.value);
             var full = f.disabledWhen && T.effective(f.disabledWhen);
             fitEl.classList.toggle("is-over", !full && cur > avail);
-            fitEl.textContent = "Сейчас окно вмещает до " + avail + " px."
-                + (full ? " Включено «на всю ширину» — ползунок не действует."
-                    : cur > avail ? " Выбрано больше — фактически ширину ограничивает окно; расширьте его или включите «Контент на всю ширину окна»." : "");
+            fitEl.textContent = _t("js.theme.fit.now", { px: avail })
+                + (full ? " " + _t("js.theme.fit.full")
+                    : cur > avail ? " " + _t("js.theme.fit.over") : "");
         }
         if (fitEl) window.addEventListener("resize", syncFit);
         syncers.push(function () {
@@ -167,14 +167,14 @@
         var input = el("input", { attrs: { type: "checkbox", id: id } });
         input.addEventListener("change", function () { T.setValue(f.key, input.checked); });
         syncers.push(function () { input.checked = !!T.effective(f.key); });
-        return { id: id, node: el("label", { cls: "checkbox-label", kids: [input, el("span", { text: "включено" })] }) };
+        return { id: id, node: el("label", { cls: "checkbox-label", kids: [input, el("span", { text: _t("js.settings.enabled") })] }) };
     }
 
     function fontControl(f) {
         var id = nextId(f.key);
         var select = el("select", { cls: "input", attrs: { id: id } });
         f.list.forEach(function (o) { select.appendChild(el("option", { text: o.label, attrs: { value: o.id } })); });
-        var custom = el("input", { cls: "input", attrs: { type: "text", maxlength: "60", placeholder: "Например: Inter, PT Sans", spellcheck: "false", "aria-label": f.label + " — название шрифта" } });
+        var custom = el("input", { cls: "input", attrs: { type: "text", maxlength: "60", placeholder: _t("js.theme.font.placeholder"), spellcheck: "false", "aria-label": _t("js.theme.font.aria", { label: f.label }) } });
         var sample = el("div", { cls: "vs-font-sample", text: SAMPLE_TEXT });
         if (f.key === "fontMono") sample.style.fontFamily = "var(--font-mono)"; else sample.style.fontFamily = "var(--font-body)";
 
@@ -201,7 +201,7 @@
         var indicatorKey = f.key;
         var label = el("div", { cls: "settings-row-label", kids: [
             el("label", { text: f.label, attrs: { for: ctl.id } }),
-            makeIndicator(indicatorKey, f.key === "accentStrong" ? "авто" : null),
+            makeIndicator(indicatorKey, f.key === "accentStrong" ? _t("js.theme.value_auto") : null),
             f.hint ? el("p", { cls: "field-hint", text: f.hint }) : null
         ] });
         return el("div", { cls: "settings-row vs-row", kids: [label, el("div", { cls: "settings-row-control", kids: [ctl.node] })] });
@@ -219,7 +219,7 @@
                 var cls = ratio >= 4.5 ? "tag tag-ok" : ratio >= 3 ? "tag tag-warn" : "tag tag-bad";
                 box.appendChild(el("div", { cls: "vs-contrast-item", kids: [
                     el("span", { text: p.label }),
-                    el("span", { cls: cls, text: ratio.toFixed(1) + (ratio >= 4.5 ? " ✓" : ratio >= 3 ? " мало" : " плохо") })
+                    el("span", { cls: cls, text: ratio.toFixed(1) + (ratio >= 4.5 ? " ✓" : ratio >= 3 ? " " + _t("js.theme.contrast.low") : " " + _t("js.theme.contrast.bad")) })
                 ] }));
             });
         });
@@ -229,7 +229,7 @@
     // ------------------------------------------------------------------ модули
     function buildModule(m) {
         var head = el("div", { cls: "vs-module-head", kids: [el("h2", { cls: "card-title", text: m.title })] });
-        var resetBtn = button("сбросить раздел", "tag tag-reset-btn", function () { T.resetModule(m.id); });
+        var resetBtn = button(_t("js.theme.reset_section"), "tag tag-reset-btn", function () { T.resetModule(m.id); });
         head.appendChild(resetBtn);
         syncers.push(function () {
             var any = m.fields.some(function (f) {
@@ -287,7 +287,7 @@
         select.addEventListener("change", function () {
             var had = T.hasPaletteOverrides();
             T.setPreset(select.value);
-            say(had ? "Тема применена. Свои цвета поверхностей, текста и статусов сброшены — «Отменить» вернёт их." : "Тема применена.", "ok");
+            say(had ? _t("js.theme.applied_reset") : _t("js.theme.applied"), "ok");
         });
         syncers.push(function () {
             var cur = T.get().preset;
@@ -296,11 +296,11 @@
             (byId[cur] ? presetPreview(byId[cur]) : []).forEach(function (n) { preview.appendChild(n); });
         });
         return el("section", { cls: "card vs-module", kids: [
-            el("h2", { cls: "card-title", text: "Тема" }),
-            el("p", { cls: "field-hint vs-module-hint", text: "Пресет меняет палитру, а у части тем — ещё и акцентный цвет. Шрифты и форма остаются вашими. Темы сгруппированы: тёмные, светлые и контрастные; внутри групп — по алфавиту. В открытом списке можно набрать первые буквы названия." }),
+            el("h2", { cls: "card-title", text: _t("js.theme.module.title") }),
+            el("p", { cls: "field-hint vs-module-hint", text: _t("js.theme.module.hint") }),
             el("div", { cls: "vs-theme-picker", kids: [
                 el("div", { cls: "vs-control-stack vs-theme-select-wrap", kids: [
-                    el("label", { cls: "vs-theme-label", text: "Тема оформления", attrs: { for: id } }),
+                    el("label", { cls: "vs-theme-label", text: _t("js.theme.module.label"), attrs: { for: id } }),
                     select
                 ] }),
                 preview
@@ -312,27 +312,27 @@
     function buildPreview() {
         var sample = el("div", { cls: "vs-preview" });
         sample.innerHTML =
-            '<h3>Заголовок раздела</h3>' +
-            '<p>Обычный текст интерфейса. <span class="vs-muted">Приглушённый текст.</span> <span class="vs-dim">Слабый текст.</span> <a href="#" onclick="return false">Ссылка</a></p>' +
-            '<div class="vs-preview-row"><span class="btn btn-primary">Основная</span><span class="btn btn-secondary">Вторичная</span><span class="btn btn-danger">Удалить</span></div>' +
-            '<div class="vs-preview-row"><span class="risk-pill risk-pill-low">низкий</span><span class="risk-pill risk-pill-medium">средний</span><span class="risk-pill risk-pill-high">высокий</span>' +
+            '<h3>' + _t("js.theme.preview.heading") + '</h3>' +
+            '<p>' + _t("js.theme.preview.text") + ' <span class="vs-muted">' + _t("js.theme.preview.muted") + '</span> <span class="vs-dim">' + _t("js.theme.preview.dim") + '</span> <a href="#" onclick="return false">' + _t("js.theme.preview.link") + '</a></p>' +
+            '<div class="vs-preview-row"><span class="btn btn-primary">' + _t("js.theme.preview.primary") + '</span><span class="btn btn-secondary">' + _t("js.theme.preview.secondary") + '</span><span class="btn btn-danger">' + _t("js.theme.preview.delete") + '</span></div>' +
+            '<div class="vs-preview-row"><span class="risk-pill risk-pill-low">' + _t("js.theme.preview.low") + '</span><span class="risk-pill risk-pill-medium">' + _t("js.theme.preview.medium") + '</span><span class="risk-pill risk-pill-high">' + _t("js.theme.preview.high") + '</span>' +
             '<span class="tag tag-ok">ok</span><span class="tag tag-warn">warn</span><span class="tag tag-accent">accent</span></div>' +
-            '<div class="vs-preview-row"><span class="role-badge role-user">Пользователь</span><span class="role-badge role-admin">Админ</span><span class="role-badge role-head_admin">Главный админ</span></div>' +
-            '<div class="vs-preview-row"><input type="text" class="input" value="Поле ввода" tabindex="-1" aria-label="Пример поля ввода"></div>';
-        return el("section", { cls: "card vs-module", kids: [el("h2", { cls: "card-title", text: "Предпросмотр" }), sample] });
+            '<div class="vs-preview-row"><span class="role-badge role-user">' + _t("js.theme.preview.role_user") + '</span><span class="role-badge role-admin">' + _t("js.theme.preview.role_admin") + '</span><span class="role-badge role-head_admin">' + _t("js.theme.preview.role_head") + '</span></div>' +
+            '<div class="vs-preview-row"><input type="text" class="input" value="' + _t("js.theme.preview.input") + '" tabindex="-1" aria-label="' + _t("js.theme.preview.input_aria") + '"></div>';
+        return el("section", { cls: "card vs-module", kids: [el("h2", { cls: "card-title", text: _t("js.theme.preview.title") }), sample] });
     }
 
     // ------------------------------------------------------------------ toolbar
     function buildToolbar() {
         statusEl = el("span", { cls: "vs-status", attrs: { role: "status", "aria-live": "polite" } });
-        var undoBtn = button("↶ Отменить", "btn btn-secondary vs-btn", function () { T.undo(); say("Изменение отменено.", "ok"); });
+        var undoBtn = button(_t("js.theme.undo"), "btn btn-secondary vs-btn", function () { T.undo(); say(_t("js.theme.undone"), "ok"); });
         var fileInput = el("input", { attrs: { type: "file", accept: "application/json,.json", hidden: "" } });
         fileInput.addEventListener("change", function () {
             var file = fileInput.files && fileInput.files[0];
             if (!file) return;
             var reader = new FileReader();
             reader.onload = function () {
-                try { T.importJSON(String(reader.result)); say("Тема импортирована.", "ok"); }
+                try { T.importJSON(String(reader.result)); say(_t("js.theme.imported"), "ok"); }
                 catch (e) { say(e.message, "error"); }
             };
             reader.readAsText(file);
@@ -343,7 +343,7 @@
         return el("div", { cls: "card vs-toolbar", kids: [
             el("div", { cls: "vs-toolbar-buttons", kids: [
                 undoBtn,
-                button("Экспорт", "btn btn-secondary vs-btn", function () {
+                button(_t("js.theme.export"), "btn btn-secondary vs-btn", function () {
                     var blob = new Blob([T.exportJSON()], { type: "application/json" });
                     var a = document.createElement("a");
                     a.href = URL.createObjectURL(blob);
@@ -352,16 +352,16 @@
                     a.click();
                     a.remove();
                     setTimeout(function () { URL.revokeObjectURL(a.href); }, 1000);
-                    say("Тема сохранена в файл.", "ok");
+                    say(_t("js.theme.exported"), "ok");
                 }),
-                button("Импорт", "btn btn-secondary vs-btn", function () { fileInput.click(); }),
+                button(_t("js.theme.import"), "btn btn-secondary vs-btn", function () { fileInput.click(); }),
                 fileInput,
-                button("Сбросить всё", "btn btn-danger vs-btn", function () {
+                button(_t("js.theme.reset_all"), "btn btn-danger vs-btn", function () {
                     T.resetAll();
-                    say("Оформление сброшено к стандартному.", "ok");
+                    say(_t("js.theme.reset_done"), "ok");
                 })
             ] }),
-            el("p", { cls: "field-hint vs-toolbar-note", text: "Оформление хранится только в этом браузере и применяется автоматически. Другие пользователи и устройства его не видят." }),
+            el("p", { cls: "field-hint vs-toolbar-note", text: _t("js.theme.storage_note") }),
             statusEl
         ] });
     }

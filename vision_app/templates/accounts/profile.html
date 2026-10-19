@@ -1,72 +1,72 @@
 {% extends "base.html" %}
 {% from "partials/avatar.html" import avatar %}
-{% block title %}Профиль{% endblock %}
+{% block title %}{{ _("nav.account.profile") }}{% endblock %}
 {% block content %}
 <div class="page-header">
-    <h1>Профиль</h1>
-    <p class="page-sub">Основные данные вашего аккаунта.</p>
+    <h1>{{ _('nav.account.profile') }}</h1>
+    <p class="page-sub">{{ _('profile.subtitle') }}</p>
 </div>
 
 <div class="panel-grid panel-grid-3">
     <div class="card">
-        <h2 class="card-title">Данные аккаунта</h2>
+        <h2 class="card-title">{{ _('account.data.title') }}</h2>
         <dl class="def-list">
-            <dt>Логин</dt><dd>{{ current_user.username }}</dd>
-            <dt>Название аккаунта</dt><dd>{{ current_user.nickname or "—" }}</dd>
-            <dt>Никнейм</dt><dd>{{ current_user.display_name }}</dd>
-            <dt>ФИО</dt><dd>{{ current_user.full_name or "—" }}</dd>
-            <dt>Цвет</dt><dd><span class="color-chip" style="background: {{ current_user.color_hex }}"></span> {{ current_user.color_hex }}</dd>
-            <dt>Роль</dt><dd><span class="role-badge role-{{ current_user.role }}">{{ current_user.role_display_ru }}</span></dd>
-            <dt>Дата регистрации</dt><dd>{{ current_user.created_at|localdt }}</dd>
+            <dt>{{ _('account.field.login') }}</dt><dd>{{ current_user.username }}</dd>
+            <dt>{{ _('account.field.nickname_title') }}</dt><dd>{{ current_user.nickname or "—" }}</dd>
+            <dt>{{ _('account.field.nickname') }}</dt><dd>{{ current_user.display_name }}</dd>
+            <dt>{{ _('account.field.fullname') }}</dt><dd>{{ current_user.full_name or "—" }}</dd>
+            <dt>{{ _('account.field.color') }}</dt><dd><span class="color-chip" style="background: {{ current_user.color_hex }}"></span> {{ current_user.color_hex }}</dd>
+            <dt>{{ _('account.field.role') }}</dt><dd><span class="role-badge role-{{ current_user.role }}">{{ current_user.role_display_ru }}</span></dd>
+            <dt>{{ _('account.field.registered') }}</dt><dd>{{ current_user.created_at|localdt }}</dd>
         </dl>
         {% include "partials/user_stats.html" %}
     </div>
 
     <div class="card">
-        <h2 class="card-title">Изменить данные</h2>
+        <h2 class="card-title">{{ _('account.edit.title') }}</h2>
         <section class="avatar-section" id="avatar-card"
              data-upload-url="{{ url_for('accounts.avatar_upload') }}" data-csrf="{{ csrf_token() }}"
              data-max-animated="{{ conf('AVATAR_MAX_ANIMATED_BYTES') }}">
-            <h3 class="subtitle">Аватар</h3>
+            <h3 class="subtitle">{{ _('profile.avatar.title') }}</h3>
             <div class="avatar-current">
-                <button type="button" class="avatar-pick" id="avatar-pick" title="Нажмите, чтобы выбрать новое фото" aria-label="Изменить аватар">
+                <button type="button" class="avatar-pick" id="avatar-pick" title="{{ _('profile.avatar.pick_title') }}" aria-label="{{ _('profile.avatar.change') }}">
                     {{ avatar(current_user, 'avatar-lg') }}
-                    <span class="avatar-pick-hint" aria-hidden="true">Изменить</span>
+                    <span class="avatar-pick-hint" aria-hidden="true">{{ _('common.change') }}</span>
                 </button>
                 <div class="avatar-actions">
-                    <label class="btn btn-sm" for="avatar-file">Загрузить фото</label>
+                    <label class="btn btn-sm" for="avatar-file">{{ _('profile.avatar.upload') }}</label>
                     <input type="file" id="avatar-file" accept="image/png,image/jpeg,image/webp,image/gif,image/bmp" hidden>
                     {% if current_user.has_avatar %}
                     <form method="post" action="{{ url_for('accounts.avatar_delete') }}"
-                          onsubmit="return confirm('Удалить аватар?')">
+                          onsubmit="return confirm(this.dataset.confirm)" data-confirm="{{ _('profile.avatar.delete.confirm') }}">
                         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                        <button type="submit" class="btn btn-sm btn-danger">Удалить</button>
+                        <button type="submit" class="btn btn-sm btn-danger">{{ _('common.delete') }}</button>
                     </form>
                     {% endif %}
                 </div>
             </div>
-            <p class="avatar-hint">PNG, JPEG, WebP, GIF или BMP. Нажмите на кружок или «Загрузить фото». GIF и анимированный WebP сохраняются с анимацией. Без фото аватар закрашивается вашим цветом (его можно выбрать ниже). Аватар видят другие пользователи.</p>
+            <p class="avatar-hint">{{ _('profile.avatar.hint') }}</p>
 
             <div class="avatar-editor" id="avatar-editor" hidden>
                 <div class="avatar-stage" id="avatar-stage">
-                    <canvas id="avatar-canvas" width="256" height="256" aria-label="Предпросмотр аватара"></canvas>
+                    <canvas id="avatar-canvas" width="256" height="256" aria-label="{{ _('profile.avatar.preview') }}"></canvas>
                     <div class="avatar-anim" id="avatar-anim" hidden><img id="avatar-anim-img" alt="" draggable="false"></div>
                     <div class="avatar-guide" aria-hidden="true"></div>
                 </div>
-                <p class="avatar-hint">Тяните мышью или пальцем — сдвиг. Колесо мыши — масштаб. В кружке — то, как аватар виден в меню.</p>
-                <p class="avatar-hint" id="avatar-anim-note" hidden>Анимированный файл: предпросмотр живой, а итоговые кадры обработает сервер. Размер исходника — до {{ (conf("AVATAR_MAX_ANIMATED_BYTES") // 1048576) }} МБ.</p>
+                <p class="avatar-hint">{{ _('profile.avatar.drag_hint') }}</p>
+                <p class="avatar-hint" id="avatar-anim-note" hidden>{{ _('profile.avatar.anim_note', size=(conf("AVATAR_MAX_ANIMATED_BYTES") // 1048576)) }}</p>
                 {#       ключ,  подпись,                мин,  макс, шаг, единица, множитель (в поле = внутреннее * множитель) #}
                 {% set controls = [
-                    ("dx",   "Позиция по X",         -256, 256, 1, "px", 1),
-                    ("dy",   "Позиция по Y",         -256, 256, 1, "px", 1),
-                    ("zoom", "Масштаб",               20,  500, 1, "%",  100),
-                    ("sx",   "Растяжение по X",       20,  300, 1, "%",  100),
-                    ("sy",   "Растяжение по Y",       20,  300, 1, "%",  100),
-                    ("rot",  "Поворот",             -180,  180, 1, "°",  1),
-                    ("hue",  "Оттенок",             -180,  180, 1, "°",  1),
-                    ("sat",  "Насыщенность",           0,  200, 1, "%",  100),
-                    ("bri",  "Яркость",                0,  200, 1, "%",  100),
-                    ("con",  "Контраст",               0,  200, 1, "%",  100),
+                    ("dx",   _("profile.avatar.ctl.dx"),         -256, 256, 1, "px", 1),
+                    ("dy",   _("profile.avatar.ctl.dy"),         -256, 256, 1, "px", 1),
+                    ("zoom", _("profile.avatar.ctl.zoom"),               20,  500, 1, "%",  100),
+                    ("sx",   _("profile.avatar.ctl.sx"),       20,  300, 1, "%",  100),
+                    ("sy",   _("profile.avatar.ctl.sy"),       20,  300, 1, "%",  100),
+                    ("rot",  _("profile.avatar.ctl.rot"),             -180,  180, 1, "°",  1),
+                    ("hue",  _("profile.avatar.ctl.hue"),             -180,  180, 1, "°",  1),
+                    ("sat",  _("profile.avatar.ctl.sat"),           0,  200, 1, "%",  100),
+                    ("bri",  _("profile.avatar.ctl.bri"),                0,  200, 1, "%",  100),
+                    ("con",  _("profile.avatar.ctl.con"),               0,  200, 1, "%",  100),
                 ] %}
                 <div class="avatar-controls">
                     {% for key, label, lo, hi, step, unit, factor in controls %}
@@ -76,21 +76,21 @@
                             <input type="range" class="avatar-range" id="av-{{ key }}-range" min="{{ lo }}" max="{{ hi }}" step="{{ step }}" aria-label="{{ label }}">
                             <input type="number" class="avatar-num" id="av-{{ key }}" min="{{ lo }}" max="{{ hi }}" step="{{ step }}" inputmode="decimal">
                             <span class="avatar-unit">{{ unit }}</span>
-                            <button type="button" class="btn btn-sm avatar-ctl-reset" data-reset="{{ key }}" title="Сбросить: {{ label|lower }}" aria-label="Сбросить: {{ label|lower }}">↺</button>
+                            <button type="button" class="btn btn-sm avatar-ctl-reset" data-reset="{{ key }}" title="{{ _('profile.avatar.reset_one', label=label|lower) }}" aria-label="{{ _('profile.avatar.reset_one', label=label|lower) }}">↺</button>
                         </div>
                     </div>
                     {% endfor %}
                 </div>
                 <div class="avatar-toolbar">
-                    <button type="button" class="btn btn-sm" data-act="rotate-left" title="Повернуть на 90° влево">↺ 90°</button>
-                    <button type="button" class="btn btn-sm" data-act="rotate-right" title="Повернуть на 90° вправо">↻ 90°</button>
-                    <button type="button" class="btn btn-sm" data-act="flip" title="Отразить по горизонтали">⇋ Отразить</button>
-                    <button type="button" class="btn btn-sm" data-act="reset">Сбросить всё</button>
+                    <button type="button" class="btn btn-sm" data-act="rotate-left" title="{{ _('profile.avatar.rotate_left') }}">↺ 90°</button>
+                    <button type="button" class="btn btn-sm" data-act="rotate-right" title="{{ _('profile.avatar.rotate_right') }}">↻ 90°</button>
+                    <button type="button" class="btn btn-sm" data-act="flip" title="{{ _('profile.avatar.flip_title') }}">⇋ {{ _('profile.avatar.flip_btn') }}</button>
+                    <button type="button" class="btn btn-sm" data-act="reset">{{ _('profile.avatar.reset_all') }}</button>
                 </div>
                 <p class="avatar-error" id="avatar-error" role="alert" hidden></p>
                 <div class="avatar-toolbar">
-                    <button type="button" class="btn btn-primary" data-act="save">Сохранить аватар</button>
-                    <button type="button" class="btn" data-act="cancel">Отмена</button>
+                    <button type="button" class="btn btn-primary" data-act="save">{{ _('profile.avatar.save') }}</button>
+                    <button type="button" class="btn" data-act="cancel">{{ _('common.cancel') }}</button>
                 </div>
             </div>
         </section>
@@ -98,29 +98,29 @@
         <form method="post" action="{{ url_for('accounts.profile') }}" class="form" novalidate>
             {{ form.hidden_tag() }}
             {% include "partials/form_fields.html" %}
-            <button type="submit" class="btn btn-primary">Сохранить</button>
+            <button type="submit" class="btn btn-primary">{{ _('common.save') }}</button>
         </form>
 
         <details class="danger-zone">
-            <summary>Удалить аккаунт</summary>
+            <summary>{{ _('account.delete') }}</summary>
             <div class="danger-zone-body">
-                <p class="danger-zone-hint">Это необратимо: аккаунт и вся ваша история анализов будут удалены. Для подтверждения введите вручную команду ниже — с вашим логином (скопировать её нельзя):</p>
+                <p class="danger-zone-hint">{{ _('profile.delete.hint') }}</p>
                 <code class="sql-prompt no-select">{{ delete_sql }}</code>
                 <form method="post" action="{{ url_for('accounts.delete_own_account') }}" class="form"
-                      onsubmit="return confirm('Точно удалить аккаунт «{{ current_user.username }}»? Это нельзя отменить.')">
+                      onsubmit="return confirm(this.dataset.confirm)" data-confirm="{{ _('account.delete.confirm', username=current_user.username) }}">
                     {{ delete_form.hidden_tag() }}
                     <div class="field">
                         {{ delete_form.confirm_sql.label }}
                         {{ delete_form.confirm_sql(autocomplete="off") }}
                     </div>
-                    <button type="submit" class="btn btn-danger">Удалить аккаунт</button>
+                    <button type="submit" class="btn btn-danger">{{ _('account.delete') }}</button>
                 </form>
             </div>
         </details>
     </div>
 
     <div class="card">
-        <h2 class="card-title">История</h2>
+        <h2 class="card-title">{{ _('nav.analysis.history') }}</h2>
         {% if analyses %}
         <ul class="mini-list">
             {% for item in analyses %}
@@ -128,18 +128,18 @@
                 <a href="{{ url_for('analyzer.result_detail', pk=item.id) }}" class="mini-list-row">
                     {% if item.image_path %}<img class="row-thumb" src="{{ url_for('analyzer.thumb', filename=item.image_path) }}" alt="" loading="lazy" width="36" height="36" onerror="this.style.visibility='hidden'">{% endif %}
                     <span class="risk-dot risk-{{ item.risk_level }}"></span>
-                    <span class="id-tag">№{{ item.id }}</span>
-                    <span class="mini-list-name">{{ (item.original_name or 'без имени')|trunc(28) }}</span>
+                    <span class="id-tag">{{ _('common.id_tag', id=item.id) }}</span>
+                    <span class="mini-list-name">{{ (item.original_name or _('account.history.unnamed'))|trunc(28) }}</span>
                     <span class="mini-list-date">{{ item.created_at|localdt('short') }}</span>
                 </a>
             </li>
             {% endfor %}
         </ul>
         {% if history_count %}
-        <a href="{{ url_for('analyzer.history') }}" class="link-more">Вся история →</a>
+        <a href="{{ url_for('analyzer.history') }}" class="link-more">{{ _('history.all') }} →</a>
         {% endif %}
         {% else %}
-        <p class="empty-hint">У вас пока нет завершённых анализов.</p>
+        <p class="empty-hint">{{ _('profile.history.empty') }}</p>
         {% endif %}
     </div>
 </div>

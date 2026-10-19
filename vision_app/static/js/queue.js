@@ -19,14 +19,14 @@
   document.addEventListener("submit", function (e) {
     if (e.target && e.target.id === "upload-form") {
       var btn = e.target.querySelector("#submit-btn");
-      if (btn) btn.textContent = "Загружаем…";
+      if (btn) btn.textContent = _t("js.queue.uploading");
     }
   });
 
   function describeFiles(input) {
     var files = input.files;
     if (!files || !files.length) return "";
-    return files.length === 1 ? files[0].name : "Файлов: " + files.length;
+    return files.length === 1 ? files[0].name : _t("js.queue.files_count", { n: files.length });
   }
 
   // ---------- список выбранных файлов: миниатюра + подпись + удаление ----------
@@ -82,11 +82,11 @@
     var head = document.createElement("div");
     head.className = "caption-list-head";
     var count = document.createElement("span");
-    count.textContent = "Выбрано: " + files.length;
+    count.textContent = _t("js.queue.selected", { n: files.length });
     var clearBtn = document.createElement("button");
     clearBtn.type = "button";
     clearBtn.className = "caption-list-clear";
-    clearBtn.textContent = "Очистить всё";
+    clearBtn.textContent = _t("js.queue.clear_all");
     clearBtn.addEventListener("click", function () { clearAllFiles(input); });
     head.appendChild(count);
     head.appendChild(clearBtn);
@@ -115,14 +115,14 @@
       var uploadForm = document.getElementById("upload-form");
       var captionMax = uploadForm ? Number(uploadForm.dataset.captionMax) : 0;
       if (captionMax > 0) field.maxLength = captionMax;
-      field.placeholder = "Комментарий (необязательно)";
+      field.placeholder = _t("js.queue.comment");
       field.value = captionMap.get(file) || "";
 
       var removeBtn = document.createElement("button");
       removeBtn.type = "button";
       removeBtn.className = "file-remove-btn";
-      removeBtn.title = "Убрать этот файл из выбора";
-      removeBtn.setAttribute("aria-label", "Убрать этот файл из выбора");
+      removeBtn.title = _t("js.queue.remove_file");
+      removeBtn.setAttribute("aria-label", _t("js.queue.remove_file"));
       removeBtn.textContent = "✕";
       removeBtn.addEventListener("click", function () { removeFileAt(input, i); });
 
@@ -213,8 +213,8 @@
   }
 
   function statusText(item) {
-    if (item.status === "processing") return "Обрабатывается · " + fmtElapsed(item.elapsed);
-    return item.ahead > 0 ? "В очереди · перед вами: " + item.ahead : "В очереди · следующий";
+    if (item.status === "processing") return _t("js.queue.processing", { time: fmtElapsed(item.elapsed) });
+    return item.ahead > 0 ? _t("js.queue.waiting", { ahead: item.ahead }) : _t("js.queue.next");
   }
 
   // Зеркалит макрос queue_row в dashboard.html. Текст задаём через textContent — без innerHTML.
@@ -238,8 +238,8 @@
       var token = document.createElement("input");
       token.type = "hidden"; token.name = "csrf_token"; token.value = csrf;
       var btn = el("button", "queue-cancel-btn", "✕");
-      btn.type = "submit"; btn.title = "Убрать из очереди";
-      btn.setAttribute("aria-label", "Убрать из очереди");
+      btn.type = "submit"; btn.title = _t("js.queue.cancel");
+      btn.setAttribute("aria-label", _t("js.queue.cancel"));
       form.appendChild(token);
       form.appendChild(btn);
       li.appendChild(form);
@@ -278,7 +278,7 @@
     meta.appendChild(risk);
     meta.appendChild(el("span", "id-tag", "№" + item.id));
     meta.appendChild(el("span", "mini-list-date", item.date));
-    if (item.is_new) meta.appendChild(el("span", "tag tag-new", "новое"));
+    if (item.is_new) meta.appendChild(el("span", "tag tag-new", _t("js.queue.new")));
     main.appendChild(meta);
 
     a.appendChild(main);

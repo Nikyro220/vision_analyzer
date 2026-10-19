@@ -29,6 +29,7 @@ import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 
+from flask_babel import gettext
 from sqlalchemy import func, or_, select, update
 
 from . import image_dedup, vector_search
@@ -115,7 +116,7 @@ def _run_analysis(app, image_path: str, image_mime: str, caption: str = ""):
     try:
         data = path.read_bytes()
     except OSError:
-        return None, "Файл изображения не найден на диске."
+        return None, gettext("queue.error.file_missing")
 
     mime = image_mime or _MIME_BY_EXT.get(path.suffix.lower(), "image/jpeg")
 
@@ -135,7 +136,7 @@ def _run_analysis(app, image_path: str, image_mime: str, caption: str = ""):
         return None, str(exc)
     except Exception as exc:  # noqa: BLE001 — задача не должна навсегда застревать в «обрабатывается»
         log.exception("Непредвиденная ошибка при анализе задачи")
-        return None, f"Внутренняя ошибка обработки: {exc}"
+        return None, gettext("queue.error.internal", error=exc)
 
 
 def _outcome_values(outcome: AnalysisOutcome) -> dict:
@@ -185,7 +186,7 @@ def _run_link_analysis(url: str):
         return None, str(exc)
     except Exception as exc:  # noqa: BLE001 — задача не должна навсегда застревать в «обрабатывается»
         log.exception("Непредвиденная ошибка при анализе ссылки")
-        return None, f"Внутренняя ошибка обработки: {exc}"
+        return None, gettext("queue.error.internal", error=exc)
 
 
 def _ext_for(mime: str) -> str:
@@ -203,7 +204,7 @@ def _finish_link(app, job_id: int, user_id: int, url: str, result: LinkOutcome |
     новыми готовыми записями того же пользователя. Без картинок — обычная ошибка задачи.
     """
     if result is None or not result.items:
-        _finish(job_id, None, error or "Не удалось получить изображение по ссылке.")
+        _finish(job_id, None, error or gettext("queue.error.link_failed"))
         return
 
     root = Path(app.config["UPLOAD_FOLDER"])
@@ -222,7 +223,7 @@ def _finish_link(app, job_id: int, user_id: int, url: str, result: LinkOutcome |
         for path in written:
             path.unlink(missing_ok=True)
         log.exception("Очередь: не удалось сохранить картинку из ссылки (задача %s)", job_id)
-        _finish(job_id, None, f"Не удалось сохранить скачанное изображение: {exc}")
+        _finish(job_id, None, gettext("queue.error.save_failed", error=exc))
         return
 
     first, first_rel, first_hash = saved[0]

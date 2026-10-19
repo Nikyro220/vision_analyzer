@@ -1,11 +1,11 @@
 {% if page.pages > 1 %}
 <nav class="pagination">
     {% if page.has_prev %}
-        <a href="{{ page_url(page.prev_num) }}" class="page-link">← Назад</a>
+        <a href="{{ page_url(page.prev_num) }}" class="page-link">{{ _('pagination.prev') }}</a>
     {% endif %}
-    <span class="page-current">Страница {{ page.page }} из {{ page.pages }}</span>
+    <span class="page-current">{{ _('pagination.current', page=page.page, pages=page.pages) }}</span>
     {% if page.has_next %}
-        <a href="{{ page_url(page.next_num) }}" class="page-link">Вперёд →</a>
+        <a href="{{ page_url(page.next_num) }}" class="page-link">{{ _('pagination.next') }}</a>
     {% endif %}
 </nav>
 {% endif %}

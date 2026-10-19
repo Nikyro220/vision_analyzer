@@ -1,19 +1,19 @@
 {# Сводка по пользователю. Ждёт переменные: stats (см. user_stats.py) и who — чьи это данные. #}
-<h3 class="subtitle stats-title">Статистика</h3>
+<h3 class="subtitle stats-title">{{ _('stats.title') }}</h3>
 <div class="stat-tiles">
-    <div class="stat-tile"><span class="stat-num">{{ stats.total }}</span><span class="stat-label">всего анализов</span></div>
-    <div class="stat-tile"><span class="stat-num">{{ stats.done }}</span><span class="stat-label">завершено</span></div>
-    <div class="stat-tile"><span class="stat-num">{{ stats.high }}</span><span class="stat-label">высокий риск</span></div>
-    <div class="stat-tile"><span class="stat-num">{{ stats.needs_review }}</span><span class="stat-label">на проверку</span></div>
+    <div class="stat-tile"><span class="stat-num">{{ stats.total }}</span><span class="stat-label">{{ _('stats.tile.total') }}</span></div>
+    <div class="stat-tile"><span class="stat-num">{{ stats.done }}</span><span class="stat-label">{{ _('stats.tile.done') }}</span></div>
+    <div class="stat-tile"><span class="stat-num">{{ stats.high }}</span><span class="stat-label">{{ _('stats.tile.high') }}</span></div>
+    <div class="stat-tile"><span class="stat-num">{{ stats.needs_review }}</span><span class="stat-label">{{ _('stats.tile.review') }}</span></div>
 </div>
 <dl class="def-list stats-list">
-    <dt>В очереди / в обработке</dt><dd>{{ stats.active }}</dd>
-    <dt>Риск средний / низкий</dt><dd>{{ stats.medium }} / {{ stats.low }}{% if stats.unknown %} · не определён: {{ stats.unknown }}{% endif %}</dd>
-    <dt>С ошибкой</dt><dd>{{ stats.with_error }}</dd>
-    <dt>По ссылке на пост</dt><dd>{{ stats.by_link }}</dd>
-    <dt>За 7 / 30 дней</dt><dd>{{ stats.last_7_days }} / {{ stats.last_30_days }}</dd>
-    <dt>Первый анализ</dt><dd>{{ stats.first_at|localdt }}</dd>
-    <dt>Последний анализ</dt><dd>{{ stats.last_at|localdt }}</dd>
-    <dt>Чатов / сообщений</dt><dd>{{ stats.chats }} / {{ stats.chat_messages }}</dd>
-    <dt>Аккаунту</dt><dd>{{ stats.account_days }} дн.</dd>
+    <dt>{{ _('stats.row.active') }}</dt><dd>{{ stats.active }}</dd>
+    <dt>{{ _('stats.row.risk_mid_low') }}</dt><dd>{{ stats.medium }} / {{ stats.low }}{% if stats.unknown %} {{ _('stats.row.unknown', count=stats.unknown) }}{% endif %}</dd>
+    <dt>{{ _('stats.row.with_error') }}</dt><dd>{{ stats.with_error }}</dd>
+    <dt>{{ _('stats.row.by_link') }}</dt><dd>{{ stats.by_link }}</dd>
+    <dt>{{ _('stats.row.last_days') }}</dt><dd>{{ stats.last_7_days }} / {{ stats.last_30_days }}</dd>
+    <dt>{{ _('stats.row.first') }}</dt><dd>{{ stats.first_at|localdt }}</dd>
+    <dt>{{ _('stats.row.last') }}</dt><dd>{{ stats.last_at|localdt }}</dd>
+    <dt>{{ _('stats.row.chats') }}</dt><dd>{{ stats.chats }} / {{ stats.chat_messages }}</dd>
+    <dt>{{ _('stats.row.account_age') }}</dt><dd>{{ _('stats.row.account_days', days=stats.account_days) }}</dd>
 </dl>

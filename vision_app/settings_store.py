@@ -17,6 +17,7 @@ from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
 from flask import current_app
+from flask_babel import gettext, lazy_gettext
 
 from . import config as _config
 from .config import NO_OVERRIDE, conf
@@ -141,176 +142,174 @@ _MB = 1024 * 1024
 
 # (название группы, пояснение, настройки) — в том порядке, в каком показываем на странице.
 SETTING_GROUPS: list[tuple[str, str, list[RuntimeSetting]]] = [
-    ("Сервер анализа", "Клиент vision-сервера: адрес, таймауты, язык ответов.", [
-        _s("VISION_API_BASE_URL", "Адрес сервера анализа", "str", hint="Например http://127.0.0.1:6769", validator="url"),
-        _s("VISION_API_TIMEOUT", "Таймаут /analyze и /chat, сек", min_key="VISION_API_TIMEOUT_MIN", max_key="VISION_API_TIMEOUT_MAX"),
-        _s("VISION_API_HEALTH_TIMEOUT", "Таймаут /health и GET /embeddings, сек", lo=1, hi=300),
-        _s("VISION_API_CALL_TIMEOUT", "Таймаут вспомогательных запросов, сек", lo=1, hi=600,
-           hint="/models, /providers/<имя>/settings, /categories и т. п."),
-        _s("VISION_API_MODELS_TIMEOUT", "Таймаут списка моделей облачного провайдера, сек", lo=1, hi=600,
-           hint="/models облачных провайдеров (Gemini, Anthropic); отдельно от общего таймаута вспомогательных запросов."),
-        _s("MODELS_CACHE_TTL", "Кэш списка моделей облачного провайдера, сек", lo=0, hi=2592000,
-           hint="Сколько список моделей облачного провайдера хранится в БД до автообновления. 0 — не кэшировать."),
-        _s("VISION_API_EMBED_TIMEOUT", "Таймаут POST /embeddings, сек", lo=1, hi=600),
-        _s("VISION_API_ERROR_CHARS", "Длина текста ошибки сервера, симв.", lo=20, hi=5000,
-           hint="Сколько символов ответа-ошибки показывать пользователю."),
-        _s("VISION_API_RAW_TEXT_CHARS", "Усечение «сырого» ответа модели, симв.", lo=100, hi=100000,
-           hint="Для ответов без валидного JSON."),
-        _s("VISION_API_BACKEND_NAME_CHARS", "Длина названия бэкенда, симв.", lo=1, hi=32,
-           hint="Не больше 32 — столько влезает в колонку БД."),
-        _s("VISION_API_MODEL_NAME_CHARS", "Длина названия модели, симв.", lo=1, hi=120,
-           hint="Не больше 120 — столько влезает в колонку БД."),
-        _s("VISION_API_FALLBACK", "Фолбэк на другой бэкенд при сбое", "bool",
-           hint="Если бэкенд недоступен или отвечает 5xx — сервер пробует следующий: локальные, затем облачные "
-                "(облачные — только если разрешено на сервере и задан ключ). Работает и при ручном выборе бэкенда."),
-        _s("DEFAULT_LANG", "Язык ответов модели", "choice", choices=("ru", "en"),
-           hint="Передаётся серверу анализа как lang=..."),
+    (lazy_gettext("settings.group.g1.title"), lazy_gettext("settings.group.g1.desc"), [
+        _s("VISION_API_BASE_URL", lazy_gettext("settings.vision_api_base_url.label"), "str", hint=lazy_gettext("settings.vision_api_base_url.hint"), validator="url"),
+        _s("VISION_API_TIMEOUT", lazy_gettext("settings.vision_api_timeout.label"), min_key="VISION_API_TIMEOUT_MIN", max_key="VISION_API_TIMEOUT_MAX"),
+        _s("VISION_API_HEALTH_TIMEOUT", lazy_gettext("settings.vision_api_health_timeout.label"), lo=1, hi=300),
+        _s("VISION_API_CALL_TIMEOUT", lazy_gettext("settings.vision_api_call_timeout.label"), lo=1, hi=600,
+           hint=lazy_gettext("settings.vision_api_call_timeout.hint")),
+        _s("VISION_API_MODELS_TIMEOUT", lazy_gettext("settings.vision_api_models_timeout.label"), lo=1, hi=600,
+           hint=lazy_gettext("settings.vision_api_models_timeout.hint")),
+        _s("MODELS_CACHE_TTL", lazy_gettext("settings.models_cache_ttl.label"), lo=0, hi=2592000,
+           hint=lazy_gettext("settings.models_cache_ttl.hint")),
+        _s("VISION_API_EMBED_TIMEOUT", lazy_gettext("settings.vision_api_embed_timeout.label"), lo=1, hi=600),
+        _s("VISION_API_ERROR_CHARS", lazy_gettext("settings.vision_api_error_chars.label"), lo=20, hi=5000,
+           hint=lazy_gettext("settings.vision_api_error_chars.hint")),
+        _s("VISION_API_RAW_TEXT_CHARS", lazy_gettext("settings.vision_api_raw_text_chars.label"), lo=100, hi=100000,
+           hint=lazy_gettext("settings.vision_api_raw_text_chars.hint")),
+        _s("VISION_API_BACKEND_NAME_CHARS", lazy_gettext("settings.vision_api_backend_name_chars.label"), lo=1, hi=32,
+           hint=lazy_gettext("settings.vision_api_backend_name_chars.hint")),
+        _s("VISION_API_MODEL_NAME_CHARS", lazy_gettext("settings.vision_api_model_name_chars.label"), lo=1, hi=120,
+           hint=lazy_gettext("settings.vision_api_model_name_chars.hint")),
+        _s("VISION_API_FALLBACK", lazy_gettext("settings.vision_api_fallback.label"), "bool",
+           hint=lazy_gettext("settings.vision_api_fallback.hint")),
+        _s("DEFAULT_LANG", lazy_gettext("settings.default_lang.label"), "choice", choices=("ru", "en"),
+           hint=lazy_gettext("settings.default_lang.hint")),
     ]),
-    ("Очередь анализов", "Фоновая обработка загруженных изображений.", [
-        _s("QUEUE_WORKER_ENABLED", "Обработка очереди включена", "bool",
-           hint="Если выключить, загруженные файлы будут копиться в очереди без обработки."),
-        _s("QUEUE_WORKERS", "Потоков-обработчиков", hint="Сколько анализов выполнять параллельно.",
+    (lazy_gettext("settings.group.g2.title"), lazy_gettext("settings.group.g2.desc"), [
+        _s("QUEUE_WORKER_ENABLED", lazy_gettext("settings.queue_worker_enabled.label"), "bool",
+           hint=lazy_gettext("settings.queue_worker_enabled.hint")),
+        _s("QUEUE_WORKERS", lazy_gettext("settings.queue_workers.label"), hint=lazy_gettext("settings.queue_workers.hint"),
            min_key="QUEUE_WORKERS_MIN", max_key="QUEUE_WORKERS_MAX"),
-        _s("QUEUE_POLL_SECONDS", "Интервал опроса очереди, сек", "float",
-           hint="Как часто обработчик проверяет пустую очередь.",
+        _s("QUEUE_POLL_SECONDS", lazy_gettext("settings.queue_poll_seconds.label"), "float",
+           hint=lazy_gettext("settings.queue_poll_seconds.hint"),
            min_key="QUEUE_POLL_SECONDS_MIN", max_key="QUEUE_POLL_SECONDS_MAX"),
-        _s("QUEUE_MAX_FILES_PER_UPLOAD", "Файлов за одну загрузку",
+        _s("QUEUE_MAX_FILES_PER_UPLOAD", lazy_gettext("settings.queue_max_files_per_upload.label"),
            min_key="QUEUE_MAX_FILES_PER_UPLOAD_MIN", max_key="QUEUE_MAX_FILES_PER_UPLOAD_MAX"),
-        _s("QUEUE_MAX_PENDING_PER_USER", "Задач в очереди на пользователя",
+        _s("QUEUE_MAX_PENDING_PER_USER", lazy_gettext("settings.queue_max_pending_per_user.label"),
            min_key="QUEUE_MAX_PENDING_PER_USER_MIN", max_key="QUEUE_MAX_PENDING_PER_USER_MAX"),
-        _s("QUEUE_MAX_PENDING_TOTAL", "Задач в очереди всего (на всех пользователей)",
-           hint="Общий потолок очереди и обработки. Лимит на пользователя действует отдельно.",
+        _s("QUEUE_MAX_PENDING_TOTAL", lazy_gettext("settings.queue_max_pending_total.label"),
+           hint=lazy_gettext("settings.queue_max_pending_total.hint"),
            min_key="QUEUE_MAX_PENDING_TOTAL_MIN", max_key="QUEUE_MAX_PENDING_TOTAL_MAX"),
-        _s("QUEUE_ERROR_PAUSE_SECONDS", "Пауза после ошибки цикла, сек", lo=0, hi=300),
-        _s("QUEUE_CLAIM_RETRIES", "Попыток захвата задачи при гонке", lo=1, hi=100),
-        _s("QUEUE_STOP_JOIN_TIMEOUT", "Ожидание остановки потока, сек", lo=0, hi=300),
+        _s("QUEUE_ERROR_PAUSE_SECONDS", lazy_gettext("settings.queue_error_pause_seconds.label"), lo=0, hi=300),
+        _s("QUEUE_CLAIM_RETRIES", lazy_gettext("settings.queue_claim_retries.label"), lo=1, hi=100),
+        _s("QUEUE_STOP_JOIN_TIMEOUT", lazy_gettext("settings.queue_stop_join_timeout.label"), lo=0, hi=300),
     ]),
-    ("Границы допустимых значений", "Пределы, в которых можно выбирать значения выше. Нижняя граница не может быть больше верхней.", [
-        _s("QUEUE_WORKERS_MIN", "Потоков-обработчиков: минимум", lo=1, hi=64),
-        _s("QUEUE_WORKERS_MAX", "Потоков-обработчиков: максимум", lo=1, hi=64,
-           hint="Потолок защищает от опечатки вроде 100 потоков."),
-        _s("QUEUE_POLL_SECONDS_MIN", "Интервал опроса: минимум, сек", lo=1, hi=3600),
-        _s("QUEUE_POLL_SECONDS_MAX", "Интервал опроса: максимум, сек", lo=1, hi=3600),
-        _s("QUEUE_MAX_FILES_PER_UPLOAD_MIN", "Файлов за загрузку: минимум", lo=1, hi=10000),
-        _s("QUEUE_MAX_FILES_PER_UPLOAD_MAX", "Файлов за загрузку: максимум", lo=1, hi=10000),
-        _s("QUEUE_MAX_PENDING_PER_USER_MIN", "Задач на пользователя: минимум", lo=1, hi=100000),
-        _s("QUEUE_MAX_PENDING_PER_USER_MAX", "Задач на пользователя: максимум", lo=1, hi=100000),
-        _s("QUEUE_MAX_PENDING_TOTAL_MIN", "Задач всего: минимум", lo=1, hi=100000),
-        _s("QUEUE_MAX_PENDING_TOTAL_MAX", "Задач всего: максимум", lo=1, hi=100000),
-        _s("VISION_API_TIMEOUT_MIN", "Таймаут /analyze: минимум, сек", lo=1, hi=86400),
-        _s("VISION_API_TIMEOUT_MAX", "Таймаут /analyze: максимум, сек", lo=1, hi=86400),
-        _s("SETTING_STR_MAX_LEN", "Максимальная длина строковой настройки", lo=10, hi=2000),
+    (lazy_gettext("settings.group.g3.title"), lazy_gettext("settings.group.g3.desc"), [
+        _s("QUEUE_WORKERS_MIN", lazy_gettext("settings.queue_workers_min.label"), lo=1, hi=64),
+        _s("QUEUE_WORKERS_MAX", lazy_gettext("settings.queue_workers_max.label"), lo=1, hi=64,
+           hint=lazy_gettext("settings.queue_workers_max.hint")),
+        _s("QUEUE_POLL_SECONDS_MIN", lazy_gettext("settings.queue_poll_seconds_min.label"), lo=1, hi=3600),
+        _s("QUEUE_POLL_SECONDS_MAX", lazy_gettext("settings.queue_poll_seconds_max.label"), lo=1, hi=3600),
+        _s("QUEUE_MAX_FILES_PER_UPLOAD_MIN", lazy_gettext("settings.queue_max_files_per_upload_min.label"), lo=1, hi=10000),
+        _s("QUEUE_MAX_FILES_PER_UPLOAD_MAX", lazy_gettext("settings.queue_max_files_per_upload_max.label"), lo=1, hi=10000),
+        _s("QUEUE_MAX_PENDING_PER_USER_MIN", lazy_gettext("settings.queue_max_pending_per_user_min.label"), lo=1, hi=100000),
+        _s("QUEUE_MAX_PENDING_PER_USER_MAX", lazy_gettext("settings.queue_max_pending_per_user_max.label"), lo=1, hi=100000),
+        _s("QUEUE_MAX_PENDING_TOTAL_MIN", lazy_gettext("settings.queue_max_pending_total_min.label"), lo=1, hi=100000),
+        _s("QUEUE_MAX_PENDING_TOTAL_MAX", lazy_gettext("settings.queue_max_pending_total_max.label"), lo=1, hi=100000),
+        _s("VISION_API_TIMEOUT_MIN", lazy_gettext("settings.vision_api_timeout_min.label"), lo=1, hi=86400),
+        _s("VISION_API_TIMEOUT_MAX", lazy_gettext("settings.vision_api_timeout_max.label"), lo=1, hi=86400),
+        _s("SETTING_STR_MAX_LEN", lazy_gettext("settings.setting_str_max_len.label"), lo=10, hi=2000),
     ]),
-    ("Поиск по смыслу", "Эмбеддинги и фоновая индексация описаний анализов.", [
-        _s("EMBEDDING_MIN_SIMILARITY", "Порог сходства (cosine)", "float", 0, 1,
-           hint="Ниже этого значения результат в выдачу не попадает. Если выдача шумная — поднимите."),
-        _s("EMBEDDING_RELATIVE_MARGIN", "Отступ от лучшего результата", "float", 0, 1,
-           hint="В выдачу идёт только то, что не ниже «лучший скор − отступ». 0 — выключить."),
-        _s("EMBEDDING_SCAN_LIMIT", "Сколько векторов сравнивать за запрос", lo=1, hi=1000000),
-        _s("EMBEDDING_MEMORY_CACHE", "Кэш векторов в памяти", "bool",
-           hint="Не читать векторы из БД на каждый поиск. Если выключить — поиск работает как раньше, но медленнее."),
-        _s("EMBEDDING_BATCH_SIZE", "Размер батча для сервера", lo=1, hi=64, hint="Сервер принимает максимум 64 текста за запрос."),
-        _s("EMBEDDING_MAX_TEXT_CHARS", "Максимальная длина текста для эмбеддинга, симв.", lo=100, hi=8000,
-           hint="Серверный лимит — 8000."),
-        _s("EMBEDDING_MAX_MATCHED_IDS", "Сколько id выше порога держать для статистики", lo=1, hi=100000),
-        _s("EMBEDDING_IDLE_BATCHES", "Батчей за один холостой проход", lo=1, hi=1000),
-        _s("EMBEDDING_IDLE_PAUSE_UNAVAILABLE", "Пауза: эмбеддинги выключены/недоступны, сек", lo=1, hi=86400),
-        _s("EMBEDDING_IDLE_PAUSE_NOTHING", "Пауза: индексировать нечего, сек", lo=1, hi=86400),
-        _s("EMBEDDING_IDLE_PAUSE_RETRY", "Пауза: модель качается / сбой, сек", lo=1, hi=86400),
+    (lazy_gettext("settings.group.g4.title"), lazy_gettext("settings.group.g4.desc"), [
+        _s("EMBEDDING_MIN_SIMILARITY", lazy_gettext("settings.embedding_min_similarity.label"), "float", 0, 1,
+           hint=lazy_gettext("settings.embedding_min_similarity.hint")),
+        _s("EMBEDDING_RELATIVE_MARGIN", lazy_gettext("settings.embedding_relative_margin.label"), "float", 0, 1,
+           hint=lazy_gettext("settings.embedding_relative_margin.hint")),
+        _s("EMBEDDING_SCAN_LIMIT", lazy_gettext("settings.embedding_scan_limit.label"), lo=1, hi=1000000),
+        _s("EMBEDDING_MEMORY_CACHE", lazy_gettext("settings.embedding_memory_cache.label"), "bool",
+           hint=lazy_gettext("settings.embedding_memory_cache.hint")),
+        _s("EMBEDDING_BATCH_SIZE", lazy_gettext("settings.embedding_batch_size.label"), lo=1, hi=64, hint=lazy_gettext("settings.embedding_batch_size.hint")),
+        _s("EMBEDDING_MAX_TEXT_CHARS", lazy_gettext("settings.embedding_max_text_chars.label"), lo=100, hi=8000,
+           hint=lazy_gettext("settings.embedding_max_text_chars.hint")),
+        _s("EMBEDDING_MAX_MATCHED_IDS", lazy_gettext("settings.embedding_max_matched_ids.label"), lo=1, hi=100000),
+        _s("EMBEDDING_IDLE_BATCHES", lazy_gettext("settings.embedding_idle_batches.label"), lo=1, hi=1000),
+        _s("EMBEDDING_IDLE_PAUSE_UNAVAILABLE", lazy_gettext("settings.embedding_idle_pause_unavailable.label"), lo=1, hi=86400),
+        _s("EMBEDDING_IDLE_PAUSE_NOTHING", lazy_gettext("settings.embedding_idle_pause_nothing.label"), lo=1, hi=86400),
+        _s("EMBEDDING_IDLE_PAUSE_RETRY", lazy_gettext("settings.embedding_idle_pause_retry.label"), lo=1, hi=86400),
     ]),
-    ("Чат", "Сообщения, история и изображения в чате с моделью.", [
-        _s("CHAT_MAX_MESSAGE_LEN", "Максимальная длина сообщения, симв.", lo=10, hi=200000),
-        _s("CHAT_MAX_HISTORY_MESSAGES", "Сообщений истории, уходящих модели", lo=1, hi=1000),
-        _s("CHAT_TITLE_LEN", "Длина автоназвания чата, симв.", lo=5, hi=200),
-        _s("CHAT_TURN_STALE_SECONDS", "«Протухание» ответа модели, сек", lo=30, hi=86400,
-           hint="Если сервер упал посреди ответа, чат снова примет сообщения через это время."),
-        _s("CHAT_MAX_TOOL_CALLS", "Обращений к инструментам за один ход", lo=1, hi=20),
-        _s("CHAT_PROMPT_MAX_CHARS", "Длина системного промпта чата, симв.", lo=200, hi=50000,
-           hint="Ограничение для поля «Системный промпт чата» в разделе «Промпты»."),
-        _s("CHAT_CONTEXT_IMAGES", "Вложений, которые модель «видит» напрямую", lo=0, hi=50,
-           hint="Каждая картинка — порядка 1–1,5 тыс. токенов контекста."),
-        _s("CHAT_MAX_IMAGES_PER_MESSAGE", "Изображений в одном сообщении", lo=1, hi=50),
-        _s("CHAT_MAX_IMAGE_BYTES", "Максимальный размер одного изображения, МБ", lo=1, hi=500, scale=_MB,
-           hint="Общий лимит запроса — «Максимальный размер запроса»."),
-        _s("CHAT_ATTACHMENT_NAME_MAX", "Длина имени вложения, симв.", lo=10, hi=255),
-        _s("CHAT_ATTACHMENT_CACHE_SECONDS", "Кэш вложений в браузере, сек", lo=0, hi=31536000),
-        _s("CHAT_MODEL_MAX_SIDE", "Макс. сторона изображения для модели, px", lo=64, hi=8192),
-        _s("CHAT_MODEL_PASSTHROUGH_BYTES", "Файлы до этого размера уходят модели как есть, байт", lo=1000, hi=100000000),
-        _s("CHAT_MODEL_JPEG_QUALITY", "Качество JPEG для модели", lo=1, hi=100),
+    (lazy_gettext("settings.group.g5.title"), lazy_gettext("settings.group.g5.desc"), [
+        _s("CHAT_MAX_MESSAGE_LEN", lazy_gettext("settings.chat_max_message_len.label"), lo=10, hi=200000),
+        _s("CHAT_MAX_HISTORY_MESSAGES", lazy_gettext("settings.chat_max_history_messages.label"), lo=1, hi=1000),
+        _s("CHAT_TITLE_LEN", lazy_gettext("settings.chat_title_len.label"), lo=5, hi=200),
+        _s("CHAT_TURN_STALE_SECONDS", lazy_gettext("settings.chat_turn_stale_seconds.label"), lo=30, hi=86400,
+           hint=lazy_gettext("settings.chat_turn_stale_seconds.hint")),
+        _s("CHAT_MAX_TOOL_CALLS", lazy_gettext("settings.chat_max_tool_calls.label"), lo=1, hi=20),
+        _s("CHAT_PROMPT_MAX_CHARS", lazy_gettext("settings.chat_prompt_max_chars.label"), lo=200, hi=50000,
+           hint=lazy_gettext("settings.chat_prompt_max_chars.hint")),
+        _s("CHAT_CONTEXT_IMAGES", lazy_gettext("settings.chat_context_images.label"), lo=0, hi=50,
+           hint=lazy_gettext("settings.chat_context_images.hint")),
+        _s("CHAT_MAX_IMAGES_PER_MESSAGE", lazy_gettext("settings.chat_max_images_per_message.label"), lo=1, hi=50),
+        _s("CHAT_MAX_IMAGE_BYTES", lazy_gettext("settings.chat_max_image_bytes.label"), lo=1, hi=500, scale=_MB,
+           hint=lazy_gettext("settings.chat_max_image_bytes.hint")),
+        _s("CHAT_ATTACHMENT_NAME_MAX", lazy_gettext("settings.chat_attachment_name_max.label"), lo=10, hi=255),
+        _s("CHAT_ATTACHMENT_CACHE_SECONDS", lazy_gettext("settings.chat_attachment_cache_seconds.label"), lo=0, hi=31536000),
+        _s("CHAT_MODEL_MAX_SIDE", lazy_gettext("settings.chat_model_max_side.label"), lo=64, hi=8192),
+        _s("CHAT_MODEL_PASSTHROUGH_BYTES", lazy_gettext("settings.chat_model_passthrough_bytes.label"), lo=1000, hi=100000000),
+        _s("CHAT_MODEL_JPEG_QUALITY", lazy_gettext("settings.chat_model_jpeg_quality.label"), lo=1, hi=100),
     ]),
-    ("Инструменты чата", "Результаты анализа для модели и поиск по анализам и пользователям. Числа попадают в промпт модели.", [
-        _s("CHAT_JOB_FIELD_CHARS", "Результат анализа: длина поля, симв.", lo=50, hi=20000),
-        _s("CHAT_JOB_ANSWER_CHARS", "Результат анализа: длина ответа, симв.", lo=100, hi=100000),
-        _s("CHAT_JOB_CATEGORY_CHARS", "Результат анализа: длина категории, симв.", lo=10, hi=500),
-        _s("CHAT_JOB_DETAIL_CHARS", "Результат анализа: длина детали, симв.", lo=20, hi=5000),
-        _s("CHAT_JOB_MAX_SIGNALS", "Результат анализа: число сигналов", lo=1, hi=100),
-        _s("SEARCH_SCAN_LIMIT", "Поиск анализов: строк для разбора", lo=10, hi=100000),
-        _s("SEARCH_DEFAULT_LIMIT", "Поиск анализов: записей по умолчанию", lo=1, hi=100),
-        _s("SEARCH_MAX_LIMIT", "Поиск анализов: максимум записей", lo=1, hi=500),
-        _s("SEARCH_MAX_CARDS", "Поиск анализов: карточек под ответом", lo=0, hi=50),
-        _s("SEARCH_DESC_CHARS", "Поиск анализов: длина описания, симв.", lo=20, hi=2000),
-        _s("SEARCH_MAX_SINCE_DAYS", "Поиск анализов: глубина, дней", lo=1, hi=36500),
-        _s("SEARCH_MAX_QUERY_CHARS", "Поиск анализов: длина запроса, симв.", lo=20, hi=5000),
-        _s("SEARCH_MAX_KEYWORDS", "Поиск анализов: ключевых слов", lo=1, hi=50),
-        _s("BODY_MARKS_CHECK_DEFAULT_LIMIT", "Проверка меток на теле: картинок за вызов", lo=1, hi=50),
-        _s("BODY_MARKS_CHECK_MAX_LIMIT", "Проверка меток на теле: максимум картинок за вызов", lo=1, hi=100),
-        _s("BODY_MARKS_CHECK_TIME_BUDGET", "Проверка меток на теле: время на вызов, сек", lo=10, hi=1800),
-        _s("USER_SEARCH_DEFAULT_LIMIT", "Поиск пользователей: записей по умолчанию", lo=1, hi=100),
-        _s("USER_SEARCH_MAX_LIMIT", "Поиск пользователей: максимум записей", lo=1, hi=500),
-        _s("USER_SEARCH_MAX_CARDS", "Поиск пользователей: карточек под ответом", lo=0, hi=50),
-        _s("CHAT_ACTION_TTL_MINUTES", "Действия из чата: срок заявки, мин", lo=1, hi=1440),
-        _s("CHAT_ACTION_MAX_PENDING", "Действия из чата: неподтверждённых заявок", lo=1, hi=50),
-        _s("USER_SEARCH_MAX_SINCE_DAYS", "Поиск пользователей: глубина, дней", lo=1, hi=36500),
+    (lazy_gettext("settings.group.g6.title"), lazy_gettext("settings.group.g6.desc"), [
+        _s("CHAT_JOB_FIELD_CHARS", lazy_gettext("settings.chat_job_field_chars.label"), lo=50, hi=20000),
+        _s("CHAT_JOB_ANSWER_CHARS", lazy_gettext("settings.chat_job_answer_chars.label"), lo=100, hi=100000),
+        _s("CHAT_JOB_CATEGORY_CHARS", lazy_gettext("settings.chat_job_category_chars.label"), lo=10, hi=500),
+        _s("CHAT_JOB_DETAIL_CHARS", lazy_gettext("settings.chat_job_detail_chars.label"), lo=20, hi=5000),
+        _s("CHAT_JOB_MAX_SIGNALS", lazy_gettext("settings.chat_job_max_signals.label"), lo=1, hi=100),
+        _s("SEARCH_SCAN_LIMIT", lazy_gettext("settings.search_scan_limit.label"), lo=10, hi=100000),
+        _s("SEARCH_DEFAULT_LIMIT", lazy_gettext("settings.search_default_limit.label"), lo=1, hi=100),
+        _s("SEARCH_MAX_LIMIT", lazy_gettext("settings.search_max_limit.label"), lo=1, hi=500),
+        _s("SEARCH_MAX_CARDS", lazy_gettext("settings.search_max_cards.label"), lo=0, hi=50),
+        _s("SEARCH_DESC_CHARS", lazy_gettext("settings.search_desc_chars.label"), lo=20, hi=2000),
+        _s("SEARCH_MAX_SINCE_DAYS", lazy_gettext("settings.search_max_since_days.label"), lo=1, hi=36500),
+        _s("SEARCH_MAX_QUERY_CHARS", lazy_gettext("settings.search_max_query_chars.label"), lo=20, hi=5000),
+        _s("SEARCH_MAX_KEYWORDS", lazy_gettext("settings.search_max_keywords.label"), lo=1, hi=50),
+        _s("BODY_MARKS_CHECK_DEFAULT_LIMIT", lazy_gettext("settings.body_marks_check_default_limit.label"), lo=1, hi=50),
+        _s("BODY_MARKS_CHECK_MAX_LIMIT", lazy_gettext("settings.body_marks_check_max_limit.label"), lo=1, hi=100),
+        _s("BODY_MARKS_CHECK_TIME_BUDGET", lazy_gettext("settings.body_marks_check_time_budget.label"), lo=10, hi=1800),
+        _s("USER_SEARCH_DEFAULT_LIMIT", lazy_gettext("settings.user_search_default_limit.label"), lo=1, hi=100),
+        _s("USER_SEARCH_MAX_LIMIT", lazy_gettext("settings.user_search_max_limit.label"), lo=1, hi=500),
+        _s("USER_SEARCH_MAX_CARDS", lazy_gettext("settings.user_search_max_cards.label"), lo=0, hi=50),
+        _s("CHAT_ACTION_TTL_MINUTES", lazy_gettext("settings.chat_action_ttl_minutes.label"), lo=1, hi=1440),
+        _s("CHAT_ACTION_MAX_PENDING", lazy_gettext("settings.chat_action_max_pending.label"), lo=1, hi=50),
+        _s("USER_SEARCH_MAX_SINCE_DAYS", lazy_gettext("settings.user_search_max_since_days.label"), lo=1, hi=36500),
     ]),
-    ("Загрузка, файлы и миниатюры", "Размеры, кэш и фоновый подсчёт хешей файлов.", [
-        _s("MAX_CONTENT_LENGTH", "Максимальный размер запроса, МБ", lo=1, hi=2048, scale=_MB,
-           hint="Жёсткий лимит: файлы больше отклоняются (HTTP 413)."),
-        _s("CAPTION_MAX_CHARS", "Длина подписи к снимку, симв.", lo=10, hi=20000),
-        _s("THUMB_SIZE", "Размер миниатюры, px", lo=16, hi=1024,
-           hint="Уже созданные миниатюры остаются прежнего размера."),
-        _s("THUMB_QUALITY", "Качество JPEG миниатюр", lo=1, hi=100),
-        _s("THUMB_CACHE_SECONDS", "Кэш миниатюр в браузере, сек", lo=0, hi=31536000),
-        _s("FILE_HASH_CHUNK_BYTES", "Кусок при чтении файла для SHA-256, байт", lo=4096, hi=104857600),
-        _s("DEDUP_IDLE_BATCH", "Хеши: записей за холостой проход", lo=1, hi=100000),
-        _s("DEDUP_DEFAULT_BATCH", "Хеши: записей по умолчанию", lo=1, hi=100000),
-        _s("DEDUP_CLI_BATCH", "Хеши: записей за проход в CLI", lo=1, hi=100000),
-        _s("DEDUP_IDLE_PAUSE", "Хеши: пауза, когда считать нечего, сек", lo=1, hi=86400),
+    (lazy_gettext("settings.group.g7.title"), lazy_gettext("settings.group.g7.desc"), [
+        _s("MAX_CONTENT_LENGTH", lazy_gettext("settings.max_content_length.label"), lo=1, hi=2048, scale=_MB,
+           hint=lazy_gettext("settings.max_content_length.hint")),
+        _s("CAPTION_MAX_CHARS", lazy_gettext("settings.caption_max_chars.label"), lo=10, hi=20000),
+        _s("THUMB_SIZE", lazy_gettext("settings.thumb_size.label"), lo=16, hi=1024,
+           hint=lazy_gettext("settings.thumb_size.hint")),
+        _s("THUMB_QUALITY", lazy_gettext("settings.thumb_quality.label"), lo=1, hi=100),
+        _s("THUMB_CACHE_SECONDS", lazy_gettext("settings.thumb_cache_seconds.label"), lo=0, hi=31536000),
+        _s("FILE_HASH_CHUNK_BYTES", lazy_gettext("settings.file_hash_chunk_bytes.label"), lo=4096, hi=104857600),
+        _s("DEDUP_IDLE_BATCH", lazy_gettext("settings.dedup_idle_batch.label"), lo=1, hi=100000),
+        _s("DEDUP_DEFAULT_BATCH", lazy_gettext("settings.dedup_default_batch.label"), lo=1, hi=100000),
+        _s("DEDUP_CLI_BATCH", lazy_gettext("settings.dedup_cli_batch.label"), lo=1, hi=100000),
+        _s("DEDUP_IDLE_PAUSE", lazy_gettext("settings.dedup_idle_pause.label"), lo=1, hi=86400),
     ]),
-    ("Списки и пагинация", "Сколько записей показывать на страницах.", [
-        _s("HISTORY_PER_PAGE", "«Моя история»: записей на странице", lo=1, hi=500),
-        _s("PANEL_PER_PAGE", "Админ-панель: записей на странице", lo=1, hi=500),
-        _s("DASHBOARD_RECENT_LIMIT", "Главная: последних анализов", lo=1, hi=100),
-        _s("USER_RECENT_ANALYSES_LIMIT", "Профиль и карточка пользователя: последних анализов", lo=1, hi=200),
-        _s("REJECTED_FILES_SHOWN", "Отклонённых файлов в сообщении", lo=1, hi=100),
-        _s("BULK_DELETE_MAX_IDS", "Записей за одно массовое удаление", lo=1, hi=100000),
-        _s("MODEL_NAME_MAX_LEN", "Длина названия модели в «Статусе сервера»", lo=1, hi=500),
+    (lazy_gettext("settings.group.g8.title"), lazy_gettext("settings.group.g8.desc"), [
+        _s("HISTORY_PER_PAGE", lazy_gettext("settings.history_per_page.label"), lo=1, hi=500),
+        _s("PANEL_PER_PAGE", lazy_gettext("settings.panel_per_page.label"), lo=1, hi=500),
+        _s("DASHBOARD_RECENT_LIMIT", lazy_gettext("settings.dashboard_recent_limit.label"), lo=1, hi=100),
+        _s("USER_RECENT_ANALYSES_LIMIT", lazy_gettext("settings.user_recent_analyses_limit.label"), lo=1, hi=200),
+        _s("REJECTED_FILES_SHOWN", lazy_gettext("settings.rejected_files_shown.label"), lo=1, hi=100),
+        _s("BULK_DELETE_MAX_IDS", lazy_gettext("settings.bulk_delete_max_ids.label"), lo=1, hi=100000),
+        _s("MODEL_NAME_MAX_LEN", lazy_gettext("settings.model_name_max_len.label"), lo=1, hi=500),
     ]),
-    ("Дата и время", "Часовой пояс и форматы дат (синтаксис strftime: %d.%m.%Y %H:%M).", [
-        _s("TIMEZONE", "Часовой пояс", "str", hint="Название из базы IANA, например Asia/Aqtobe.", validator="timezone"),
-        _s("DATETIME_FORMAT", "Дата и время", "str", validator="strftime"),
-        _s("DATETIME_SHORT_FORMAT", "Дата и время без года", "str", validator="strftime"),
-        _s("DATE_FORMAT", "Дата", "str", validator="strftime"),
-        _s("TIME_FORMAT", "Время", "str", validator="strftime"),
-        _s("DATETIME_CHAT_FORMAT", "Дата в списке чатов", "str", validator="strftime"),
+    (lazy_gettext("settings.group.g9.title"), lazy_gettext("settings.group.g9.desc"), [
+        _s("TIMEZONE", lazy_gettext("settings.timezone.label"), "str", hint=lazy_gettext("settings.timezone.hint"), validator="timezone"),
+        _s("DATETIME_FORMAT", lazy_gettext("settings.datetime_format.label"), "str", validator="strftime"),
+        _s("DATETIME_SHORT_FORMAT", lazy_gettext("settings.datetime_short_format.label"), "str", validator="strftime"),
+        _s("DATE_FORMAT", lazy_gettext("settings.date_format.label"), "str", validator="strftime"),
+        _s("TIME_FORMAT", lazy_gettext("settings.time_format.label"), "str", validator="strftime"),
+        _s("DATETIME_CHAT_FORMAT", lazy_gettext("settings.datetime_chat_format.label"), "str", validator="strftime"),
     ]),
-    ("Безопасность и сессии", "Пароли, сессии, cookie и CSRF.", [
-        _s("PASSWORD_MIN_LENGTH", "Минимальная длина пароля", lo=1, hi=128),
-        _s("PASSWORD_USERNAME_MIN_LEN", "Логины короче не сравниваются с паролем", lo=1, hi=50),
-        _s("PASSWORD_USERNAME_SIMILARITY", "Порог похожести пароля на логин", "float", 0, 1),
-        _s("PERMANENT_SESSION_LIFETIME", "Время жизни сессии, дней", "days", 0.01, 3650,
-           hint="Действует на сессии, которые будут продлены после изменения."),
-        _s("SESSION_COOKIE_HTTPONLY", "Cookie сессии недоступна для JavaScript (HttpOnly)", "bool"),
-        _s("SESSION_COOKIE_SAMESITE", "Cookie сессии: SameSite", "choice", choices=("Lax", "Strict", "None"),
-           hint="None работает только вместе с «Cookie только по HTTPS»."),
-        _s("SESSION_COOKIE_SECURE", "Cookie сессии только по HTTPS", "bool",
-           hint="Включайте, только если сайт открывается по HTTPS: иначе вход перестанет работать у всех, включая вас. "
-                "Вернуть можно командой `flask reset-settings SESSION_COOKIE_SECURE`."),
-        _s("WTF_CSRF_TIME_LIMIT", "Время жизни CSRF-токена, сек", "opt_int", 0, 31536000,
-           hint="0 — без ограничения (токен живёт столько же, сколько сессия)."),
+    (lazy_gettext("settings.group.g10.title"), lazy_gettext("settings.group.g10.desc"), [
+        _s("PASSWORD_MIN_LENGTH", lazy_gettext("settings.password_min_length.label"), lo=1, hi=128),
+        _s("PASSWORD_USERNAME_MIN_LEN", lazy_gettext("settings.password_username_min_len.label"), lo=1, hi=50),
+        _s("PASSWORD_USERNAME_SIMILARITY", lazy_gettext("settings.password_username_similarity.label"), "float", 0, 1),
+        _s("PERMANENT_SESSION_LIFETIME", lazy_gettext("settings.permanent_session_lifetime.label"), "days", 0.01, 3650,
+           hint=lazy_gettext("settings.permanent_session_lifetime.hint")),
+        _s("SESSION_COOKIE_HTTPONLY", lazy_gettext("settings.session_cookie_httponly.label"), "bool"),
+        _s("SESSION_COOKIE_SAMESITE", lazy_gettext("settings.session_cookie_samesite.label"), "choice", choices=("Lax", "Strict", "None"),
+           hint=lazy_gettext("settings.session_cookie_samesite.hint")),
+        _s("SESSION_COOKIE_SECURE", lazy_gettext("settings.session_cookie_secure.label"), "bool",
+           hint=lazy_gettext("settings.session_cookie_secure.hint")),
+        _s("WTF_CSRF_TIME_LIMIT", lazy_gettext("settings.wtf_csrf_time_limit.label"), "opt_int", 0, 31536000,
+           hint=lazy_gettext("settings.wtf_csrf_time_limit.hint")),
     ]),
-    ("База данных", "", [
-        _s("SQL_IN_CHUNK", "Размер пачки id в DELETE/IN", lo=10, hi=900,
-           hint="Лимит числа параметров SQL (в SQLite — 999)."),
+    (lazy_gettext("settings.group.g11.title"), "", [
+        _s("SQL_IN_CHUNK", lazy_gettext("settings.sql_in_chunk.label"), lo=10, hi=900,
+           hint=lazy_gettext("settings.sql_in_chunk.hint")),
     ]),
 ]
 
@@ -361,7 +360,7 @@ def _value(spec: RuntimeSetting, number):
 
 
 def _kind_hint(spec: RuntimeSetting) -> str:
-    return "целое число" if spec.kind in ("int", "opt_int") else "число"
+    return gettext("settings.err.kind_int") if spec.kind in ("int", "opt_int") else gettext("settings.err.kind_number")
 
 
 def display_value(spec: RuntimeSetting, value) -> str | bool:
@@ -379,31 +378,35 @@ def display_value(spec: RuntimeSetting, value) -> str | bool:
     return "" if value is None else str(value)
 
 
+class SettingError(ValueError):
+    """Ошибка проверки с уже готовым текстом для пользователя (с названием настройки)."""
+
+
 def _check_string(spec: RuntimeSetting, value: str) -> None:
     label = spec.label
     if spec.kind == "choice":
         if value not in spec.choices:
-            raise ValueError(f"«{label}»: допустимо одно из значений — {', '.join(spec.choices)}.")
+            raise SettingError(gettext("settings.err.choice", label=label, choices=", ".join(spec.choices)))
         return
     if not value:
-        raise ValueError(f"«{label}»: значение не может быть пустым.")
+        raise SettingError(gettext("settings.err.empty", label=label))
     if len(value) > conf("SETTING_STR_MAX_LEN"):
-        raise ValueError(f"«{label}»: слишком длинное значение.")
+        raise SettingError(gettext("settings.err.too_long", label=label))
     if spec.validator == "url":
         if not value.lower().startswith(("http://", "https://")) or "://" not in value or not value.split("://", 1)[1]:
-            raise ValueError(f"«{label}»: адрес должен начинаться с http:// или https://.")
+            raise SettingError(gettext("settings.err.url", label=label))
     elif spec.validator == "timezone":
         try:
             ZoneInfo(value)
         except Exception:  # noqa: BLE001 — ZoneInfoNotFoundError, ValueError, OSError
-            raise ValueError(f"«{label}»: неизвестный часовой пояс «{value}».") from None
+            raise SettingError(gettext("settings.err.timezone", label=label, value=value)) from None
     elif spec.validator == "strftime":
         try:
             ok = bool(datetime(2000, 1, 2, 3, 4).strftime(value).strip())
         except (ValueError, TypeError):
             ok = False
         if not ok:
-            raise ValueError(f"«{label}»: некорректный формат даты.")
+            raise SettingError(gettext("settings.err.date_format", label=label))
 
 
 # ---- чтение переопределений (с коротким кэшем) -----------------------------
@@ -572,7 +575,7 @@ def save_runtime_settings(form) -> tuple[list[str], list[str]]:
                 changes[key] = _fmt_number(number) if spec.kind != "int" and spec.kind != "opt_int" else str(number)
         except ValueError as exc:
             message = str(exc)
-            errors.append(message if message.startswith("«") else f"«{spec.label}»: введите {_kind_hint(spec)}.")
+            errors.append(message if isinstance(exc, SettingError) else gettext("settings.err.enter", label=spec.label, kind=_kind_hint(spec)))
 
     # Диапазоны — после разбора всех полей: границы могли поменяться в этой же форме.
     for key, number in numbers.items():
@@ -581,19 +584,20 @@ def save_runtime_settings(form) -> tuple[list[str], list[str]]:
         shown_lo = None if lo is None else (lo / spec.scale if spec.kind == "int" and spec.min_key else lo)
         shown_hi = None if hi is None else (hi / spec.scale if spec.kind == "int" and spec.max_key else hi)
         if shown_lo is not None and number < shown_lo:
-            errors.append(f"«{spec.label}»: значение не может быть меньше {_fmt_number(shown_lo)}.")
+            errors.append(gettext("settings.err.min", label=spec.label, value=_fmt_number(shown_lo)))
         if shown_hi is not None and number > shown_hi:
-            errors.append(f"«{spec.label}»: значение не может быть больше {_fmt_number(shown_hi)}.")
+            errors.append(gettext("settings.err.max", label=spec.label, value=_fmt_number(shown_hi)))
 
     for lo_key, hi_key in BOUND_PAIRS:
         if lo_key in candidates or hi_key in candidates:
             lo = candidates.get(lo_key, conf(lo_key))
             hi = candidates.get(hi_key, conf(hi_key))
             if lo > hi:
-                errors.append(
-                    f"«{RUNTIME_SETTINGS_BY_KEY[lo_key].label}» не может быть больше, чем "
-                    f"«{RUNTIME_SETTINGS_BY_KEY[hi_key].label}»."
-                )
+                errors.append(gettext(
+                    "settings.err.bounds",
+                    lo=RUNTIME_SETTINGS_BY_KEY[lo_key].label,
+                    hi=RUNTIME_SETTINGS_BY_KEY[hi_key].label,
+                ))
 
     if errors:
         return errors, []
@@ -611,7 +615,7 @@ def save_runtime_settings(form) -> tuple[list[str], list[str]]:
             lo, hi = effective_bounds(spec)
             current = conf(spec.key)
             if (lo is not None and current < lo) or (hi is not None and current > hi):
-                warnings.append(f"«{spec.label}»: текущее значение {display_value(spec, current)} вне новых границ.")
+                warnings.append(gettext("settings.warn.out_of_bounds", label=spec.label, value=display_value(spec, current)))
     return [], warnings
 
 

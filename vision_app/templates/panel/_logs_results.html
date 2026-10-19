@@ -1,14 +1,14 @@
 {% if not view.file %}
 <div class="card">
     <p class="empty-hint">
-        {% if view.dir_exists %}Файлов логов у источника «{{ view.source.title }}» пока нет.{% else %}Папка логов ещё не создана.{% endif %}
+        {% if view.dir_exists %}{{ _('logs.empty.no_files', title=view.source.title) }}{% else %}{{ _('logs.empty.no_dir') }}{% endif %}
     </p>
 </div>
 {% else %}
 <p class="field-hint log-meta">
-    <code>{{ view.file.name }}</code> · {{ view.file.size_h }} · изменён {{ view.file.mtime|localdt }} ·
-    показано {{ view.entries|length }} из {{ view.matched }} подходящих записей, новые сверху
-    {%- if view.truncated %} · файл большой, прочитаны последние {{ view.read_kb }} КБ{% endif %}
+    <code>{{ view.file.name }}</code> · {{ view.file.size_h }} · {{ _('logs.file.modified', date=view.file.mtime|localdt) }} ·
+    {{ _('logs.file.shown', shown=view.entries|length, matched=view.matched) }}
+    {%- if view.truncated %} {{ _('logs.file.truncated', kb=view.read_kb) }}{% endif %}
 </p>
 {% if view.entries %}
 <div class="log-view" role="log">
@@ -17,6 +17,6 @@
     {%- endfor -%}
 </div>
 {% else %}
-<div class="card"><p class="empty-hint">Нет записей, подходящих под выбранные условия.</p></div>
+<div class="card"><p class="empty-hint">{{ _('logs.empty.no_match') }}</p></div>
 {% endif %}
 {% endif %}

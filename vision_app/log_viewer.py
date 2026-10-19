@@ -17,6 +17,8 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 
+from flask_babel import gettext, lazy_gettext
+
 LEVELS = ("DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL")
 _LEVEL_RANK = {name: i for i, name in enumerate(LEVELS)}
 
@@ -38,8 +40,8 @@ class LogSource:
 
 
 SOURCES: dict[str, LogSource] = {
-    "flask": LogSource("flask", "Flask-панель", ("app.log", "app.error.log")),
-    "server": LogSource("server", "Сервер анализа", ("analyzer.log", "analyzer.error.log")),
+    "flask": LogSource("flask", lazy_gettext("logs.source.flask"), ("app.log", "app.error.log")),
+    "server": LogSource("server", lazy_gettext("logs.source.server"), ("analyzer.log", "analyzer.error.log")),
 }
 DEFAULT_SOURCE = "flask"
 
@@ -54,10 +56,10 @@ class LogFile:
     @property
     def size_h(self) -> str:
         if self.size < 1024:
-            return f"{self.size} Б"
+            return gettext("logs.size.b", n=self.size)
         if self.size < 1024 * 1024:
-            return f"{self.size / 1024:.1f} КБ"
-        return f"{self.size / 1024 / 1024:.1f} МБ"
+            return gettext("logs.size.kb", n=f"{self.size / 1024:.1f}")
+        return gettext("logs.size.mb", n=f"{self.size / 1024 / 1024:.1f}")
 
 
 @dataclass

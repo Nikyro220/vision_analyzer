@@ -57,7 +57,7 @@
   var pending = []; // вложения, ещё не отправленные: [{file, url}]
   var seen = {}; // id сообщений, уже нарисованных в логе
 
-  var ROLE_LABELS = { user: "вы", assistant: "модель", error: "ошибка" };
+  var ROLE_LABELS = { user: _t("js.chat.role.user"), assistant: _t("js.chat.role.model"), error: _t("js.chat.role.error") };
 
   function el(tag, className) {
     var node = document.createElement(tag);
@@ -267,7 +267,7 @@
     var info = el("span", "chat-ref-info");
 
     var label = el("span", "chat-ref-label");
-    label.textContent = ref.label || "Анализ #" + ref.id;
+    label.textContent = ref.label || _t("js.chat.analysis_n", { id: ref.id });
     info.appendChild(label);
 
     var metaLine = el("span", "chat-ref-meta");
@@ -310,7 +310,7 @@
 
     var info = el("span", "chat-ref-info");
     var label = el("span", "chat-ref-label");
-    label.textContent = ref.label || "Пользователь #" + ref.id;
+    label.textContent = ref.label || _t("js.chat.user_n", { id: ref.id });
     if (ref.subtitle) label.title = ref.subtitle;
     info.appendChild(label);
 
@@ -320,7 +320,7 @@
     metaLine.appendChild(badge);
     var meta = el("span", "chat-ref-date");
     var parts = [];
-    if (typeof ref.analyses_count === "number") parts.push("анализов: " + ref.analyses_count);
+    if (typeof ref.analyses_count === "number") parts.push(_t("js.chat.analyses_count", { n: ref.analyses_count }));
     if (ref.date) parts.push(ref.date);
     meta.textContent = parts.join(" · ");
     metaLine.appendChild(meta);
@@ -334,8 +334,8 @@
   // не выполняет: действие происходит, только когда человек нажимает «Подтвердить» (POST confirm_url).
   // Статус карточки — всегда из ответа сервера (state_url), а не из сохранённого в сообщении.
   var ACTION_STATUS = {
-    running: "Выполняется…", done: "Выполнено", failed: "Не выполнено",
-    cancelled: "Отменено", expired: "Срок подтверждения истёк"
+    running: _t("js.chat.action.running"), done: _t("js.chat.action.done"), failed: _t("js.chat.action.failed"),
+    cancelled: _t("js.chat.action.cancelled"), expired: _t("js.chat.action.expired")
   };
 
   function buildActionCard(initial) {
@@ -353,10 +353,10 @@
         })
         .then(function (data) {
           if (data && data.card) render(data.card, data.ok === false ? data.message : "");
-          else render(initial, "Не удалось выполнить запрос.");
+          else render(initial, _t("js.chat.error.request"));
         })
         .catch(function () {
-          render(initial, "Нет связи с сервером.");
+          render(initial, _t("js.chat.error.offline"));
         });
       if (onDone) onDone();
     }
@@ -368,7 +368,7 @@
 
       var head = el("div", "chat-action-head");
       var title = el("span", "chat-action-title");
-      title.textContent = ref.title || "Действие";
+      title.textContent = ref.title || _t("js.chat.action.title");
       head.appendChild(title);
       if (ref.target_url) {
         var link = document.createElement("a");
@@ -376,7 +376,7 @@
         link.target = "_blank";
         link.rel = "noopener noreferrer";
         link.className = "chat-action-link";
-        link.textContent = ref.target_link_label || "страница пользователя";
+        link.textContent = ref.target_link_label || _t("js.chat.action.user_page");
         head.appendChild(link);
       }
       card.appendChild(head);
@@ -401,7 +401,7 @@
           input = document.createElement("input");
           input.type = "text";
           input.className = "input input-mono chat-action-input";
-          input.placeholder = (ref.confirm_hint || "Для удаления введите логин: ") + ref.type_to_confirm;
+          input.placeholder = (ref.confirm_hint || _t("js.chat.confirm_login")) + ref.type_to_confirm;
           input.autocomplete = "off";
           card.appendChild(input);
         }
@@ -409,11 +409,11 @@
         var ok = document.createElement("button");
         ok.type = "button";
         ok.className = "btn btn-sm " + (ref.danger ? "btn-danger" : "btn-primary");
-        ok.textContent = "Подтвердить";
+        ok.textContent = _t("js.chat.action.confirm");
         var cancel = document.createElement("button");
         cancel.type = "button";
         cancel.className = "btn btn-sm btn-secondary";
-        cancel.textContent = "Отмена";
+        cancel.textContent = _t("js.chat.action.cancel");
         function sync() {
           ok.disabled = !!input && input.value.trim() !== ref.type_to_confirm;
         }
@@ -436,7 +436,7 @@
         card.appendChild(row);
         if (ref.expires) {
           var exp = el("div", "chat-action-note");
-          exp.textContent = "Действует до " + ref.expires;
+          exp.textContent = _t("js.chat.valid_until", { date: ref.expires });
           card.appendChild(exp);
         }
       } else {
@@ -600,7 +600,7 @@
     sendBtn.disabled = state;
     input.disabled = state;
     attachBtn.disabled = state;
-    sendBtn.textContent = state ? "Отправка…" : "Отправить";
+    sendBtn.textContent = state ? _t("js.chat.sending") : _t("js.chat.send");
   }
 
   // ---------- вложения ----------
@@ -618,13 +618,13 @@
       chip.appendChild(img);
 
       var name = el("span", "chat-attach-name");
-      name.textContent = item.file.name || "изображение";
+      name.textContent = item.file.name || _t("js.chat.image");
       chip.appendChild(name);
 
       var remove = el("button", "chat-attach-remove");
       remove.type = "button";
       remove.textContent = "✕";
-      remove.setAttribute("aria-label", "Убрать вложение");
+      remove.setAttribute("aria-label", _t("js.chat.attach.remove"));
       remove.addEventListener("click", function () {
         if (sending) return;
         URL.revokeObjectURL(item.url);
@@ -641,21 +641,21 @@
     var skipped = [];
     Array.prototype.forEach.call(fileList, function (file) {
       if (!file.type || file.type.indexOf("image/") !== 0) {
-        skipped.push("«" + (file.name || "файл") + "» — не изображение");
+        skipped.push(_t("js.chat.skip.not_image", { name: file.name || _t("js.chat.file") }));
         return;
       }
       if (file.size > maxImageMb * 1024 * 1024) {
-        skipped.push("«" + (file.name || "файл") + "» — больше " + maxImageMb + " МБ");
+        skipped.push(_t("js.chat.skip.too_big", { name: file.name || _t("js.chat.file"), mb: maxImageMb }));
         return;
       }
       if (pending.length >= maxImages) {
-        skipped.push("«" + (file.name || "файл") + "» — максимум " + maxImages + " изображений в сообщении");
+        skipped.push(_t("js.chat.skip.too_many", { name: file.name || _t("js.chat.file"), max: maxImages }));
         return;
       }
       pending.push({ file: file, url: URL.createObjectURL(file) });
     });
     renderAttachments();
-    showError(skipped.length ? "Не прикреплено: " + skipped.join("; ") + "." : "");
+    showError(skipped.length ? _t("js.chat.not_attached", { list: skipped.join("; ") }) : "");
   }
 
   function clearPending() {
@@ -737,7 +737,7 @@
 
   var STATE_POLL_MS = 2000;
   var STATE_MAX_FAILS = 4; // столько опросов подряд без связи — считаем, что сервер недоступен
-  var TURN_FAILED_TEXT = "Не удалось получить ответ от модели — сообщение возвращено в поле ввода.";
+  var TURN_FAILED_TEXT = _t("js.chat.error.no_reply");
 
   function messageMeta(m) {
     return m.backend ? m.backend + (m.model ? " · " + m.model : "") : "";
@@ -827,7 +827,7 @@
       // Ход оборвался, не оставив ответа (например, сервер перезапустили): сообщение осталось в чате.
       dropDots(turn);
       lsRemove(outboxKey);
-      showError("Ответ модели не получен (возможно, сервер был перезапущен). Отправьте сообщение ещё раз.");
+      showError(_t("js.chat.error.lost_reply"));
       endTurn();
       return;
     }
@@ -865,7 +865,7 @@
           function () {
             fails += 1;
             if (fails >= STATE_MAX_FAILS) {
-              failTurn(turn, "Не удалось связаться с сервером. Проверьте соединение и повторите.");
+              failTurn(turn, _t("js.chat.error.unreachable"));
               return;
             }
             window.setTimeout(tick, STATE_POLL_MS * fails);
@@ -923,14 +923,14 @@
           },
           function () {
             // Не JSON (например, редирект на страницу ошибки при слишком большом запросе).
-            return { ok: false, data: { error: "Сервер отклонил запрос (возможно, файлы слишком большие)." } };
+            return { ok: false, data: { error: _t("js.chat.error.rejected") } };
           }
         );
       })
       .then(
         function (result) {
           if (!result.ok) {
-            failTurn(turn, (result.data && result.data.error) || "Не удалось получить ответ.");
+            failTurn(turn, (result.data && result.data.error) || _t("js.chat.error.no_answer"));
             return;
           }
           var data = result.data || {};
@@ -975,7 +975,7 @@
     }
     if (outbox.text) {
       restoreComposer(outbox.text, []);
-      showError("Не удалось отправить прошлое сообщение — текст возвращён в поле ввода.");
+      showError(_t("js.chat.error.resend"));
     }
   }
 
@@ -1117,8 +1117,8 @@
         .then(copyToClipboard)
         .then(function () {
           copyBtn.classList.add("is-done");
-          copyBtn.title = "Скопировано";
-          copyBtn.setAttribute("aria-label", "Скопировано");
+          copyBtn.title = _t("js.chat.copied");
+          copyBtn.setAttribute("aria-label", _t("js.chat.copied"));
           setTimeout(function () {
             copyBtn.classList.remove("is-done");
             copyBtn.title = copyTitle;
@@ -1126,7 +1126,7 @@
           }, 1800);
         })
         .catch(function () {
-          showError("Не удалось скопировать диалог. Скачайте его кнопкой экспорта в JSON.");
+          showError(_t("js.chat.error.copy"));
         })
         .then(function () { copyBtn.disabled = false; });
     });

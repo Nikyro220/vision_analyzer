@@ -33,6 +33,7 @@ import os
 from datetime import timezone
 
 from cryptography.fernet import Fernet, InvalidToken, MultiFernet
+from flask_babel import gettext, lazy_gettext
 
 from .extensions import db
 from .models import ProviderCredential, utcnow
@@ -43,12 +44,7 @@ ENV_MASTER_KEY = "VISION_CREDENTIALS_KEY"
 HEADER_PREFIX = "X-Api-Key-"  # то же, что providers/base.py: CREDENTIAL_HEADER_PREFIX на сервере анализа
 MAX_KEY_LEN = 512
 
-SETUP_HINT = (
-    f"Не задана переменная {ENV_MASTER_KEY} — без неё ключи API нельзя хранить. "
-    'Сгенерируйте значение командой: python -c "from cryptography.fernet import Fernet; '
-    f'print(Fernet.generate_key().decode())" — впишите его в файл .env в корне проекта '
-    f"({ENV_MASTER_KEY}=...) и перезапустите приложение."
-)
+SETUP_HINT = lazy_gettext("credentials.error.setup", env=ENV_MASTER_KEY)
 
 
 class CredentialsError(Exception):
@@ -77,12 +73,12 @@ def is_available() -> bool:
 def _fernet() -> MultiFernet:
     keys = _master_keys()
     if not keys:
-        raise CredentialsError(SETUP_HINT)
+        raise CredentialsError(str(SETUP_HINT))
     try:
         return MultiFernet([Fernet(k.encode("ascii")) for k in keys])
     except (ValueError, TypeError, UnicodeEncodeError) as exc:
         raise CredentialsError(
-            f"{ENV_MASTER_KEY} имеет неверный формат (нужен ключ Fernet: 32 байта в urlsafe-base64)."
+            gettext("credentials.error.bad_master", env=ENV_MASTER_KEY)
         ) from exc
 
 
@@ -113,11 +109,11 @@ def validate_key(value: str) -> str:
     копировании), в разумной длине. Возвращает очищенное значение или бросает CredentialsError."""
     value = (value or "").strip()
     if not value:
-        raise CredentialsError("Ключ пустой.")
+        raise CredentialsError(gettext("credentials.error.empty"))
     if len(value) > MAX_KEY_LEN:
-        raise CredentialsError("Слишком длинное значение ключа.")
+        raise CredentialsError(gettext("credentials.error.too_long"))
     if any(ch.isspace() for ch in value) or not value.isascii():
-        raise CredentialsError("В ключе не должно быть пробелов, переводов строк и не-ASCII символов.")
+        raise CredentialsError(gettext("credentials.error.chars"))
     return value
 
 

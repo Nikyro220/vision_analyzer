@@ -5,7 +5,7 @@ document.addEventListener("DOMContentLoaded", () => {
   if (form && submitBtn) {
     form.addEventListener("submit", () => {
       submitBtn.disabled = true;
-      submitBtn.textContent = "Анализируем…";
+      submitBtn.textContent = _t("js.main.analyzing");
     });
   }
 });

@@ -12,16 +12,17 @@
 {% endwith %}
 {% endmacro -%}
 <!DOCTYPE html>
-<html lang="ru">
+<html lang="{{ get_locale() }}">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{% block title %}Vision Triage{% endblock %} · Панель анализа</title>
+    <title>{% block title %}Vision Triage{% endblock %} · {{ _('base.title.suffix') }}</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
     {# Палитры тем собираются из vision_app/themes/*.json (по файлу на тему) #}
     <link rel="stylesheet" href="{{ url_for('themes_css', v=themes_version()) }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/queue.css') }}">
     {# Тема применяется до отрисовки страницы, чтобы не было вспышки; хранится локально в браузере #}
+    {% include 'partials/js_i18n.html' %}
     <script>window.VT_PRESETS = {{ theme_presets()|tojson }};</script>
     <script src="{{ url_for('static', filename='js/theme.js') }}"></script>
     {# Свёрнутость боковой панели — тоже до первой отрисовки, иначе панель «прыгает» при переходах #}
@@ -41,63 +42,64 @@
                 <span class="brand-name">Vision&nbsp;Triage</span>
             </a>
             <button type="button" class="sidebar-toggle" id="sidebar-toggle" aria-controls="sidebar-nav" aria-expanded="true"
-                    title="Свернуть панель" aria-label="Свернуть панель">
+                    title="{{ _('nav.sidebar.collapse') }}" aria-label="{{ _('nav.sidebar.collapse') }}">
                 <span class="ic-collapse">{{ icon('panel-left-close') }}</span>
                 <span class="ic-expand">{{ icon('panel-left-open') }}</span>
             </button>
         </div>
 
         <nav class="nav" id="sidebar-nav">
-            <div class="nav-divider">Анализ</div>
+            <div class="nav-divider">{{ _('nav.group.analysis') }}</div>
             <a class="nav-link {% if ep == 'analyzer.dashboard' %}is-active{% endif %}" href="{{ url_for('analyzer.dashboard') }}">
-                <span class="nav-ic">{{ icon('image-plus') }}</span> <span class="nav-label">Новый анализ</span>
+                <span class="nav-ic">{{ icon('image-plus') }}</span> <span class="nav-label">{{ _('nav.analysis.new') }}</span>
             </a>
             <a class="nav-link {% if ep == 'analyzer.history' %}is-active{% endif %}" href="{{ url_for('analyzer.history') }}">
-                <span class="nav-ic">{{ icon('history') }}</span> <span class="nav-label">История</span>
+                <span class="nav-ic">{{ icon('history') }}</span> <span class="nav-label">{{ _('nav.analysis.history') }}</span>
             </a>
             <a class="nav-link {% if ep in ('chat.index', 'chat.view') %}is-active{% endif %}" href="{{ url_for('chat.index') }}">
-                <span class="nav-ic">{{ icon('message-square') }}</span> <span class="nav-label">Чат</span>
+                <span class="nav-ic">{{ icon('message-square') }}</span> <span class="nav-label">{{ _('nav.analysis.chat') }}</span>
             </a>
 
             {% if current_user.is_panel_staff %}
-            <div class="nav-divider">Панель управления</div>
+            <div class="nav-divider">{{ _('nav.group.admin') }}</div>
             {% if current_user.is_head_admin %}
             <a class="nav-link {% if ep == 'panel.stats' %}is-active{% endif %}" href="{{ url_for('panel.stats') }}">
-                <span class="nav-ic">{{ icon('layout-dashboard') }}</span> <span class="nav-label">Обзор</span>
+                <span class="nav-ic">{{ icon('layout-dashboard') }}</span> <span class="nav-label">{{ _('nav.admin.overview') }}</span>
             </a>
             {% endif %}
             <a class="nav-link {% if ep in ('panel.users_list', 'panel.user_detail') %}is-active{% endif %}" href="{{ url_for('panel.users_list') }}">
-                <span class="nav-ic">{{ icon('users') }}</span> <span class="nav-label">Пользователи</span>
+                <span class="nav-ic">{{ icon('users') }}</span> <span class="nav-label">{{ _('nav.admin.users') }}</span>
             </a>
             <a class="nav-link {% if ep == 'panel.analyses_list' %}is-active{% endif %}" href="{{ url_for('panel.analyses_list') }}">
-                <span class="nav-ic">{{ icon('list-checks') }}</span> <span class="nav-label">Все анализы</span>
+                <span class="nav-ic">{{ icon('list-checks') }}</span> <span class="nav-label">{{ _('nav.admin.analyses') }}</span>
             </a>
             <a class="nav-link {% if ep in ('panel.categories_list', 'panel.category_new', 'panel.category_edit', 'panel.chat_prompt_save') %}is-active{% endif %}" href="{{ url_for('panel.categories_list') }}">
-                <span class="nav-ic">{{ icon('file-text') }}</span> <span class="nav-label">Промпты</span>
+                <span class="nav-ic">{{ icon('file-text') }}</span> <span class="nav-label">{{ _('nav.admin.prompts') }}</span>
             </a>
             {% endif %}
 
             {# «Система» видна всем: статус сервера открыт любому пользователю, настройки — только главному админу #}
-            <div class="nav-divider">Система</div>
+            <div class="nav-divider">{{ _('nav.group.system') }}</div>
             <a class="nav-link {% if ep == 'analyzer.health' %}is-active{% endif %}" href="{{ url_for('analyzer.health') }}">
-                <span class="nav-ic">{{ icon('activity') }}</span> <span class="nav-label">Статус сервера</span>
+                <span class="nav-ic">{{ icon('activity') }}</span> <span class="nav-label">{{ _('nav.system.status') }}</span>
             </a>
             {% if current_user.is_head_admin %}
             <a class="nav-link {% if ep == 'panel.logs' %}is-active{% endif %}" href="{{ url_for('panel.logs') }}">
-                <span class="nav-ic">{{ icon('scroll-text') }}</span> <span class="nav-label">Логи</span>
+                <span class="nav-ic">{{ icon('scroll-text') }}</span> <span class="nav-label">{{ _('nav.system.logs') }}</span>
             </a>
             <a class="nav-link {% if ep == 'panel.settings' %}is-active{% endif %}" href="{{ url_for('panel.settings') }}">
-                <span class="nav-ic">{{ icon('settings') }}</span> <span class="nav-label">Настройки</span>
+                <span class="nav-ic">{{ icon('settings') }}</span> <span class="nav-label">{{ _('nav.system.settings') }}</span>
             </a>
             {% endif %}
         </nav>
 
         <div class="sidebar-footer">
+            {% include "partials/lang_switch.html" %}
             <a class="nav-link {% if ep == 'accounts.appearance' %}is-active{% endif %}" href="{{ url_for('accounts.appearance') }}">
-                <span class="nav-ic">{{ icon('palette') }}</span> <span class="nav-label">Оформление</span>
+                <span class="nav-ic">{{ icon('palette') }}</span> <span class="nav-label">{{ _('nav.system.appearance') }}</span>
             </a>
             <div class="account-card">
-                <a class="account-main {% if ep == 'accounts.profile' %}is-active{% endif %}" href="{{ url_for('accounts.profile') }}" title="Профиль">
+                <a class="account-main {% if ep == 'accounts.profile' %}is-active{% endif %}" href="{{ url_for('accounts.profile') }}" title="{{ _('nav.account.profile') }}">
                     {{ avatar(current_user) }}
                     <span class="account-info">
                         <span class="account-name" title="{{ current_user.display_name }}">{{ current_user.display_name }}</span>
@@ -106,7 +108,7 @@
                 </a>
                 <form method="post" action="{{ url_for('accounts.logout') }}" class="logout-form">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                    <button type="submit" class="account-logout" title="Выйти" aria-label="Выйти">
+                    <button type="submit" class="account-logout" title="{{ _('nav.account.logout') }}" aria-label="{{ _('nav.account.logout') }}">
                         {{ icon('log-out') }}
                     </button>
                 </form>
@@ -121,6 +123,7 @@
 </div>
 {% else %}
     {{ flashes('messages-standalone') }}
+    {% include "partials/lang_switch.html" %}
     {% block guest_content %}{% endblock %}
 {% endif %}
 

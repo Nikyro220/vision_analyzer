@@ -18,6 +18,7 @@ from flask import (
     send_file,
     url_for,
 )
+from flask_babel import gettext
 from flask_login import current_user, login_required
 from sqlalchemy import func, or_, select, update
 
@@ -255,20 +256,20 @@ def _export_payload(session_row: ChatSession) -> dict:
 
 def _export_text(session_row: ChatSession) -> str:
     attachments = _attachment_urls(session_row)
-    lines = [f"Чат: {session_row.display_title}", f"Создан: {local_dt(session_row.created_at)}", ""]
+    lines = [gettext("chat.export.title", title=session_row.display_title), gettext("chat.export.created", date=local_dt(session_row.created_at)), ""]
     for m in session_row.messages:
-        who = "Вы" if m.role == ChatRole.USER else "Модель"
+        who = gettext("chat.export.you") if m.role == ChatRole.USER else gettext("chat.export.model")
         meta = f" ({m.backend}{' · ' + m.model if m.model else ''})" if m.role == ChatRole.ASSISTANT and m.backend else ""
         lines.append(f"[{local_dt(m.created_at)}] {who}{meta}:")
         lines.append((m.content or "").strip())
         names = [a["name"] for a in attachments.get(m.id, [])]
         if names:
-            lines.append("Вложения: " + ", ".join(names))
+            lines.append(gettext("chat.export.attachments", names=", ".join(names)))
         cards = _export_refs(m.refs)
         if cards:
-            lines.append("Анализы: " + "; ".join(
-                f"№{c.get('id')} {c.get('label', '')} ({c.get('risk_label', '')})".strip() for c in cards
-            ))
+            lines.append(gettext("chat.export.analyses", items="; ".join(
+                f"{gettext('common.id_tag', id=c.get('id'))} {c.get('label', '')} ({c.get('risk_label', '')})".strip() for c in cards
+            )))
         lines.append("")
     return "\n".join(lines).rstrip() + "\n"
 
@@ -383,10 +384,10 @@ def send(session_id: int):
         files = [f for f in request.files.getlist("images") if f and f.filename]
 
     if not message and not files:
-        return jsonify({"error": "Пустое сообщение."}), 400
+        return jsonify({"error": gettext("chat.error.empty")}), 400
     max_len = conf("CHAT_MAX_MESSAGE_LEN")
     if len(message) > max_len:
-        return jsonify({"error": f"Сообщение слишком длинное (максимум {max_len} символов)."}), 400
+        return jsonify({"error": gettext("chat.error.too_long", max=max_len)}), 400
 
     # Вложения сохраняем на диск ДО обращения к модели: инструмент analyze_image читает их
     # оттуда. Если ход не удался — файлы удаляются, в БД ничего не остаётся.
@@ -397,7 +398,7 @@ def send(session_id: int):
 
     if not _claim_turn(session_row.id):
         _discard_attachments(session_row.id, saved)
-        return jsonify({"error": "Модель ещё отвечает на предыдущее сообщение — дождитесь ответа."}), 409
+        return jsonify({"error": gettext("chat.error.busy")}), 409
 
     progress: dict = {}  # что успел сделать ход — нужно, чтобы аккуратно откатить его при сбое
     try:
@@ -480,7 +481,7 @@ def _run_turn(session_row: ChatSession, message: str, saved: list[dict], progres
     user_message = ChatMessage(session_id=session_row.id, role=ChatRole.USER, content=message, images=saved)
     db.session.add(user_message)
     if not session_row.title:
-        session_row.title = _make_title(message) if message else _make_title(f"Изображение: {saved[0]['name']}")
+        session_row.title = _make_title(message) if message else _make_title(gettext("chat.title.image", name=saved[0]["name"]))
         progress["title_set"] = True
     db.session.commit()
     progress["user_message_id"] = user_message.id
@@ -568,7 +569,7 @@ def action_state(action_id: int):
     """Текущее состояние заявки: карточки в старых сообщениях по нему обновляют свой статус."""
     row = _own_action(action_id)
     if row.status == ChatActionStatus.PENDING and chat_manage._aware(row.expires_at) < utcnow():
-        chat_manage._finish(row, ChatActionStatus.EXPIRED, "Срок подтверждения истёк.")
+        chat_manage._finish(row, ChatActionStatus.EXPIRED, gettext("chat.action.expired"))
     return jsonify({"card": chat_manage.action_card(row)})
 
 

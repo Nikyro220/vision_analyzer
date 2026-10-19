@@ -1,19 +1,19 @@
 {% extends "base.html" %}
-{% block title %}Регистрация{% endblock %}
+{% block title %}{{ _('auth.register.title') }}{% endblock %}
 {% block guest_content %}
 <div class="auth-screen">
     <div class="auth-card">
         <div class="auth-mark">◈</div>
-        <h1>Создать аккаунт</h1>
-        <p class="auth-sub">Доступ к анализу изображений после регистрации выдаётся сразу с ролью «Пользователь».</p>
+        <h1>{{ _('auth.register.heading') }}</h1>
+        <p class="auth-sub">{{ _('auth.register.subtitle') }}</p>
 
         <form method="post" class="form" novalidate>
             {{ form.hidden_tag() }}
             {% include "partials/form_fields.html" %}
-            <button type="submit" class="btn btn-primary btn-block">Зарегистрироваться</button>
+            <button type="submit" class="btn btn-primary btn-block">{{ _('auth.login.register_link') }}</button>
         </form>
 
-        <p class="auth-switch">Уже есть аккаунт? <a href="{{ url_for('accounts.login') }}">Войти</a></p>
+        <p class="auth-switch">{{ _('auth.register.have_account') }} <a href="{{ url_for('accounts.login') }}">{{ _('auth.login.submit') }}</a></p>
     </div>
 </div>
 {% endblock %}

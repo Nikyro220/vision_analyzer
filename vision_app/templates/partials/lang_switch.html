@@ -1,0 +1,5 @@
+{# Переключатель языка RU/EN. Общий для боковой панели и гостевых страниц (вход/регистрация). #}
+<div class="lang-switch">
+    <a class="lang-link {% if get_locale() == 'ru' %}is-active{% endif %}" href="{{ url_for('accounts.set_language', code='ru', next=request.full_path) }}">RU</a>
+    <a class="lang-link {% if get_locale() == 'en' %}is-active{% endif %}" href="{{ url_for('accounts.set_language', code='en', next=request.full_path) }}">EN</a>
+</div>

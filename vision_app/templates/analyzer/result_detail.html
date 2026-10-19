@@ -1,12 +1,12 @@
 {% extends "base.html" %}
-{% block title %}Результат анализа{% endblock %}
+{% block title %}{{ _('result.title') }}{% endblock %}
 {% block head_extra %}{% if result.is_pending %}<meta http-equiv="refresh" content="4">{% endif %}{% endblock %}
 {% block content %}
 <div class="page-header">
     {% set can_rename = result.can_rename(current_user) %}
-    <h1>{% if can_rename %}<span id="result-title" class="result-title-editable" title="Двойной клик — изменить название">{{ result.original_name or "Результат анализа" }}</span><input type="text" id="result-title-input" name="name" form="rename-form" class="input" value="{{ result.original_name }}" maxlength="255" required hidden aria-label="Название">{% else %}{{ result.original_name or "Результат анализа" }}{% endif %} <span class="id-tag id-tag-lg" title="Номер анализа — по нему можно найти запись в истории и в чате">№{{ result.id }}</span></h1>
+    <h1>{% if can_rename %}<span id="result-title" class="result-title-editable" title="{{ _('result.rename.hint') }}">{{ result.original_name or _('result.title') }}</span><input type="text" id="result-title-input" name="name" form="rename-form" class="input" value="{{ result.original_name }}" maxlength="255" required hidden aria-label="{{ _('result.rename.label') }}">{% else %}{{ result.original_name or _('result.title') }}{% endif %} <span class="id-tag id-tag-lg" title="{{ _('result.id_hint') }}">{{ _('common.id_tag', id=result.id) }}</span></h1>
     {% if can_rename %}<form id="rename-form" method="post" action="{{ url_for('analyzer.rename_result', pk=result.id) }}" hidden><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"></form>{% endif %}
-    <p class="page-sub">Загружено {{ result.created_at|localdt }}{% if result.user_id != current_user.id %} · пользователь {{ result.owner_label }}{% endif %}{% if result.source_url %} · источник: <a href="{{ result.source_url }}" target="_blank" rel="noopener noreferrer nofollow">{{ result.source_url|truncate(60) }}</a>{% endif %}</p>
+    <p class="page-sub">{{ _('result.uploaded', date=result.created_at|localdt) }}{% if result.user_id != current_user.id %} {{ _('result.owner', user=result.owner_label) }}{% endif %}{% if result.source_url %} {{ _('result.source') }} <a href="{{ result.source_url }}" target="_blank" rel="noopener noreferrer nofollow">{{ result.source_url|truncate(60) }}</a>{% endif %}</p>
 </div>
 
 <div class="result-layout">
@@ -21,7 +21,7 @@
     <div class="card result-report-card">
         {% if result.caption %}
         <div class="caption-note">
-            <h2 class="card-title">контекст</h2>
+            <h2 class="card-title">{{ _('result.card.context_short') }}</h2>
             <p class="report-text">{{ result.caption }}</p>
         </div>
         {% endif %}
@@ -29,12 +29,12 @@
             <div class="pending-note">
                 <span class="queue-icon queue-item--{{ result.status }}" aria-hidden="true"></span>
                 <h2 class="card-title">{{ result.status_display }}</h2>
-                <p class="report-text">Анализ ещё не завершён. Страница обновляется сама — результат появится здесь и в истории.</p>
-                <a href="{{ url_for('analyzer.dashboard') }}" class="link-more">← К очереди</a>
+                <p class="report-text">{{ _('result.pending') }}</p>
+                <a href="{{ url_for('analyzer.dashboard') }}" class="link-more">{{ _('result.back_to_queue') }}</a>
             </div>
         {% elif result.is_error %}
             <div class="report-error">
-                <h2 class="card-title">Ошибка анализа</h2>
+                <h2 class="card-title">{{ _('result.error.title') }}</h2>
                 <p>{{ result.error }}</p>
             </div>
         {% else %}
@@ -42,16 +42,16 @@
                 <div class="risk-header">
                     <span class="risk-pill risk-pill-{{ result.risk_level }} risk-pill-lg">{{ result.risk_level_display }}</span>
                     {% if result.needs_human_review %}
-                        <span class="tag tag-warn">Требует проверки человеком</span>
+                        <span class="tag tag-warn">{{ _('result.tag.needs_review') }}</span>
                     {% endif %}
-                    {% if result.backend %}<span class="tag tag-quiet">бэкенд: {{ result.backend }}</span>{% endif %}
+                    {% if result.backend %}<span class="tag tag-quiet">{{ _('result.tag.backend', name=result.backend) }}</span>{% endif %}
                 </div>
                 {% if raw_text %}
-                <p class="verdict-note">Модель ответила не в формате отчёта, поэтому разобрать его не удалось. Её ответ приведён ниже как есть.</p>
+                <p class="verdict-note">{{ _('result.raw_note') }}</p>
                 {% endif %}
                 {% if recommendation and not raw_text %}
                 <div class="verdict-action">
-                    <h2 class="card-title">Рекомендация</h2>
+                    <h2 class="card-title">{{ _('result.card.recommendation') }}</h2>
                     <p class="report-text">{{ recommendation }}</p>
                 </div>
                 {% endif %}
@@ -59,32 +59,32 @@
 
             {% if raw_text %}
             <section class="report-section">
-                <h2 class="card-title">Ответ модели (не JSON)</h2>
+                <h2 class="card-title">{{ _('result.card.raw') }}</h2>
                 <pre class="raw-block" tabindex="0">{{ raw_text }}</pre>
             </section>
             {% else %}
             <section class="report-section">
-                <h2 class="card-title">Описание</h2>
+                <h2 class="card-title">{{ _('result.card.description') }}</h2>
                 <p class="report-text">{{ result.description or "—" }}</p>
             </section>
 
             {% if text_on_image %}
             <section class="report-section">
-                <h2 class="card-title">Текст на изображении</h2>
+                <h2 class="card-title">{{ _('result.card.text_in_image') }}</h2>
                 <blockquote class="report-quote">{{ text_on_image }}</blockquote>
             </section>
             {% endif %}
 
             {% if context_text %}
             <section class="report-section">
-                <h2 class="card-title">Контекст</h2>
+                <h2 class="card-title">{{ _('result.card.context') }}</h2>
                 <p class="report-text">{{ context_text }}</p>
             </section>
             {% endif %}
 
             {% if signals %}
             <section class="report-section">
-                <h2 class="card-title">Сигналы</h2>
+                <h2 class="card-title">{{ _('result.card.signals') }}</h2>
                 <ul class="signal-list">
                     {% for s in signals %}
                     <li class="signal">
@@ -98,7 +98,7 @@
 
             {% if rationale %}
             <section class="report-section">
-                <h2 class="card-title">Обоснование</h2>
+                <h2 class="card-title">{{ _('result.card.reasoning') }}</h2>
                 <p class="report-text">{{ rationale }}</p>
             </section>
             {% endif %}
@@ -108,9 +108,9 @@
 
         {% if current_user.is_panel_staff and not result.is_pending %}
         <form method="post" action="{{ url_for('analyzer.delete_result', pk=result.id) }}" class="result-delete"
-              onsubmit="return confirm('Удалить этот результат вместе с изображением? Это нельзя отменить.')">
+              data-confirm="{{ _('result.delete.confirm') }}" onsubmit="return confirm(this.dataset.confirm)">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-            <button type="submit" class="btn btn-danger">Удалить результат</button>
+            <button type="submit" class="btn btn-danger">{{ _('result.delete') }}</button>
         </form>
         {% endif %}
     </div>

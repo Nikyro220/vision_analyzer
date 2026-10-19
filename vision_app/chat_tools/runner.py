@@ -49,11 +49,13 @@ from .users import default_limit as users_default_limit
 from .users import max_limit as users_max_limit
 from .users import max_since_days as users_max_since_days
 from .users import search_users
+from flask_babel import lazy_gettext
+
 from ..chat_prompt import compose_system_prompt
 from ..config import conf
 from ..services import chat_with_model
 
-_FALLBACK_REPLY = "Не удалось получить данные из истории анализов. Попробуйте переформулировать вопрос."
+_FALLBACK_REPLY = lazy_gettext("chat.fallback_reply")
 
 # Служебная строка в конце ответа: номера анализов, которые модель подтвердила как подходящие.
 # Карточки под ответом строятся из сырой выдачи поиска (включая кандидатов по смыслу, которые
@@ -676,7 +678,7 @@ def run_chat_turn(
         if is_last:
             # Лимит вызовов исчерпан, а модель всё ещё просит инструмент.
             current_app.logger.warning("chat_tools: лимит вызовов исчерпан, отдаю запасной ответ")
-            return ChatTurn(_FALLBACK_REPLY, outcome.backend, outcome.model, action_cards)
+            return ChatTurn(str(_FALLBACK_REPLY), outcome.backend, outcome.model, action_cards)
 
         user_turn = {"role": "user", "content": current}
         if step == 0 and message_images:
@@ -704,4 +706,4 @@ def run_chat_turn(
         if step == max_calls - 1:
             current += "\nБольше инструмент вызывать нельзя — ответь пользователю текстом."
 
-    return ChatTurn(_FALLBACK_REPLY, backend, model, action_cards)  # недостижимо, для полноты
+    return ChatTurn(str(_FALLBACK_REPLY), backend, model, action_cards)  # недостижимо, для полноты

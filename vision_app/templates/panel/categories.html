@@ -1,69 +1,65 @@
 {% extends "base.html" %}
-{% block title %}Промпты{% endblock %}
+{% block title %}{{ _('nav.admin.prompts') }}{% endblock %}
 {% block content %}
 <div class="page-header">
-    <h1>Промпты</h1>
-    <p class="page-sub">Тексты, которые определяют поведение модели: роль ассистента в чате и категории оценивания.</p>
+    <h1>{{ _('nav.admin.prompts') }}</h1>
+    <p class="page-sub">{{ _('prompts.subtitle') }}</p>
 </div>
 
 <div class="card">
     <div class="backend-head">
-        <h2 class="card-title">Системный промпт чата</h2>
-        {% if prompt_customized %}<span class="tag tag-warn">изменён</span>{% else %}<span class="tag tag-ok">стандартный</span>{% endif %}
+        <h2 class="card-title">{{ _('prompts.chat.title') }}</h2>
+        {% if prompt_customized %}<span class="tag tag-warn">{{ _('prompts.chat.tag.changed') }}</span>{% else %}<span class="tag tag-ok">{{ _('prompts.chat.tag.default') }}</span>{% endif %}
     </div>
     <form method="post" action="{{ url_for('panel.chat_prompt_save') }}" class="form">
         {{ prompt_form.hidden_tag() }}
         <div class="field">
             {{ prompt_form.prompt(class_="input", rows=10, maxlength=conf("CHAT_PROMPT_MAX_CHARS") * 2, spellcheck="true",
-                                  id="chat-prompt", **{"aria-label": "Системный промпт чата"}) }}
+                                  id="chat-prompt", **{"aria-label": _('prompts.chat.title')}) }}
             {% for err in prompt_form.prompt.errors %}<div class="field-error">{{ err }}</div>{% endfor %}
             <div class="field-hint">
-                Задаёт роль, тон и общие правила ответов ассистента в чате. Применяется со следующего сообщения, во всех чатах.
-                Описание инструментов (поиск по анализам и пользователям, постановка снимков в очередь) система добавляет
-                после этого текста сама — повторять его не нужно, и изменить его здесь нельзя.
-                Пустое поле — вернуть стандартный текст.
+                {{ _('prompts.chat.hint') }}
                 <span id="chat-prompt-count" data-max="{{ conf('CHAT_PROMPT_MAX_CHARS') }}"></span>
             </div>
         </div>
         <div class="form-actions">
-            <button type="submit" class="btn btn-primary">Сохранить промпт</button>
+            <button type="submit" class="btn btn-primary">{{ _('prompts.chat.save') }}</button>
         </div>
     </form>
     {% if prompt_customized %}
     <form method="post" action="{{ url_for('panel.chat_prompt_reset') }}" class="form-inline-tight"
-          onsubmit="return confirm('Вернуть стандартный системный промпт чата? Ваш текст будет удалён.')">
+          data-confirm="{{ _('prompts.chat.reset.confirm') }}" onsubmit="return confirm(this.dataset.confirm)">
         {{ delete_form.hidden_tag() }}
-        <button type="submit" class="btn btn-secondary btn-sm">Сбросить к стандартному</button>
+        <button type="submit" class="btn btn-secondary btn-sm">{{ _('prompts.chat.reset') }}</button>
     </form>
     {% endif %}
     <details class="field-hint">
-        <summary>Показать стандартный текст</summary>
+        <summary>{{ _('prompts.chat.show_default') }}</summary>
         <pre class="prompt-preview">{{ prompt_default }}</pre>
     </details>
 </div>
 
 <div class="page-header">
-    <h2>Категории оценивания</h2>
+    <h2>{{ _('prompts.categories.title') }}</h2>
     <p class="page-sub">
-        Сигналы, которые сервер анализа ищет на изображении. Хранятся только здесь —
-        при каждом анализе текущий набор целиком уходит на сервер как разовые категории.
+        {{ _('prompts.categories.subtitle') }}
     </p>
 </div>
 
 <div class="list-toolbar">
-    <a href="{{ url_for('panel.category_new') }}" class="btn btn-primary">Добавить категорию</a>
+    <a href="{{ url_for('panel.category_new') }}" class="btn btn-primary">{{ _('prompts.category.add') }}</a>
 </div>
 
 <div class="table-wrap">
     <table class="data-table">
         <thead>
             <tr>
-                <th>Порядок</th>
-                <th>Имя</th>
-                <th>Название</th>
+                <th>{{ _('prompts.col.order') }}</th>
+                <th>{{ _('prompts.col.name') }}</th>
+                <th>{{ _('prompts.col.title') }}</th>
                 <th>Summary</th>
-                <th>Статус</th>
-                <th class="table-actions">Действия</th>
+                <th>{{ _('prompts.col.status') }}</th>
+                <th class="table-actions">{{ _('prompts.col.actions') }}</th>
             </tr>
         </thead>
         <tbody>
@@ -75,24 +71,24 @@
                 <td>{{ row.summary|trunc(80) }}</td>
                 <td>
                     {% if row.is_active %}
-                    <span class="tag tag-ok">включена</span>
+                    <span class="tag tag-ok">{{ _('prompts.category.on') }}</span>
                     {% else %}
-                    <span class="tag">выключена</span>
+                    <span class="tag">{{ _('prompts.category.off') }}</span>
                     {% endif %}
                 </td>
                 <td class="table-actions" onclick="event.stopPropagation()">
                     <div class="row-actions">
-                        <a href="{{ url_for('panel.category_edit', pk=row.id) }}" class="btn btn-secondary btn-sm">Изменить</a>
+                        <a href="{{ url_for('panel.category_edit', pk=row.id) }}" class="btn btn-secondary btn-sm">{{ _('common.change') }}</a>
                         <form method="post" action="{{ url_for('panel.category_toggle_active', pk=row.id) }}" class="form-inline-tight">
                             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                             <button type="submit" class="btn btn-secondary btn-sm">
-                                {% if row.is_active %}Выключить{% else %}Включить{% endif %}
+                                {% if row.is_active %}{{ _('prompts.category.disable') }}{% else %}{{ _('prompts.category.enable') }}{% endif %}
                             </button>
                         </form>
                         <form method="post" action="{{ url_for('panel.category_delete', pk=row.id) }}" class="form-inline-tight"
-                              onsubmit="return confirm('Удалить категорию «{{ row.name }}»? Это нельзя отменить.')">
+                              data-confirm="{{ _('prompts.category.delete.confirm', name=row.name) }}" onsubmit="return confirm(this.dataset.confirm)">
                             {{ delete_form.hidden_tag() }}
-                            <button type="submit" class="btn btn-danger btn-sm">Удалить</button>
+                            <button type="submit" class="btn btn-danger btn-sm">{{ _('common.delete') }}</button>
                         </form>
                     </div>
                 </td>
@@ -100,10 +96,10 @@
             {% else %}
             <tr>
                 <td colspan="6" class="empty-hint">
-                    Категорий пока нет.
+                    {{ _('prompts.categories.empty') }}
                     <form method="post" action="{{ url_for('panel.categories_import') }}" class="form-inline-tight">
                         {{ delete_form.hidden_tag() }}
-                        <button type="submit" class="btn btn-secondary btn-sm">Загрузить с сервера анализа</button>
+                        <button type="submit" class="btn btn-secondary btn-sm">{{ _('prompts.categories.import') }}</button>
                     </form>
                 </td>
             </tr>
@@ -121,7 +117,7 @@
     var max = parseInt(out.dataset.max, 10);
     function upd() {
         var n = box.value.trim().length;
-        out.textContent = " Символов: " + n + " из " + max + ".";
+        out.textContent = {{ _('prompts.chat.count')|tojson }}.replace("{n}", n).replace("{max}", max);
         out.style.color = n > max ? "var(--danger-strong)" : "";
     }
     box.addEventListener("input", upd); upd();

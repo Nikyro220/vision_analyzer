@@ -2227,3 +2227,8 @@ a.chat-head-toggle { text-decoration: none; }
 .log-warning { border-left-color: var(--risk-medium); }
 .log-error, .log-critical { border-left-color: var(--danger); color: var(--danger-strong); }
 .log-critical { font-weight: 600; }
+/* Переключатель языка (RU/EN) в футере боковой панели — см. i18n, шаг 2 */
+.lang-switch { display: flex; gap: 6px; align-items: center; margin-bottom: 8px; }
+.lang-link { color: var(--text-dim, #888); text-decoration: none; font-size: 13px; }
+.lang-link:hover { color: var(--text, #222); }
+.lang-link.is-active { font-weight: 600; color: var(--accent, #2563eb); }

@@ -33,6 +33,7 @@ import json
 from datetime import timedelta
 
 from flask import current_app, url_for
+from flask_babel import gettext, lazy_gettext
 from sqlalchemy import func, select, update
 from werkzeug.datastructures import MultiDict
 
@@ -63,20 +64,20 @@ DB_ACTIONS = frozenset(DB_PREFIX + a for a in WRITE_ACTIONS)
 EDIT_FIELDS = ("title", "summary", "full", "compact", "position")
 CREATE_FIELDS = ("title", "summary", "full", "compact")
 _FIELD_LABELS = {
-    "title": "Название",
+    "title": lazy_gettext("prompts.col.title"),
     "summary": "Summary",
     "full": "Full",
     "compact": "Compact",
-    "position": "Позиция",
+    "position": lazy_gettext("chat.category.field.position"),
 }
 # Пределы длины: текст категории попадает в промпт и целиком показывается в карточке.
 _LIMITS = {"title": 150, "summary": 800, "full": 4000, "compact": 2500}
 _TITLES = {
-    ACTION_CREATE: "Создать категорию",
-    ACTION_UPDATE: "Изменить категорию",
-    ACTION_ENABLE: "Включить категорию",
-    ACTION_DISABLE: "Выключить категорию",
-    ACTION_DELETE: "Удалить категорию",
+    ACTION_CREATE: lazy_gettext("chat.category.title.create"),
+    ACTION_UPDATE: lazy_gettext("chat.category.title.update"),
+    ACTION_ENABLE: lazy_gettext("chat.category.title.enable"),
+    ACTION_DISABLE: lazy_gettext("chat.category.title.disable"),
+    ACTION_DELETE: lazy_gettext("chat.category.title.delete"),
 }
 _OLD_CLIP = 300  # прежнее значение в карточке показываем сокращённо, новое — целиком
 
@@ -138,7 +139,7 @@ def _text_arg(raw, key: str) -> tuple[str | None, str | None]:
 
 def _form_problems(form: CategoryForm, fields) -> str | None:
     form.validate()
-    problems = [msg for field, errs in form.errors.items() if field in fields for msg in errs]
+    problems = [str(msg) for field, errs in form.errors.items() if field in fields for msg in errs]
     return "; ".join(dict.fromkeys(problems)) if problems else None
 
 
@@ -251,17 +252,17 @@ def _get(cat: Category | None) -> ToolResult:
 def check_allowed(admin, cat: Category | None, action: str, params: dict) -> str | None:
     """Текст ошибки или None. Одни и те же правила для заявки и для её выполнения."""
     if not _is_staff(admin):
-        return "управлять категориями могут только администраторы панели"
+        return gettext("chat.category.error.admins_only")
     if action not in WRITE_ACTIONS:
         return f"неизвестное действие '{action}', доступно: " + ", ".join(WRITE_ACTIONS)
     if action == ACTION_CREATE:
         return None
     if cat is None:
-        return "категория не найдена (нужно точное имя из list или id)"
+        return gettext("chat.category.error.not_found")
     if action == ACTION_ENABLE and cat.is_active:
-        return "категория уже включена"
+        return gettext("chat.category.error.already_enabled")
     if action == ACTION_DISABLE and not cat.is_active:
-        return "категория уже выключена"
+        return gettext("chat.category.error.already_disabled")
     return None
 
 
@@ -278,29 +279,29 @@ def _describe(action: str, name: str, params: dict) -> tuple[str, list[str]]:
     """(краткое описание, строки-детали для карточки)."""
     details: list[str] = []
     if action == ACTION_CREATE:
-        details.append(f"Название: {params['title'] or '—'}")
+        details.append(gettext("chat.category.detail.title", title=params["title"] or "—"))
         details.append(f"Summary: {params['summary']}")
         details.append(f"Full: {params['full']}")
         details.append(f"Compact: {params['compact']}")
-        details.append("Будет создана ВЫКЛЮЧЕННОЙ (черновик): в анализах не участвует, пока её не включат отдельной заявкой")
-        return f"Создать категорию «{name}»", details
+        details.append(gettext("chat.category.detail.create"))
+        return gettext("chat.category.summary.create", name=name), details
     if action == ACTION_UPDATE:
         before = params.get("before") or {}
         for key, new in (params.get("changes") or {}).items():
             old = before.get(key, "")
             old_text = str(old) if key == "position" else _clip(old, _OLD_CLIP)
             details.append(f"{_FIELD_LABELS[key]}: {old_text or '—'} → {new if new != '' else '—'}")
-        details.append("Изменение повлияет на анализы всех пользователей, если категория включена")
-        return f"Изменить категорию «{name}»", details
+        details.append(gettext("chat.category.detail.update"))
+        return gettext("chat.category.summary.update", name=name), details
     if action == ACTION_ENABLE:
-        details.append("Категория начнёт передаваться на сервер анализа и влиять на анализы всех пользователей")
-        return f"Включить категорию «{name}»", details
+        details.append(gettext("chat.category.detail.enable"))
+        return gettext("chat.category.summary.enable", name=name), details
     if action == ACTION_DISABLE:
-        details.append("Категория перестанет участвовать в новых анализах; сама она сохранится и её можно включить снова")
-        return f"Выключить категорию «{name}»", details
-    details.append("Категория будет удалена безвозвратно; в уже сохранённых анализах её название останется")
-    details.append("Если нужно лишь убрать её из анализа — выключите вместо удаления")
-    return f"Удалить категорию «{name}»", details
+        details.append(gettext("chat.category.detail.disable"))
+        return gettext("chat.category.summary.disable", name=name), details
+    details.append(gettext("chat.category.detail.delete"))
+    details.append(gettext("chat.category.detail.delete_hint"))
+    return gettext("chat.category.summary.delete", name=name), details
 
 
 # ---------------------------------------------------------------------------
@@ -316,16 +317,16 @@ def action_card(a: ChatAction) -> dict:
         "kind": "action",
         "id": a.id,
         "action": a.action,
-        "title": _TITLES.get(action, action),
+        "title": str(_TITLES.get(action, action)),
         "summary": a.summary,
         "details": list((a.params or {}).get("details") or []),
         "status": a.status,
         "result": a.result or "",
         "danger": action == ACTION_DELETE,
         "type_to_confirm": a.target_label if action == ACTION_DELETE else "",
-        "confirm_hint": "Для удаления введите имя категории: ",
+        "confirm_hint": gettext("chat.category.confirm_hint"),
         "target_url": url_for("panel.category_edit", pk=a.target_id) if exists else "",
-        "target_link_label": "страница категории",
+        "target_link_label": gettext("chat.category.page_link"),
         "state_url": url_for("chat.action_state", action_id=a.id),
         "confirm_url": url_for("chat.action_confirm", action_id=a.id),
         "cancel_url": url_for("chat.action_cancel", action_id=a.id),
@@ -433,14 +434,14 @@ def manage_category(user, raw_args, session_id: int | None = None) -> ToolResult
 def confirm_action(admin, a: ChatAction, typed_text: str = "") -> tuple[bool, str]:
     """Выполняет заявку. Возвращает (успех, сообщение). Права и параметры проверяются заново."""
     if a.admin_id != admin.id:
-        return False, "заявка принадлежит другому администратору"
+        return False, gettext("chat.action.error.foreign")
     if a.status == ChatActionStatus.PENDING and _aware(a.expires_at) < utcnow():
-        _finish(a, ChatActionStatus.EXPIRED, "Срок подтверждения истёк. Попросите подготовить действие заново.")
+        _finish(a, ChatActionStatus.EXPIRED, gettext("chat.action.expired_retry"))
         return False, a.result
 
     action = _short(a.action)
     if action == ACTION_DELETE and (typed_text or "").strip() != a.target_label:
-        return False, f"для удаления введите имя «{a.target_label}» точно как оно написано"
+        return False, gettext("chat.category.error.type_name", name=a.target_label)
 
     # Атомарный захват: двойной клик или две вкладки не выполнят заявку дважды.
     claimed = db.session.execute(
@@ -451,13 +452,13 @@ def confirm_action(admin, a: ChatAction, typed_text: str = "") -> tuple[bool, st
     db.session.commit()
     db.session.refresh(a)
     if not claimed:
-        return False, "заявка уже обработана"
+        return False, gettext("chat.action.error.processed")
 
     params = {k: v for k, v in (a.params or {}).items() if k != "details"}
     cat = db.session.get(Category, a.target_id) if a.target_id else None
     err = check_allowed(admin, cat, action, params)
     if err:
-        _finish(a, ChatActionStatus.FAILED, f"Не выполнено: {err}.")
+        _finish(a, ChatActionStatus.FAILED, gettext("chat.action.failed", error=err))
         return False, a.result
 
     try:
@@ -465,11 +466,11 @@ def confirm_action(admin, a: ChatAction, typed_text: str = "") -> tuple[bool, st
     except Exception:  # noqa: BLE001
         db.session.rollback()
         current_app.logger.exception("chat action %s: сбой выполнения", a.id)
-        _finish(a, ChatActionStatus.FAILED, "Не выполнено: внутренняя ошибка.")
+        _finish(a, ChatActionStatus.FAILED, gettext("chat.action.failed_internal"))
         return False, a.result
     if err:
         db.session.rollback()
-        _finish(a, ChatActionStatus.FAILED, f"Не выполнено: {err}.")
+        _finish(a, ChatActionStatus.FAILED, gettext("chat.action.failed", error=err))
         return False, a.result
 
     current_app.logger.info(
@@ -494,29 +495,29 @@ def _apply(action: str, cat: Category | None, params: dict) -> tuple[str, str | 
         )
         db.session.add(row)
         db.session.commit()
-        return f"Категория «{row.name}» создана выключенной (черновик). Включить её можно отдельной заявкой.", None
+        return gettext("chat.category.done.create", name=row.name), None
 
     name = cat.name
     if action == ACTION_UPDATE:
         before = params.get("before") or {}
         current = _current_values(cat)
         if any(current.get(k) != v for k, v in before.items()):
-            return "", "категория изменилась после подготовки заявки — попросите подготовить изменение заново"
+            return "", gettext("chat.category.error.changed")
         changes, err = _check_update(cat, params.get("changes") or {})
         if err:
             return "", err
         for key, value in changes.items():
             setattr(cat, key, value)
         db.session.commit()
-        return f"Категория «{name}» обновлена: " + ", ".join(_FIELD_LABELS[k] for k in changes) + ".", None
+        return gettext("chat.category.done.update", name=name, fields=", ".join(str(_FIELD_LABELS[k]) for k in changes)), None
     if action == ACTION_ENABLE:
         cat.is_active = True
         db.session.commit()
-        return f"Категория «{name}» включена.", None
+        return gettext("flash.category.enabled", name=name), None
     if action == ACTION_DISABLE:
         cat.is_active = False
         db.session.commit()
-        return f"Категория «{name}» выключена.", None
+        return gettext("flash.category.disabled", name=name), None
     db.session.delete(cat)
     db.session.commit()
-    return f"Категория «{name}» удалена.", None
+    return gettext("flash.category.deleted", name=name), None

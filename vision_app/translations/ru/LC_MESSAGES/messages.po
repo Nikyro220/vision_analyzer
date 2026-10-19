@@ -1,0 +1,3638 @@
+# Translations for vision_app (ru).
+# Ключи area.section.item; править тут, затем pybabel compile -d vision_app/translations.
+msgid ""
+msgstr ""
+"Project-Id-Version: vision_app VERSION\n"
+"Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
+"POT-Creation-Date: 2026-10-19 00:00+0000\n"
+"PO-Revision-Date: 2026-10-19 00:00+0000\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: ru\n"
+"Language-Team: ru <LL@li.org>\n"
+"Plural-Forms: nplurals=3; plural=(n%10==1 && n%100!=11 ? 0 : n%10>=2 && n%10<=4 && (n%100<10 || n%100>=20) ? 1 : 2);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.18.0\n"
+
+msgid "account.data.title"
+msgstr "Данные аккаунта"
+
+msgid "account.delete"
+msgstr "Удалить аккаунт"
+
+msgid "account.delete.confirm"
+msgstr "Точно удалить аккаунт «%(username)s»? Это нельзя отменить."
+
+msgid "account.edit.title"
+msgstr "Изменить данные"
+
+msgid "account.field.color"
+msgstr "Цвет"
+
+msgid "account.field.fullname"
+msgstr "ФИО"
+
+msgid "account.field.login"
+msgstr "Логин"
+
+msgid "account.field.nickname"
+msgstr "Никнейм"
+
+msgid "account.field.nickname_title"
+msgstr "Название аккаунта"
+
+msgid "account.field.registered"
+msgstr "Дата регистрации"
+
+msgid "account.field.role"
+msgstr "Роль"
+
+msgid "account.history.unnamed"
+msgstr "без имени"
+
+msgid "appearance.noscript"
+msgstr "Для настройки оформления нужен включённый JavaScript."
+
+msgid "appearance.subtitle"
+msgstr "Тема, цвета и шрифты интерфейса. Хранятся только в вашем браузере."
+
+msgid "auth.blocked.heading"
+msgstr "Аккаунт заблокирован"
+
+msgid "auth.blocked.hint"
+msgstr "Обратитесь к администратору, если считаете, что это ошибка."
+
+msgid "auth.blocked.logout"
+msgstr "Выйти из аккаунта"
+
+msgid "auth.blocked.text"
+msgstr "Администратор ограничил доступ к системе для аккаунта «%(username)s»."
+
+msgid "auth.blocked.title"
+msgstr "Доступ заблокирован"
+
+msgid "auth.login.no_account"
+msgstr "Нет аккаунта?"
+
+msgid "auth.login.register_link"
+msgstr "Зарегистрироваться"
+
+msgid "auth.login.submit"
+msgstr "Войти"
+
+msgid "auth.login.subtitle"
+msgstr "Войдите, чтобы отправить изображение на анализ риска."
+
+msgid "auth.login.title"
+msgstr "Вход"
+
+msgid "auth.register.have_account"
+msgstr "Уже есть аккаунт?"
+
+msgid "auth.register.heading"
+msgstr "Создать аккаунт"
+
+msgid "auth.register.subtitle"
+msgstr "Доступ к анализу изображений после регистрации выдаётся сразу с ролью «Пользователь»."
+
+msgid "auth.register.title"
+msgstr "Регистрация"
+
+msgid "avatars.error.anim_heavy"
+msgstr "Анимация слишком тяжёлая: уменьшите размер или число кадров."
+
+msgid "avatars.error.anim_output"
+msgstr "Анимация получилась слишком тяжёлой (больше %(kb)s КБ). Попробуйте файл покороче."
+
+msgid "avatars.error.empty"
+msgstr "Файл пустой."
+
+msgid "avatars.error.format_animated"
+msgstr "Поддерживаются PNG, JPEG, WebP и GIF."
+
+msgid "avatars.error.format_static"
+msgstr "Поддерживаются только PNG, JPEG и WebP."
+
+msgid "avatars.error.no_frames"
+msgstr "В файле нет кадров."
+
+msgid "avatars.error.too_big"
+msgstr "Файл слишком большой (максимум %(kb)s КБ)."
+
+msgid "avatars.error.too_large_image"
+msgstr "Изображение слишком большое (максимум %(side)sx%(side)s)."
+
+msgid "avatars.error.too_many_frames"
+msgstr "Слишком много кадров (%(count)s, максимум %(max)s)."
+
+msgid "avatars.error.too_zoomed"
+msgstr "Слишком сильное увеличение для такой картинки. Уменьшите масштаб или растяжение."
+
+msgid "avatars.error.unreadable"
+msgstr "Не удалось прочитать изображение."
+
+msgid "base.title.suffix"
+msgstr "Панель анализа"
+
+msgid "catform.advanced.hint"
+msgstr "Почти всегда не нужно. Сюда попадает вспомогательный текст, который в промпте должен идти <i>после</i> закрывающего <code>&lt;signal_category&gt;</code> как отдельный блок (например, справочник известных фраз для транскрипции) — а не как ещё один абзац правил внутри него."
+
+msgid "catform.advanced.title"
+msgstr "Доп. блоки к Full/Compact (нужно очень редко)"
+
+msgid "catform.compact.copy"
+msgstr "Скопировать из Full"
+
+msgid "catform.compact.label"
+msgstr "Compact — сокращённая версия, fallback"
+
+msgid "catform.help.compact"
+msgstr "<b>Compact</b> — та же суть, но сжато: применяется только если модель на первом проходе не смогла уверенно определить категории. Можно собрать нажатием «Скопировать из Full» и сократить вручную."
+
+msgid "catform.help.language"
+msgstr "<b>Служебное слово <code>__OUTPUT_LANGUAGE__</code></b> — если в правиле нужно попросить модель что-то написать (например, в detail/rationale), не пишите конкретный язык («напиши по-русски») — анализ может идти и на английском. Вместо этого вставьте буквально <code>__OUTPUT_LANGUAGE__</code> — сервер сам подставит нужный язык перед отправкой модели. Работает только в Full/Compact, в Summary — нет смысла, там его никто не подставляет. Кнопка «Вставить __OUTPUT_LANGUAGE__» рядом с полем делает это без опечаток — от них не спасает ничего, кроме точного совпадения: ни лишний пробел, ни другое число подчёркиваний не сработают, а сохранение такого текста форма не пропустит и подскажет, что не так."
+
+msgid "catform.help.rules"
+msgstr "<b>Правила (Full)</b> — подробное описание признаков для второго, внимательного прохода. Пишите отдельными абзацами через кнопку «Добавить правило» — например, один абзац на то, что вообще ищем, ещё один — список конкретных примет, ещё один — при каком их сочетании считать сигнал найденным и как это влияет на уровень риска. Тег <code>&lt;signal_category&gt;</code> оборачивается автоматически — писать его самому не нужно."
+
+msgid "catform.help.scene"
+msgstr "<b>Пример сцены</b> — необязательно; готовый разбор похожей ситуации помогает модели."
+
+msgid "catform.help.summary"
+msgstr "<b>Summary</b> — короткое описание по-английски для быстрого первого прохода: что должно быть видно на фото, чтобы модель вообще присмотрелась к этой категории."
+
+msgid "catform.help.title"
+msgstr "Как устроена категория — прочитать перед первым разом"
+
+msgid "catform.insert_placeholder"
+msgstr "Вставить __OUTPUT_LANGUAGE__"
+
+msgid "catform.js.rule_delete"
+msgstr "Удалить это правило"
+
+msgid "catform.js.scene_add"
+msgstr "+ Добавить сцену"
+
+msgid "catform.js.scene_delete"
+msgstr "✕ Удалить сцену"
+
+msgid "catform.js.scene_desc"
+msgstr "Описание сцены"
+
+msgid "catform.js.scene_title"
+msgstr "Сцена {letter}"
+
+msgid "catform.js.signal_add"
+msgstr "+ Добавить сигнал"
+
+msgid "catform.js.signal_delete"
+msgstr "Удалить сигнал"
+
+msgid "catform.js.signals_label"
+msgstr "Сигналы (пусто — сигналов нет)"
+
+msgid "catform.name.hint"
+msgstr "Только латиница, цифры и «_». Меняйте с осторожностью — это же имя сервер анализа видит в промпте."
+
+msgid "catform.new"
+msgstr "Новая категория"
+
+msgid "catform.rule.add"
+msgstr "+ Добавить правило"
+
+msgid "catform.rules.hint"
+msgstr "Каждый блок ниже — отдельный абзац итогового текста. Добавляйте по одному смысловому блоку: что ищем → конкретные приметы → когда считать сигнал найденным → как это влияет на риск."
+
+msgid "catform.rules.label"
+msgstr "Правила (Full) — используются во внимательном, втором проходе"
+
+msgid "catform.scenes.hint"
+msgstr "Готовые разборы похожих ситуаций для модели — отдельно для каждого языка. Сцена: описание, список сигналов (id и категория проставляются сами), обоснование, уровень риска и флаг «нужна проверка человеком». JSON собирается автоматически."
+
+msgid "catform.scenes.label"
+msgstr "Примеры сцен"
+
+msgid "catform.title"
+msgstr "Категория «%(name)s»"
+
+msgid "catform.title.hint"
+msgstr "Только для списка в этой панели, на анализ не влияет."
+
+msgid "chat.action.cancelled"
+msgstr "Отменено администратором."
+
+msgid "chat.action.detail.delete"
+msgstr "Будут безвозвратно удалены аккаунт, все его анализы, чаты и файлы изображений"
+
+msgid "chat.action.detail.role"
+msgstr "Роль: %(old)s → %(new)s"
+
+msgid "chat.action.detail.role_lost"
+msgstr "Текущая роль «%(role)s» будет потеряна: после разблокировки пользователь станет рядовым"
+
+msgid "chat.action.detail.unblock_role"
+msgstr "Роль после разблокировки: Пользователь"
+
+msgid "chat.action.done.delete"
+msgstr "Аккаунт «%(name)s» удалён вместе с его данными."
+
+msgid "chat.action.done.edit"
+msgstr "Данные «%(name)s» обновлены: %(fields)s."
+
+msgid "chat.action.done.role"
+msgstr "Роль «%(name)s» изменена: %(old)s → %(new)s."
+
+msgid "chat.action.error.already_blocked"
+msgstr "пользователь уже заблокирован"
+
+msgid "chat.action.error.foreign"
+msgstr "заявка принадлежит другому администратору"
+
+msgid "chat.action.error.head_only"
+msgstr "действия над пользователями доступны только главному администратору"
+
+msgid "chat.action.error.no_rights"
+msgstr "у вас нет прав управлять этим пользователем"
+
+msgid "chat.action.error.not_blocked"
+msgstr "пользователь не заблокирован"
+
+msgid "chat.action.error.processed"
+msgstr "заявка уже обработана"
+
+msgid "chat.action.error.role_forbidden"
+msgstr "эту роль назначить нельзя; доступно: %(roles)s"
+
+msgid "chat.action.error.same_role"
+msgstr "у пользователя уже роль «%(role)s»"
+
+msgid "chat.action.error.self"
+msgstr "нельзя изменять, блокировать или удалять собственный аккаунт"
+
+msgid "chat.action.error.type_login"
+msgstr "для удаления введите логин «%(username)s» точно как он написан"
+
+msgid "chat.action.error.user_not_found"
+msgstr "пользователь не найден (нужен точный логин или id)"
+
+msgid "chat.action.expired"
+msgstr "Срок подтверждения истёк."
+
+msgid "chat.action.expired_retry"
+msgstr "Срок подтверждения истёк. Попросите подготовить действие заново."
+
+msgid "chat.action.failed"
+msgstr "Не выполнено: %(error)s."
+
+msgid "chat.action.failed_internal"
+msgstr "Не выполнено: внутренняя ошибка."
+
+msgid "chat.action.summary.block"
+msgstr "Заблокировать «%(name)s»"
+
+msgid "chat.action.summary.delete"
+msgstr "Удалить аккаунт «%(name)s» со всеми данными"
+
+msgid "chat.action.summary.edit"
+msgstr "Изменить данные «%(name)s»"
+
+msgid "chat.action.summary.set_role"
+msgstr "Сменить роль «%(name)s» на «%(new)s»"
+
+msgid "chat.action.summary.unblock"
+msgstr "Разблокировать «%(name)s»"
+
+msgid "chat.action.title.set_role"
+msgstr "Сменить роль"
+
+msgid "chat.attach.empty"
+msgstr "Файл «%(name)s» пуст."
+
+msgid "chat.attach.label"
+msgstr "Прикрепить изображение"
+
+msgid "chat.attach.not_image"
+msgstr "Файл «%(name)s» не является изображением или повреждён."
+
+msgid "chat.attach.title"
+msgstr "Прикрепить изображение (до %(count)s шт., до %(mb)s МБ каждое)"
+
+msgid "chat.attach.too_big"
+msgstr "Файл «%(name)s» слишком большой (максимум %(mb)s МБ)."
+
+msgid "chat.attach.too_many"
+msgstr "К одному сообщению можно прикрепить не больше %(max)s изображений."
+
+msgid "chat.attach.unsupported"
+msgstr "Формат файла «%(name)s» не поддерживается."
+
+msgid "chat.category.confirm_hint"
+msgstr "Для удаления введите имя категории: "
+
+msgid "chat.category.detail.create"
+msgstr "Будет создана ВЫКЛЮЧЕННОЙ (черновик): в анализах не участвует, пока её не включат отдельной заявкой"
+
+msgid "chat.category.detail.delete"
+msgstr "Категория будет удалена безвозвратно; в уже сохранённых анализах её название останется"
+
+msgid "chat.category.detail.delete_hint"
+msgstr "Если нужно лишь убрать её из анализа — выключите вместо удаления"
+
+msgid "chat.category.detail.disable"
+msgstr "Категория перестанет участвовать в новых анализах; сама она сохранится и её можно включить снова"
+
+msgid "chat.category.detail.enable"
+msgstr "Категория начнёт передаваться на сервер анализа и влиять на анализы всех пользователей"
+
+msgid "chat.category.detail.title"
+msgstr "Название: %(title)s"
+
+msgid "chat.category.detail.update"
+msgstr "Изменение повлияет на анализы всех пользователей, если категория включена"
+
+msgid "chat.category.done.create"
+msgstr "Категория «%(name)s» создана выключенной (черновик). Включить её можно отдельной заявкой."
+
+msgid "chat.category.done.update"
+msgstr "Категория «%(name)s» обновлена: %(fields)s."
+
+msgid "chat.category.error.admins_only"
+msgstr "управлять категориями могут только администраторы панели"
+
+msgid "chat.category.error.already_disabled"
+msgstr "категория уже выключена"
+
+msgid "chat.category.error.already_enabled"
+msgstr "категория уже включена"
+
+msgid "chat.category.error.changed"
+msgstr "категория изменилась после подготовки заявки — попросите подготовить изменение заново"
+
+msgid "chat.category.error.not_found"
+msgstr "категория не найдена (нужно точное имя из list или id)"
+
+msgid "chat.category.error.type_name"
+msgstr "для удаления введите имя «%(name)s» точно как оно написано"
+
+msgid "chat.category.field.position"
+msgstr "Позиция"
+
+msgid "chat.category.page_link"
+msgstr "страница категории"
+
+msgid "chat.category.summary.create"
+msgstr "Создать категорию «%(name)s»"
+
+msgid "chat.category.summary.delete"
+msgstr "Удалить категорию «%(name)s»"
+
+msgid "chat.category.summary.disable"
+msgstr "Выключить категорию «%(name)s»"
+
+msgid "chat.category.summary.enable"
+msgstr "Включить категорию «%(name)s»"
+
+msgid "chat.category.summary.update"
+msgstr "Изменить категорию «%(name)s»"
+
+msgid "chat.category.title.create"
+msgstr "Создать категорию"
+
+msgid "chat.category.title.delete"
+msgstr "Удалить категорию"
+
+msgid "chat.category.title.disable"
+msgstr "Выключить категорию"
+
+msgid "chat.category.title.enable"
+msgstr "Включить категорию"
+
+msgid "chat.category.title.update"
+msgstr "Изменить категорию"
+
+msgid "chat.composer.hint"
+msgstr "Enter — отправить · Shift+Enter — новая строка · ↑/↓ — прошлые сообщения · изображение можно перетащить или вставить из буфера"
+
+msgid "chat.copy_all"
+msgstr "Скопировать весь диалог в буфер обмена"
+
+msgid "chat.delete"
+msgstr "Удалить чат"
+
+msgid "chat.delete.confirm"
+msgstr "Удалить этот чат безвозвратно?"
+
+msgid "chat.empty.hint"
+msgstr "Спросите про категории риска, что значит уже готовый отчёт /analyze, настройки сэмплинга — или прикрепите изображение (скрепка, перетаскивание или вставка из буфера) и задайте вопрос о нём — модель увидит картинку сама. Чтобы запустить полноценный риск-анализ, попросите добавить изображение в анализ: оно встанет в общую очередь, а результат появится в чате сам."
+
+msgid "chat.empty.title"
+msgstr "чат пуст"
+
+msgid "chat.error.busy"
+msgstr "Модель ещё отвечает на предыдущее сообщение — дождитесь ответа."
+
+msgid "chat.error.empty"
+msgstr "Пустое сообщение."
+
+msgid "chat.error.too_long"
+msgstr "Сообщение слишком длинное (максимум %(max)s символов)."
+
+msgid "chat.export.analyses"
+msgstr "Анализы: %(items)s"
+
+msgid "chat.export.attachments"
+msgstr "Вложения: %(names)s"
+
+msgid "chat.export.created"
+msgstr "Создан: %(date)s"
+
+msgid "chat.export.model"
+msgstr "Модель"
+
+msgid "chat.export.title"
+msgstr "Чат: %(title)s"
+
+msgid "chat.export.you"
+msgstr "Вы"
+
+msgid "chat.export_json"
+msgstr "Экспорт диалога в JSON"
+
+msgid "chat.fallback_reply"
+msgstr "Не удалось получить данные из истории анализов. Попробуйте переформулировать вопрос."
+
+msgid "chat.heading"
+msgstr "Чат с моделью"
+
+msgid "chat.input.placeholder"
+msgstr "Сообщение…"
+
+msgid "chat.job.cancelled"
+msgstr "%(subject)s отменён — записи в очереди больше нет."
+
+msgid "chat.job.default_label"
+msgstr "Анализ #%(id)s"
+
+msgid "chat.job.done"
+msgstr "%(subject)s завершён. Уровень риска: %(risk)s."
+
+msgid "chat.job.failed"
+msgstr "%(subject)s завершился ошибкой: %(error)s"
+
+msgid "chat.job.needs_review"
+msgstr "Требуется проверка человеком."
+
+msgid "chat.job.see_report"
+msgstr "Подробный отчёт — по ссылке ниже."
+
+msgid "chat.job.subject_image"
+msgstr "Анализ изображения «%(name)s»"
+
+msgid "chat.job.subject_link"
+msgstr "Анализ ссылки «%(name)s»"
+
+msgid "chat.new"
+msgstr "+ Новый чат"
+
+msgid "chat.resize.label"
+msgstr "Изменить размер окна чата (стрелки — изменить, Home — сбросить)"
+
+msgid "chat.resize.title"
+msgstr "Потяните, чтобы изменить размер. Двойной клик — сбросить"
+
+msgid "chat.role.model"
+msgstr "модель"
+
+msgid "chat.role.user"
+msgstr "вы"
+
+msgid "chat.send"
+msgstr "Отправить"
+
+msgid "chat.session.default_title"
+msgstr "Новый чат"
+
+msgid "chat.sessions.empty"
+msgstr "Пока нет ни одного чата."
+
+msgid "chat.sessions.hide"
+msgstr "Скрыть список чатов"
+
+msgid "chat.sessions.show"
+msgstr "Показать список чатов"
+
+msgid "chat.subtitle"
+msgstr "Свободный диалог с моделью, без риск-JSON-схемы анализа."
+
+msgid "chat.target.answering"
+msgstr "Сейчас отвечает: <strong>%(backend)s</strong> · модель: <strong>%(model)s</strong>."
+
+msgid "chat.target.default"
+msgstr "Отвечает бэкенд по умолчанию."
+
+msgid "chat.title.image"
+msgstr "Изображение: %(name)s"
+
+msgid "common.cancel"
+msgstr "Отмена"
+
+msgid "common.change"
+msgstr "Изменить"
+
+msgid "common.delete"
+msgstr "Удалить"
+
+msgid "common.id_col"
+msgstr "№"
+
+msgid "common.id_tag"
+msgstr "№%(id)s"
+
+msgid "common.nothing_found"
+msgstr "Ничего не найдено."
+
+msgid "common.save"
+msgstr "Сохранить"
+
+msgid "credentials.error.bad_master"
+msgstr "%(env)s имеет неверный формат (нужен ключ Fernet: 32 байта в urlsafe-base64)."
+
+msgid "credentials.error.chars"
+msgstr "В ключе не должно быть пробелов, переводов строк и не-ASCII символов."
+
+msgid "credentials.error.empty"
+msgstr "Ключ пустой."
+
+msgid "credentials.error.setup"
+msgstr "Не задана переменная %(env)s — без неё ключи API нельзя хранить. Сгенерируйте значение командой: python -c \"from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())\" — впишите его в файл .env в корне проекта (%(env)s=...) и перезапустите приложение."
+
+msgid "credentials.error.too_long"
+msgstr "Слишком длинное значение ключа."
+
+msgid "dashboard.heading"
+msgstr "Новый анализ изображения"
+
+msgid "dashboard.intake.drop_hint"
+msgstr "или перетащите файлы сюда"
+
+msgid "dashboard.intake.label"
+msgstr "Ссылки на посты или изображения"
+
+msgid "dashboard.intake.pick"
+msgstr "Выбрать изображения"
+
+msgid "dashboard.intake.placeholder"
+msgstr "Вставьте ссылку на пост или изображение (Ctrl+V). Несколько ссылок — каждую с новой строки."
+
+msgid "dashboard.queue.empty"
+msgstr "Очередь пуста. Загруженные файлы и ссылки появятся здесь."
+
+msgid "dashboard.queue.error"
+msgstr "Не удаётся обновить очередь — повторяю попытку…"
+
+msgid "dashboard.queue.hint"
+msgstr "Обработка идёт в фоне: страницу можно закрыть, очередь не потеряется. Готовые результаты появятся справа."
+
+msgid "dashboard.queue.title"
+msgstr "Очередь"
+
+msgid "dashboard.recent.empty"
+msgstr "Пока нет завершённых анализов. Загрузите первое изображение или ссылку слева."
+
+msgid "dashboard.recent.title"
+msgstr "Последние загрузки"
+
+msgid "dashboard.sources.direct"
+msgstr "прямые ссылки на картинки"
+
+msgid "dashboard.sources.hint"
+msgstr "Картинку и текст поста подтянет сервер анализа. Для видео берётся обложка."
+
+msgid "dashboard.sources.label"
+msgstr "Поддерживаемые сайты"
+
+msgid "dashboard.sources.news"
+msgstr "новостные сайты"
+
+msgid "dashboard.submit"
+msgstr "Добавить в очередь"
+
+msgid "dashboard.subtitle"
+msgstr "Загрузите файлы или вставьте ссылки на посты — всё встанет в очередь и будет обработано vision-моделью по одному."
+
+msgid "dashboard.target.analyzing"
+msgstr "Анализирует <strong>%(model)s</strong> на <strong>%(backend)s</strong>"
+
+msgid "dashboard.target.default"
+msgstr "Используется бэкенд и модель по умолчанию."
+
+msgid "dashboard.target.default_model"
+msgstr "модель по умолчанию"
+
+msgid "dashboard.upload.title"
+msgstr "Загрузка"
+
+msgid "error.404.text"
+msgstr "Такой страницы нет или у вас нет к ней доступа."
+
+msgid "error.404.title"
+msgstr "Страница не найдена"
+
+msgid "error.405.text"
+msgstr "Этот адрес не принимает такой тип запроса."
+
+msgid "error.405.title"
+msgstr "Метод не разрешён"
+
+msgid "error.500.text"
+msgstr "Что-то пошло не так. Попробуйте ещё раз позже."
+
+msgid "error.500.title"
+msgstr "Внутренняя ошибка"
+
+msgid "error.card.home"
+msgstr "На главную"
+
+msgid "flash.account.delete_mismatch"
+msgstr "Команда подтверждения введена неверно. Аккаунт не удалён."
+
+msgid "flash.account.deleted"
+msgstr "Аккаунт «%(username)s» удалён."
+
+msgid "flash.account.updated"
+msgstr "Данные аккаунта обновлены."
+
+msgid "flash.avatar.bad_params"
+msgstr "Некорректные параметры редактора."
+
+msgid "flash.avatar.deleted"
+msgstr "Аватар удалён."
+
+msgid "flash.avatar.no_file"
+msgstr "Файл не выбран."
+
+msgid "flash.avatar.updated"
+msgstr "Аватар обновлён."
+
+msgid "flash.backend.analysis_cleared"
+msgstr "Выбор сброшен: бэкенд выбирает сервер, модель — авто."
+
+msgid "flash.backend.analysis_set"
+msgstr "Анализы будут выполняться на «%(name)s», модель: %(model)s."
+
+msgid "flash.backend.analysis_uses"
+msgstr "Анализы выполняются на «%(title)s»."
+
+msgid "flash.backend.chat_cleared"
+msgstr "Чат снова использует тот же бэкенд и модель, что и анализы."
+
+msgid "flash.backend.chat_set"
+msgstr "Чат будет отвечать на «%(name)s», модель: %(model)s."
+
+msgid "flash.backend.chat_uses"
+msgstr "Чат отвечает на «%(title)s»."
+
+msgid "flash.backend.down_warning"
+msgstr "«%(title)s» сейчас недоступен — запросы будут завершаться ошибкой (или уйдут на другой бэкенд, если включён фолбэк)."
+
+msgid "flash.backend.not_configured"
+msgstr "«%(title)s» не настроен — сначала введите данные подключения (API-ключ) на его карточке."
+
+msgid "flash.backend.unavailable"
+msgstr "Бэкенд «%(name)s» сейчас недоступен."
+
+msgid "flash.categories.exist"
+msgstr "Категории уже есть — загрузка с сервера нужна только для пустого списка."
+
+msgid "flash.categories.import_failed"
+msgstr "Не удалось получить категории с сервера анализа — проверьте, что он запущен."
+
+msgid "flash.categories.imported"
+msgstr "Категории загружены с сервера анализа."
+
+msgid "flash.category.added"
+msgstr "Категория «%(name)s» добавлена."
+
+msgid "flash.category.delete_stale"
+msgstr "Не удалось удалить категорию — сессия устарела, попробуйте ещё раз."
+
+msgid "flash.category.deleted"
+msgstr "Категория «%(name)s» удалена."
+
+msgid "flash.category.disabled"
+msgstr "Категория «%(name)s» выключена."
+
+msgid "flash.category.enabled"
+msgstr "Категория «%(name)s» включена."
+
+msgid "flash.category.updated"
+msgstr "Категория «%(name)s» обновлена."
+
+msgid "flash.csrf_expired"
+msgstr "Сессия истекла или форма устарела. Повторите действие."
+
+msgid "flash.file_too_large"
+msgstr "Файл слишком большой. Максимальный размер — %(limit)s МБ."
+
+msgid "flash.forbidden"
+msgstr "Недостаточно прав для доступа к этой странице."
+
+msgid "flash.history.deleted"
+msgstr "Удалено записей: %(count)s."
+
+msgid "flash.history.new_cleared"
+msgstr "Метки «новое» сброшены: %(items)s."
+
+msgid "flash.history.no_new"
+msgstr "Новых меток нет."
+
+msgid "flash.history.none_selected"
+msgstr "Ничего не выбрано."
+
+msgid "flash.history.nothing_to_delete"
+msgstr "Нечего удалять."
+
+msgid "flash.key.already_unset"
+msgstr "Ключ и так не был задан."
+
+msgid "flash.key.default_lost"
+msgstr "«%(title)s» — бэкенд по умолчанию на сервере, а ключа больше нет: запросы без явного выбора будут падать. Выберите другой бэкенд в блоке «Используемый бэкенд»."
+
+msgid "flash.key.empty"
+msgstr "Нечего сохранять: поле пустое (пустое поле означает «не менять»)."
+
+msgid "flash.key.erased"
+msgstr "Ключ «%(title)s» удалён."
+
+msgid "flash.key.no_answer"
+msgstr "нет ответа"
+
+msgid "flash.key.saved_down"
+msgstr "Ключ «%(title)s» сохранён, но бэкенд не отвечает: %(reason)s"
+
+msgid "flash.key.saved_ok"
+msgstr "Ключ «%(title)s» сохранён — бэкенд отвечает. Список моделей можно загрузить кнопкой «Обновить список»."
+
+msgid "flash.key.saved_unchecked"
+msgstr "Ключ «%(title)s» сохранён, но проверить его не удалось: %(error)s"
+
+msgid "flash.login.bad_credentials"
+msgstr "Неверный логин или пароль."
+
+msgid "flash.login.inactive"
+msgstr "Этот аккаунт деактивирован."
+
+msgid "flash.login.welcome_back"
+msgstr "С возвращением, %(username)s!"
+
+msgid "flash.logout"
+msgstr "Вы вышли из системы."
+
+msgid "flash.model.not_found"
+msgstr "Модель «%(model)s» не найдена у бэкенда «%(name)s»."
+
+msgid "flash.model.too_long"
+msgstr "Слишком длинное название модели."
+
+msgid "flash.models.fetch_failed"
+msgstr "Не удалось получить список моделей «%(title)s»: %(error)s"
+
+msgid "flash.models.refreshed"
+msgstr "Список моделей «%(title)s» обновлён: %(count)s."
+
+msgid "flash.panel.blocked"
+msgstr "Пользователь «%(username)s» заблокирован."
+
+msgid "flash.panel.history_cleared"
+msgstr "История пользователя «%(username)s» очищена: удалено %(items)s."
+
+msgid "flash.panel.no_analyses"
+msgstr "У пользователя «%(username)s» нет завершённых анализов."
+
+msgid "flash.panel.no_block_rights"
+msgstr "У вас нет прав на блокировку этого пользователя."
+
+msgid "flash.panel.no_delete_rights"
+msgstr "У вас нет прав на удаление этого пользователя."
+
+msgid "flash.panel.role_changed"
+msgstr "Роль пользователя «%(username)s» изменена: %(old)s → %(new)s."
+
+msgid "flash.panel.role_forbidden"
+msgstr "Вы не можете назначить эту роль."
+
+msgid "flash.panel.unblocked"
+msgstr "Пользователь «%(username)s» разблокирован."
+
+msgid "flash.panel.user_updated"
+msgstr "Данные пользователя «%(username)s» обновлены."
+
+msgid "flash.prompt.default_active"
+msgstr "Действует стандартный системный промпт чата."
+
+msgid "flash.prompt.reset"
+msgstr "Системный промпт чата сброшен к стандартному."
+
+msgid "flash.prompt.saved"
+msgstr "Системный промпт чата сохранён. Он применится со следующего сообщения."
+
+msgid "flash.queue.added"
+msgstr "Добавлено в очередь: %(items)s (%(numbers)s)."
+
+msgid "flash.queue.and"
+msgstr " и "
+
+msgid "flash.queue.cannot_cancel"
+msgstr "Анализ уже обрабатывается или завершён — отменить его нельзя."
+
+msgid "flash.queue.removed"
+msgstr "Убрано из очереди."
+
+msgid "flash.queue.total_limit"
+msgstr "Общая очередь заполнена (%(count)s из %(limit)s). Повторите позже."
+
+msgid "flash.queue.user_limit"
+msgstr "В вашей очереди уже %(count)s, максимум — %(limit)s. Дождитесь обработки и повторите."
+
+msgid "flash.register.first_user"
+msgstr "Регистрация выполнена. Вы первый пользователь системы — вам присвоена роль «Главный администратор»."
+
+msgid "flash.register.ok"
+msgstr "Регистрация прошла успешно. Добро пожаловать!"
+
+msgid "flash.rename.done"
+msgstr "Название изменено."
+
+msgid "flash.rename.empty"
+msgstr "Название не может быть пустым."
+
+msgid "flash.rename.too_long"
+msgstr "Название слишком длинное: максимум %(max)s символов."
+
+msgid "flash.rename.unchanged"
+msgstr "Название не изменилось."
+
+msgid "flash.result.deleted"
+msgstr "Результат удалён."
+
+msgid "flash.result.pending"
+msgstr "Анализ ещё не завершён — дождитесь результата или отмените его в очереди."
+
+msgid "flash.sampling.empty"
+msgstr "Нечего сохранять: все поля пустые (пустое поле означает «не менять»)."
+
+msgid "flash.sampling.invalid"
+msgstr "Параметры не сохранены — исправьте ошибки в форме."
+
+msgid "flash.sampling.reset"
+msgstr "Параметры %(title)s сброшены к значениям по умолчанию."
+
+msgid "flash.sampling.saved"
+msgstr "Параметры %(title)s обновлены: %(changed)s."
+
+msgid "flash.session_stale"
+msgstr "Сессия устарела, попробуйте ещё раз."
+
+msgid "flash.settings.invalid"
+msgstr "Настройки не сохранены — исправьте ошибки и повторите."
+
+msgid "flash.settings.saved"
+msgstr "Настройки сохранены и уже действуют."
+
+msgid "flash.upload.skipped_file"
+msgstr "Пропущен файл «%(name)s»: %(reason)s."
+
+msgid "flash.upload.skipped_link"
+msgstr "Пропущена ссылка «%(link)s»: %(reason)s."
+
+msgid "flash.upload.skipped_more"
+msgstr "…и ещё пропущено: %(count)s."
+
+msgid "flash.upload.skipped_more_links"
+msgstr "…и ещё пропущено ссылок: %(count)s."
+
+msgid "forms.account.color"
+msgstr "Цвет пользователя"
+
+msgid "forms.account.color_format"
+msgstr "Цвет задаётся как #rrggbb."
+
+msgid "forms.account.color_hint"
+msgstr "Красит аватар без картинки и ваши сообщения в чате"
+
+msgid "forms.account.display_style"
+msgstr "Как показывать моё имя"
+
+msgid "forms.account.family_name"
+msgstr "Фамилия"
+
+msgid "forms.account.given_name"
+msgstr "Имя"
+
+msgid "forms.account.middle_name"
+msgstr "Отчество"
+
+msgid "forms.account.nickname_placeholder"
+msgstr "Необязательно: как называется ваш аккаунт"
+
+msgid "forms.account.optional"
+msgstr "Необязательно"
+
+msgid "forms.category.compact"
+msgstr "Compact (сокращённая версия, fallback)"
+
+msgid "forms.category.compact_extra"
+msgstr "Доп. блоки к Compact (редко нужно)"
+
+msgid "forms.category.compact_required"
+msgstr "Заполните compact."
+
+msgid "forms.category.examples_bad"
+msgstr "Не удалось разобрать примеры сцен — обновите страницу и повторите."
+
+msgid "forms.category.exists"
+msgstr "Категория с таким именем уже существует."
+
+msgid "forms.category.full"
+msgstr "Full (полные правила для второго прохода)"
+
+msgid "forms.category.full_extra"
+msgstr "Доп. блоки к Full (редко нужно)"
+
+msgid "forms.category.full_required"
+msgstr "Заполните full."
+
+msgid "forms.category.is_active"
+msgstr "Включена (участвует в анализе)"
+
+msgid "forms.category.name"
+msgstr "Техническое имя"
+
+msgid "forms.category.name_chars"
+msgstr "Допустимы только латинские буквы, цифры и «_»."
+
+msgid "forms.category.name_max"
+msgstr "Не более 64 символов."
+
+msgid "forms.category.name_required"
+msgstr "Введите техническое имя категории."
+
+msgid "forms.category.placeholder_typo"
+msgstr "Похоже на опечатку в служебном слове «%(found)s». Нужно написать ровно «%(expected)s» (два подчёркивания с каждой стороны, заглавными) — иначе сервер анализа не подставит язык, и это слово останется в промпте как есть."
+
+msgid "forms.category.position"
+msgstr "Порядок появления в промпте"
+
+msgid "forms.category.position_range"
+msgstr "От 0 до 100000."
+
+msgid "forms.category.summary"
+msgstr "Summary (для первого, классифицирующего прохода)"
+
+msgid "forms.category.summary_placeholder"
+msgstr "Короткое описание на английском: что должно быть видно на изображении, чтобы категория стала кандидатом."
+
+msgid "forms.category.summary_required"
+msgstr "Заполните summary."
+
+msgid "forms.category.title"
+msgstr "Название для интерфейса"
+
+msgid "forms.category.title_placeholder"
+msgstr "Оружие и опасные предметы"
+
+msgid "forms.common.email_invalid"
+msgstr "Введите корректный адрес электронной почты."
+
+msgid "forms.common.enter_login"
+msgstr "Введите логин."
+
+msgid "forms.common.enter_password"
+msgstr "Введите пароль."
+
+msgid "forms.common.login_chars"
+msgstr "Допустимы только буквы, цифры и символы @/./+/-/_"
+
+msgid "forms.common.login_exists"
+msgstr "Пользователь с таким логином уже существует."
+
+msgid "forms.common.max150"
+msgstr "Не более 150 символов."
+
+msgid "forms.common.password"
+msgstr "Пароль"
+
+msgid "forms.delete.confirm_label"
+msgstr "Подтверждение"
+
+msgid "forms.delete.confirm_required"
+msgstr "Введите команду подтверждения."
+
+msgid "forms.link.invalid"
+msgstr "некорректный адрес"
+
+msgid "forms.link.need_url"
+msgstr "нужна ссылка вида https://…"
+
+msgid "forms.link.too_long"
+msgstr "слишком длинная ссылка"
+
+msgid "forms.number.allowed"
+msgstr "Допустимое значение: %(range)s."
+
+msgid "forms.number.finite"
+msgstr "Введите обычное число."
+
+msgid "forms.number.float"
+msgstr "Введите число (например, 0.7)."
+
+msgid "forms.number.int"
+msgstr "Введите целое число."
+
+msgid "forms.number.or_auto"
+msgstr " или auto"
+
+msgid "forms.number.placeholder_int"
+msgstr "целое"
+
+msgid "forms.number.placeholder_number"
+msgstr "число"
+
+msgid "forms.password.common"
+msgstr "Этот пароль слишком широко распространён."
+
+msgid "forms.password.digits_only"
+msgstr "Пароль не может состоять только из цифр."
+
+msgid "forms.password.similar"
+msgstr "Пароль слишком похож на логин."
+
+msgid "forms.password.too_short"
+msgstr "Пароль слишком короткий. Минимум %(min)s символов."
+
+msgid "forms.prompt.too_long"
+msgstr "Слишком длинный промпт: не более %(limit)s символов."
+
+msgid "forms.range.any"
+msgstr "любое число"
+
+msgid "forms.range.from_to"
+msgstr "от %(lo)s до %(hi)s"
+
+msgid "forms.range.ge"
+msgstr "не меньше %(lo)s"
+
+msgid "forms.range.gt"
+msgstr "больше %(lo)s"
+
+msgid "forms.range.gt_to"
+msgstr "больше %(lo)s до %(hi)s"
+
+msgid "forms.range.le"
+msgstr "не больше %(hi)s"
+
+msgid "forms.register.mismatch"
+msgstr "Введённые пароли не совпадают."
+
+msgid "forms.register.password2"
+msgstr "Подтверждение пароля"
+
+msgid "forms.register.password2_placeholder"
+msgstr "Повторите пароль"
+
+msgid "forms.register.password_placeholder"
+msgstr "Придумайте пароль"
+
+msgid "forms.register.repeat_required"
+msgstr "Повторите пароль."
+
+msgid "forms.register.username"
+msgstr "Имя пользователя"
+
+msgid "forms.register.username_placeholder"
+msgstr "Придумайте логин"
+
+msgid "forms.setting.default"
+msgstr "По умолчанию: %(value)s."
+
+msgid "forms.upload.empty"
+msgstr "файл пуст"
+
+msgid "forms.upload.images"
+msgstr "Изображения"
+
+msgid "forms.upload.invalid"
+msgstr "Загрузите правильное изображение или ссылку. %(reasons)s"
+
+msgid "forms.upload.links"
+msgstr "Ссылки на посты"
+
+msgid "forms.upload.not_image"
+msgstr "не является изображением или повреждён"
+
+msgid "forms.upload.nothing"
+msgstr "Выберите файл изображения или вставьте ссылку на пост."
+
+msgid "forms.upload.reason"
+msgstr "«%(name)s»: %(why)s"
+
+msgid "forms.upload.too_many"
+msgstr "За один раз можно загрузить не больше %(max)s файлов."
+
+msgid "forms.upload.too_many_total"
+msgstr "За один раз можно добавить не больше %(max)s файлов и ссылок суммарно."
+
+msgid "forms.upload.unsupported"
+msgstr "формат не поддерживается"
+
+msgid "health.cache_hint"
+msgstr "Состояние бэкендов хранится в кэше, вкладки переключаются без запросов к серверу."
+
+msgid "health.card.address"
+msgstr "Адрес"
+
+msgid "health.card.error"
+msgstr "Ошибка"
+
+msgid "health.card.in_use"
+msgstr "Используется"
+
+msgid "health.card.model_auto"
+msgstr "Модель (авто)"
+
+msgid "health.card.model_selected"
+msgstr "Выбранная модель"
+
+msgid "health.card.not_configured"
+msgstr "Не настроен"
+
+msgid "health.card.ok"
+msgstr "Работает"
+
+msgid "health.card.selected_down"
+msgstr "Выбран, но недоступен"
+
+msgid "health.card.unavailable"
+msgstr "Недоступен"
+
+msgid "health.card.via_fallback"
+msgstr "(фолбэк)"
+
+msgid "health.conn.title"
+msgstr "Подключение"
+
+msgid "health.current.auto_model"
+msgstr "<strong>%(backend)s</strong>, модель: авто"
+
+msgid "health.current.explicit"
+msgstr "<strong>%(backend)s</strong>, модель: <strong>%(model)s</strong>"
+
+msgid "health.current.fallback"
+msgstr "(фолбэк: основной бэкенд сервера недоступен)"
+
+msgid "health.current.follows"
+msgstr "Как для анализов: <strong>%(backend)s</strong>, модель: <strong>%(model)s</strong>"
+
+msgid "health.current.none"
+msgstr "<strong>ни на чём</strong>: ни один бэкенд сейчас не доступен"
+
+msgid "health.fallback_off"
+msgstr "Фолбэк выключен — запросы будут завершаться ошибкой."
+
+msgid "health.fallback_on"
+msgstr "Включён фолбэк — запросы уйдут на другой доступный бэкенд, если сервер сможет."
+
+msgid "health.heading"
+msgstr "Сервер анализа"
+
+msgid "health.hint.analysis"
+msgstr "Выбор для анализов не влияет на чат, пока для него не задан свой."
+
+msgid "health.hint.chat"
+msgstr "Выбор для чата не влияет на анализы."
+
+msgid "health.hint.fallback_off"
+msgstr "Фолбэк выключен: запрос идёт строго на выбранный бэкенд."
+
+msgid "health.hint.fallback_on"
+msgstr "Если бэкенд недоступен или отвечает 5xx, сервер пробует следующий: локальные, затем облачные (при заданном ключе)."
+
+msgid "health.key.erase"
+msgstr "Стереть"
+
+msgid "health.key.erase.confirm"
+msgstr "Стереть сохранённый ключ «%(title)s»?"
+
+msgid "health.key.locked_aria"
+msgstr "%(label)s (задан, изменить нельзя — сначала сотрите)"
+
+msgid "health.key.no_master"
+msgstr "Ключ сохранить нельзя: не задана переменная окружения <code>VISION_CREDENTIALS_KEY</code> (мастер-ключ шифрования). Сгенерируйте значение: <code>python -c \"from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())\"</code> и перезапустите приложение."
+
+msgid "health.key.placeholder"
+msgstr "Вставьте значение"
+
+msgid "health.key.replace_hint"
+msgstr "Чтобы заменить ключ, сначала сотрите текущий, затем введите новый."
+
+msgid "health.key.set"
+msgstr "задан"
+
+msgid "health.key.undecryptable"
+msgstr "не расшифровывается — введите заново"
+
+msgid "health.key.unset"
+msgstr "не задан"
+
+msgid "health.model.aria"
+msgstr "Модель %(name)s"
+
+msgid "health.model.auto"
+msgstr "авто"
+
+msgid "health.model.placeholder"
+msgstr "ID модели (пусто — авто)"
+
+msgid "health.model.title"
+msgstr "Модель"
+
+msgid "health.models.cached"
+msgstr "Загружен %(date)s; хранится в кэше, страница ради него к провайдеру не ходит."
+
+msgid "health.models.empty"
+msgstr "Бэкенд не вернул список моделей — введите ID вручную или оставьте пустым (авто)."
+
+msgid "health.models.error"
+msgstr "Не удалось получить список моделей: %(error)s. Введите ID модели вручную."
+
+msgid "health.models.not_loaded"
+msgstr "Список моделей ещё не загружен — нажмите «Обновить список» или введите ID вручную."
+
+msgid "health.models.refresh"
+msgstr "Обновить список"
+
+msgid "health.option.auto"
+msgstr "Авто (определяет сервер)"
+
+msgid "health.option.auto.lower"
+msgstr "авто (определяет сервер)"
+
+msgid "health.option.like_analysis"
+msgstr "Как для анализов"
+
+msgid "health.option.not_configured"
+msgstr "— не настроен"
+
+msgid "health.option.unavailable"
+msgstr "— недоступен"
+
+msgid "health.refresh"
+msgstr "Обновить статус"
+
+msgid "health.sampling.hint"
+msgstr "Пустое поле — не менять. Параметры относятся <strong>только к этому бэкенду</strong>: у каждого бэкенда свой набор параметров и свои допустимые значения, изменения здесь не затрагивают другие бэкенды. Применяются сразу ко всем последующим запросам к нему (в том числе от других клиентов сервера)."
+
+msgid "health.sampling.reset"
+msgstr "Сбросить к значениям по умолчанию"
+
+msgid "health.sampling.save"
+msgstr "Сохранить параметры"
+
+msgid "health.sampling.title"
+msgstr "Параметры генерации"
+
+msgid "health.select.label"
+msgstr "Используемый бэкенд"
+
+msgid "health.server_down"
+msgstr "Сервер недоступен"
+
+msgid "health.subtitle"
+msgstr "Бэкенды vision_analyzer_server.py"
+
+msgid "health.subtitle.configure"
+msgstr ": выбор модели и параметры генерации"
+
+msgid "health.tab.analysis"
+msgstr "Анализ"
+
+msgid "health.tab.chat"
+msgstr "Чат"
+
+msgid "health.tabs.label"
+msgstr "Назначение"
+
+msgid "health.target.analysis"
+msgstr "анализ"
+
+msgid "health.target.analysis_gen"
+msgstr "анализа"
+
+msgid "health.target.chat"
+msgstr "чат"
+
+msgid "health.target.chat_gen"
+msgstr "чата"
+
+msgid "health.target_down"
+msgstr "Выбранный бэкенд «%(backend)s» недоступен."
+
+msgid "health.unavailable.need_key"
+msgstr "Введите данные подключения выше — после этого здесь появятся выбор модели и параметры генерации."
+
+msgid "health.unavailable.wait"
+msgstr "Выбор модели и параметры станут доступны, когда бэкенд заработает."
+
+msgid "health.use"
+msgstr "Использовать"
+
+msgid "health.use_for"
+msgstr "Использовать для %(target)s"
+
+msgid "health.used_backend"
+msgstr "Используемый бэкенд — %(target)s"
+
+msgid "history.all"
+msgstr "Вся история"
+
+msgid "history.col.backend"
+msgstr "Бэкенд"
+
+msgid "history.col.date"
+msgstr "Дата"
+
+msgid "history.col.file"
+msgstr "Файл"
+
+msgid "history.col.review"
+msgstr "Проверка человеком"
+
+msgid "history.col.risk"
+msgstr "Риск"
+
+msgid "history.delete_selected"
+msgstr "Удалить выбранные"
+
+msgid "history.delete_selected.confirm"
+msgstr "Удалить выбранные записи вместе с изображениями? Это нельзя отменить."
+
+msgid "history.empty.no_match"
+msgstr "Ничего не найдено по запросу «%(query)s»."
+
+msgid "history.empty.none"
+msgstr "История пуста — завершённых анализов пока нет."
+
+msgid "history.heading"
+msgstr "История анализов"
+
+msgid "history.reset_new"
+msgstr "Сбросить метки «новое» (%(count)s)"
+
+msgid "history.review.no"
+msgstr "нет"
+
+msgid "history.review.yes"
+msgstr "да"
+
+msgid "history.search.placeholder"
+msgstr "Поиск по имени файла или номеру…"
+
+msgid "history.select_all"
+msgstr "Выбрать все на странице"
+
+msgid "history.select_row"
+msgstr "Выбрать запись %(id)s"
+
+msgid "history.subtitle"
+msgstr "Все завершённые анализы ваших изображений. Файлы в очереди показываются на странице «Новый анализ»."
+
+msgid "history.tag.error"
+msgstr "ошибка"
+
+msgid "history.tag.new"
+msgstr "новое"
+
+msgid "js.avatar.anim_too_big"
+msgstr "Анимация слишком большая: максимум {mb} МБ."
+
+msgid "js.avatar.cannot_open"
+msgstr "Не удалось открыть изображение. Попробуйте PNG, JPEG, WebP или GIF."
+
+msgid "js.avatar.prepare_failed"
+msgstr "Не удалось подготовить изображение."
+
+msgid "js.avatar.save_failed"
+msgstr "Не удалось сохранить аватар."
+
+msgid "js.avatar.save_failed_reload"
+msgstr "Не удалось сохранить аватар. Обновите страницу и попробуйте снова."
+
+msgid "js.avatar.too_big"
+msgstr "Файл слишком большой."
+
+msgid "js.chat.action.cancel"
+msgstr "Отмена"
+
+msgid "js.chat.action.cancelled"
+msgstr "Отменено"
+
+msgid "js.chat.action.confirm"
+msgstr "Подтвердить"
+
+msgid "js.chat.action.done"
+msgstr "Выполнено"
+
+msgid "js.chat.action.expired"
+msgstr "Срок подтверждения истёк"
+
+msgid "js.chat.action.failed"
+msgstr "Не выполнено"
+
+msgid "js.chat.action.running"
+msgstr "Выполняется…"
+
+msgid "js.chat.action.title"
+msgstr "Действие"
+
+msgid "js.chat.action.user_page"
+msgstr "страница пользователя"
+
+msgid "js.chat.analyses_count"
+msgstr "анализов: {n}"
+
+msgid "js.chat.analysis_n"
+msgstr "Анализ #{id}"
+
+msgid "js.chat.attach.remove"
+msgstr "Убрать вложение"
+
+msgid "js.chat.confirm_login"
+msgstr "Для удаления введите логин: "
+
+msgid "js.chat.copied"
+msgstr "Скопировано"
+
+msgid "js.chat.error.copy"
+msgstr "Не удалось скопировать диалог. Скачайте его кнопкой экспорта в JSON."
+
+msgid "js.chat.error.lost_reply"
+msgstr "Ответ модели не получен (возможно, сервер был перезапущен). Отправьте сообщение ещё раз."
+
+msgid "js.chat.error.no_answer"
+msgstr "Не удалось получить ответ."
+
+msgid "js.chat.error.no_reply"
+msgstr "Не удалось получить ответ от модели — сообщение возвращено в поле ввода."
+
+msgid "js.chat.error.offline"
+msgstr "Нет связи с сервером."
+
+msgid "js.chat.error.rejected"
+msgstr "Сервер отклонил запрос (возможно, файлы слишком большие)."
+
+msgid "js.chat.error.request"
+msgstr "Не удалось выполнить запрос."
+
+msgid "js.chat.error.resend"
+msgstr "Не удалось отправить прошлое сообщение — текст возвращён в поле ввода."
+
+msgid "js.chat.error.unreachable"
+msgstr "Не удалось связаться с сервером. Проверьте соединение и повторите."
+
+msgid "js.chat.file"
+msgstr "файл"
+
+msgid "js.chat.image"
+msgstr "изображение"
+
+msgid "js.chat.not_attached"
+msgstr "Не прикреплено: {list}."
+
+msgid "js.chat.role.error"
+msgstr "ошибка"
+
+msgid "js.chat.role.model"
+msgstr "модель"
+
+msgid "js.chat.role.user"
+msgstr "вы"
+
+msgid "js.chat.send"
+msgstr "Отправить"
+
+msgid "js.chat.sending"
+msgstr "Отправка…"
+
+msgid "js.chat.skip.not_image"
+msgstr "«{name}» — не изображение"
+
+msgid "js.chat.skip.too_big"
+msgstr "«{name}» — больше {mb} МБ"
+
+msgid "js.chat.skip.too_many"
+msgstr "«{name}» — максимум {max} изображений в сообщении"
+
+msgid "js.chat.user_n"
+msgstr "Пользователь #{id}"
+
+msgid "js.chat.valid_until"
+msgstr "Действует до {date}"
+
+msgid "js.list.selected_other_pages"
+msgstr "(включая другие страницы/фильтры)"
+
+msgid "js.list.selected_total"
+msgstr "Выбрано всего: {n}"
+
+msgid "js.main.analyzing"
+msgstr "Анализируем…"
+
+msgid "js.queue.cancel"
+msgstr "Убрать из очереди"
+
+msgid "js.queue.clear_all"
+msgstr "Очистить всё"
+
+msgid "js.queue.comment"
+msgstr "Комментарий (необязательно)"
+
+msgid "js.queue.files_count"
+msgstr "Файлов: {n}"
+
+msgid "js.queue.new"
+msgstr "новое"
+
+msgid "js.queue.next"
+msgstr "В очереди · следующий"
+
+msgid "js.queue.processing"
+msgstr "Обрабатывается · {time}"
+
+msgid "js.queue.remove_file"
+msgstr "Убрать этот файл из выбора"
+
+msgid "js.queue.selected"
+msgstr "Выбрано: {n}"
+
+msgid "js.queue.uploading"
+msgstr "Загружаем…"
+
+msgid "js.queue.waiting"
+msgstr "В очереди · перед вами: {ahead}"
+
+msgid "js.settings.enabled"
+msgstr "включено"
+
+msgid "js.settings.reset"
+msgstr "сбросить"
+
+msgid "js.sidebar.collapse"
+msgstr "Свернуть панель"
+
+msgid "js.sidebar.expand"
+msgstr "Развернуть панель"
+
+msgid "js.theme.accent.color"
+msgstr "Акцентный цвет"
+
+msgid "js.theme.accent.hint"
+msgstr "Цвет кнопок, активных пунктов меню, ссылок и фокуса. Часть тем задаёт свой акцент; выбранный здесь цвет его перекрывает."
+
+msgid "js.theme.accent.light"
+msgstr "Акцент: светлый вариант"
+
+msgid "js.theme.accent.light_hint"
+msgstr "Ссылки и наведение. По умолчанию подбирается автоматически под акцент и тему."
+
+msgid "js.theme.accent.quick"
+msgstr "Быстрый выбор акцента"
+
+msgid "js.theme.accent.random"
+msgstr "Случайный"
+
+msgid "js.theme.accent.title"
+msgstr "Акцент"
+
+msgid "js.theme.applied"
+msgstr "Тема применена."
+
+msgid "js.theme.applied_reset"
+msgstr "Тема применена. Свои цвета поверхностей, текста и статусов сброшены — «Отменить» вернёт их."
+
+msgid "js.theme.auto"
+msgstr "Авто"
+
+msgid "js.theme.behavior.motion"
+msgstr "Уменьшить анимации"
+
+msgid "js.theme.behavior.motion_hint"
+msgstr "Отключает плавные переходы и анимации интерфейса."
+
+msgid "js.theme.behavior.title"
+msgstr "Поведение"
+
+msgid "js.theme.color.blue"
+msgstr "Синий"
+
+msgid "js.theme.color.green"
+msgstr "Зелёный"
+
+msgid "js.theme.color.orange"
+msgstr "Оранжевый"
+
+msgid "js.theme.color.pink"
+msgstr "Розовый"
+
+msgid "js.theme.color.red"
+msgstr "Красный"
+
+msgid "js.theme.color.teal"
+msgstr "Бирюзовый"
+
+msgid "js.theme.color.violet"
+msgstr "Фиолетовый"
+
+msgid "js.theme.color.yellow"
+msgstr "Жёлтый"
+
+msgid "js.theme.contrast.bad"
+msgstr "плохо"
+
+msgid "js.theme.contrast.low"
+msgstr "мало"
+
+msgid "js.theme.default"
+msgstr "по умолчанию"
+
+msgid "js.theme.export"
+msgstr "Экспорт"
+
+msgid "js.theme.exported"
+msgstr "Тема сохранена в файл."
+
+msgid "js.theme.fit.full"
+msgstr "Включено «на всю ширину» — ползунок не действует."
+
+msgid "js.theme.fit.now"
+msgstr "Сейчас окно вмещает до {px} px."
+
+msgid "js.theme.fit.over"
+msgstr "Выбрано больше — фактически ширину ограничивает окно; расширьте его или включите «Контент на всю ширину окна»."
+
+msgid "js.theme.font.aria"
+msgstr "{label} — название шрифта"
+
+msgid "js.theme.font.code"
+msgstr "Программистский"
+
+msgid "js.theme.font.custom"
+msgstr "Свой шрифт…"
+
+msgid "js.theme.font.grotesque"
+msgstr "Гротеск"
+
+msgid "js.theme.font.humanist"
+msgstr "Гуманистический"
+
+msgid "js.theme.font.mono"
+msgstr "Моноширинный"
+
+msgid "js.theme.font.mono_default"
+msgstr "Моноширинный (по умолчанию)"
+
+msgid "js.theme.font.placeholder"
+msgstr "Например: Inter, PT Sans"
+
+msgid "js.theme.font.same"
+msgstr "Как основной шрифт"
+
+msgid "js.theme.font.serif"
+msgstr "С засечками"
+
+msgid "js.theme.font.system"
+msgstr "Системный (по умолчанию)"
+
+msgid "js.theme.font.wide"
+msgstr "Читаемый (широкий)"
+
+msgid "js.theme.import"
+msgstr "Импорт"
+
+msgid "js.theme.import.bad_json"
+msgstr "Файл не является корректным JSON."
+
+msgid "js.theme.import.not_theme"
+msgstr "Это не файл темы Vision Triage."
+
+msgid "js.theme.imported"
+msgstr "Тема импортирована."
+
+msgid "js.theme.layout.full"
+msgstr "Контент на всю ширину окна"
+
+msgid "js.theme.layout.full_hint"
+msgstr "Снимает ограничение ширины: контент занимает всё место справа от боковой панели."
+
+msgid "js.theme.layout.hint"
+msgstr "Скругления и размеры основных областей."
+
+msgid "js.theme.layout.max_width"
+msgstr "Максимальная ширина контента"
+
+msgid "js.theme.layout.max_width_hint"
+msgstr "Ограничивает ширину контента; шире окна браузера он стать не может. Применяется, когда вы отпустите ползунок."
+
+msgid "js.theme.layout.radius"
+msgstr "Скругление углов"
+
+msgid "js.theme.layout.sidebar"
+msgstr "Ширина боковой панели"
+
+msgid "js.theme.layout.sidebar_hint"
+msgstr "Применяется, когда вы отпустите ползунок."
+
+msgid "js.theme.layout.title"
+msgstr "Форма и компоновка"
+
+msgid "js.theme.module.hint"
+msgstr "Пресет меняет палитру, а у части тем — ещё и акцентный цвет. Шрифты и форма остаются вашими. Темы сгруппированы: тёмные, светлые и контрастные; внутри групп — по алфавиту. В открытом списке можно набрать первые буквы названия."
+
+msgid "js.theme.module.label"
+msgstr "Тема оформления"
+
+msgid "js.theme.module.title"
+msgstr "Тема"
+
+msgid "js.theme.preview.delete"
+msgstr "Удалить"
+
+msgid "js.theme.preview.dim"
+msgstr "Слабый текст."
+
+msgid "js.theme.preview.heading"
+msgstr "Заголовок раздела"
+
+msgid "js.theme.preview.high"
+msgstr "высокий"
+
+msgid "js.theme.preview.input"
+msgstr "Поле ввода"
+
+msgid "js.theme.preview.input_aria"
+msgstr "Пример поля ввода"
+
+msgid "js.theme.preview.link"
+msgstr "Ссылка"
+
+msgid "js.theme.preview.low"
+msgstr "низкий"
+
+msgid "js.theme.preview.medium"
+msgstr "средний"
+
+msgid "js.theme.preview.muted"
+msgstr "Приглушённый текст."
+
+msgid "js.theme.preview.primary"
+msgstr "Основная"
+
+msgid "js.theme.preview.role_admin"
+msgstr "Админ"
+
+msgid "js.theme.preview.role_head"
+msgstr "Главный админ"
+
+msgid "js.theme.preview.role_user"
+msgstr "Пользователь"
+
+msgid "js.theme.preview.secondary"
+msgstr "Вторичная"
+
+msgid "js.theme.preview.text"
+msgstr "Обычный текст интерфейса."
+
+msgid "js.theme.preview.title"
+msgstr "Предпросмотр"
+
+msgid "js.theme.reset_all"
+msgstr "Сбросить всё"
+
+msgid "js.theme.reset_done"
+msgstr "Оформление сброшено к стандартному."
+
+msgid "js.theme.reset_section"
+msgstr "сбросить раздел"
+
+msgid "js.theme.sample_text"
+msgstr "Съешь ещё этих мягких французских булок, да выпей чаю 0123456789"
+
+msgid "js.theme.status.danger"
+msgstr "Опасные действия / ошибки"
+
+msgid "js.theme.status.high"
+msgstr "Высокий риск"
+
+msgid "js.theme.status.hint"
+msgstr "Цвета уровней риска, ошибок и предупреждений. Цвета ролей пользователей не настраиваются."
+
+msgid "js.theme.status.low"
+msgstr "Низкий риск / успех"
+
+msgid "js.theme.status.medium"
+msgstr "Средний риск / предупреждение"
+
+msgid "js.theme.status.title"
+msgstr "Статусы и предупреждения"
+
+msgid "js.theme.storage_note"
+msgstr "Оформление хранится только в этом браузере и применяется автоматически. Другие пользователи и устройства его не видят."
+
+msgid "js.theme.surfaces.bg"
+msgstr "Фон страницы"
+
+msgid "js.theme.surfaces.border"
+msgstr "Границы"
+
+msgid "js.theme.surfaces.border_soft"
+msgstr "Мягкие границы"
+
+msgid "js.theme.surfaces.hint"
+msgstr "Фоны и границы. Смена пресета сбрасывает эти цвета к палитре пресета."
+
+msgid "js.theme.surfaces.hover"
+msgstr "Наведение"
+
+msgid "js.theme.surfaces.input"
+msgstr "Поля ввода и вложенные блоки"
+
+msgid "js.theme.surfaces.panel"
+msgstr "Панели и карточки"
+
+msgid "js.theme.surfaces.title"
+msgstr "Поверхности"
+
+msgid "js.theme.system"
+msgstr "Как в системе"
+
+msgid "js.theme.text.accent_panel"
+msgstr "Акцент / панель"
+
+msgid "js.theme.text.faint"
+msgstr "Слабый текст (подписи, даты)"
+
+msgid "js.theme.text.faint_panel"
+msgstr "Слабый / панель"
+
+msgid "js.theme.text.hint"
+msgstr "Цвета текста. Рядом показан контраст с фоном (норма WCAG AA — от 4.5)."
+
+msgid "js.theme.text.main"
+msgstr "Основной текст"
+
+msgid "js.theme.text.main_bg"
+msgstr "Основной / фон"
+
+msgid "js.theme.text.muted"
+msgstr "Приглушённый текст"
+
+msgid "js.theme.text.muted_panel"
+msgstr "Приглушённый / панель"
+
+msgid "js.theme.text.title"
+msgstr "Текст"
+
+msgid "js.theme.typo.heading"
+msgstr "Шрифт заголовков и данных"
+
+msgid "js.theme.typo.hint"
+msgstr "Свой шрифт должен быть установлен на вашем устройстве — из интернета шрифты не подгружаются."
+
+msgid "js.theme.typo.line"
+msgstr "Межстрочный интервал"
+
+msgid "js.theme.typo.main"
+msgstr "Основной шрифт"
+
+msgid "js.theme.typo.size"
+msgstr "Размер текста"
+
+msgid "js.theme.typo.size_hint"
+msgstr "Масштабирует текст во всём интерфейсе. Применяется, когда вы отпустите ползунок."
+
+msgid "js.theme.typo.title"
+msgstr "Типографика"
+
+msgid "js.theme.undo"
+msgstr "↶ Отменить"
+
+msgid "js.theme.undone"
+msgstr "Изменение отменено."
+
+msgid "js.theme.value_auto"
+msgstr "авто"
+
+msgid "logs.auto_refresh"
+msgstr "Автообновление"
+
+msgid "logs.empty.no_dir"
+msgstr "Папка логов ещё не создана."
+
+msgid "logs.empty.no_files"
+msgstr "Файлов логов у источника «%(title)s» пока нет."
+
+msgid "logs.empty.no_match"
+msgstr "Нет записей, подходящих под выбранные условия."
+
+msgid "logs.file.modified"
+msgstr "изменён %(date)s"
+
+msgid "logs.file.shown"
+msgstr "показано %(shown)s из %(matched)s подходящих записей, новые сверху"
+
+msgid "logs.file.truncated"
+msgstr "· файл большой, прочитаны последние %(kb)s КБ"
+
+msgid "logs.level.all"
+msgstr "Все уровни"
+
+msgid "logs.level.and_above"
+msgstr "и выше"
+
+msgid "logs.level.label"
+msgstr "Уровень"
+
+msgid "logs.limit.label"
+msgstr "Сколько записей"
+
+msgid "logs.limit.option"
+msgstr "%(n)s записей"
+
+msgid "logs.no_files"
+msgstr "Файлов нет"
+
+msgid "logs.refresh"
+msgstr "Обновить"
+
+msgid "logs.search"
+msgstr "Поиск по тексту…"
+
+msgid "logs.size.b"
+msgstr "%(n)s Б"
+
+msgid "logs.size.kb"
+msgstr "%(n)s КБ"
+
+msgid "logs.size.mb"
+msgstr "%(n)s МБ"
+
+msgid "logs.source.flask"
+msgstr "Flask-панель"
+
+msgid "logs.source.label"
+msgstr "Источник логов"
+
+msgid "logs.source.server"
+msgstr "Сервер анализа"
+
+msgid "logs.subtitle"
+msgstr "Flask-панель и сервер анализа — отдельными вкладками. Раздел виден только главному админу."
+
+msgid "models.display_style.fi"
+msgstr "Фамилия Имя"
+
+msgid "models.owner.deleted"
+msgstr "удалённый пользователь (id %(id)s)"
+
+msgid "nav.account.logout"
+msgstr "Выйти"
+
+msgid "nav.account.profile"
+msgstr "Профиль"
+
+msgid "nav.admin.analyses"
+msgstr "Все анализы"
+
+msgid "nav.admin.overview"
+msgstr "Обзор"
+
+msgid "nav.admin.prompts"
+msgstr "Промпты"
+
+msgid "nav.admin.users"
+msgstr "Пользователи"
+
+msgid "nav.analysis.chat"
+msgstr "Чат"
+
+msgid "nav.analysis.history"
+msgstr "История"
+
+msgid "nav.analysis.new"
+msgstr "Новый анализ"
+
+msgid "nav.group.admin"
+msgstr "Панель управления"
+
+msgid "nav.group.analysis"
+msgstr "Анализ"
+
+msgid "nav.group.system"
+msgstr "Система"
+
+msgid "nav.sidebar.collapse"
+msgstr "Свернуть панель"
+
+msgid "nav.system.appearance"
+msgstr "Оформление"
+
+msgid "nav.system.logs"
+msgstr "Логи"
+
+msgid "nav.system.settings"
+msgstr "Настройки"
+
+msgid "nav.system.status"
+msgstr "Статус сервера"
+
+msgid "pagination.current"
+msgstr "Страница %(page)s из %(pages)s"
+
+msgid "pagination.next"
+msgstr "Вперёд →"
+
+msgid "pagination.prev"
+msgstr "← Назад"
+
+msgid "panel.analyses.all_users"
+msgstr "Все пользователи"
+
+msgid "panel.analyses.any_risk"
+msgstr "Любой риск"
+
+msgid "panel.analyses.delete_filtered"
+msgstr "Удалить все найденные (%(total)s)"
+
+msgid "panel.analyses.delete_filtered.confirm"
+msgstr "Удалить ВСЕ найденные записи (%(total)s шт.) вместе с изображениями — не только с этой страницы? Это нельзя отменить."
+
+msgid "panel.analyses.filter_hint.none"
+msgstr "Фильтр не задан — будет удалена вся история системы."
+
+msgid "panel.analyses.filter_hint.set"
+msgstr "По текущему фильтру, со всех страниц."
+
+msgid "panel.analyses.orphan_hint"
+msgstr "Аккаунт удалён, запись осталась от старой версии — `flask purge-orphans` удалит такие записи"
+
+msgid "panel.analyses.review_only"
+msgstr "Только требующие проверки"
+
+msgid "panel.analyses.search_user"
+msgstr "Поиск по пользователю…"
+
+msgid "panel.analyses.subtitle"
+msgstr "Результаты анализа всех пользователей системы."
+
+msgid "panel.col.registered"
+msgstr "Регистрация"
+
+msgid "panel.col.review"
+msgstr "Проверка"
+
+msgid "panel.col.user"
+msgstr "Пользователь"
+
+msgid "panel.stats.analyses_done"
+msgstr "Анализов выполнено"
+
+msgid "panel.stats.backend"
+msgstr "Бэкенд анализа"
+
+msgid "panel.stats.by_role"
+msgstr "Пользователи по ролям"
+
+msgid "panel.stats.default"
+msgstr "· по умолчанию:"
+
+msgid "panel.stats.details"
+msgstr "Подробный статус →"
+
+msgid "panel.stats.heading"
+msgstr "Обзор системы"
+
+msgid "panel.stats.high"
+msgstr "Высокий риск"
+
+msgid "panel.stats.online"
+msgstr "В сети"
+
+msgid "panel.stats.subtitle"
+msgstr "Сводка по пользователям и результатам анализа."
+
+msgid "panel.stats.users_total"
+msgstr "Пользователей всего"
+
+msgid "panel.stats.waiting_review"
+msgstr "Ждут проверки человеком"
+
+msgid "panel.user.all_history"
+msgstr "Вся история (%(count)s) →"
+
+msgid "panel.user.block"
+msgstr "Заблокировать"
+
+msgid "panel.user.clear_history"
+msgstr "Очистить историю (%(count)s)"
+
+msgid "panel.user.clear_history.confirm"
+msgstr "Удалить всю историю пользователя «%(username)s» (%(count)s шт.) вместе с изображениями? Это нельзя отменить."
+
+msgid "panel.user.delete.hint"
+msgstr "Это необратимо: аккаунт и вся история анализов пользователя «%(username)s» будут удалены. Для подтверждения введите вручную команду ниже — с логином этого пользователя (скопировать её нельзя):"
+
+msgid "panel.user.no_analyses"
+msgstr "У этого пользователя нет завершённых анализов."
+
+msgid "panel.user.no_email"
+msgstr "Email не указан"
+
+msgid "panel.user.no_rights"
+msgstr "У вас нет прав на изменение этого пользователя."
+
+msgid "panel.user.profile_data"
+msgstr "Данные профиля"
+
+msgid "panel.user.registered"
+msgstr "· зарегистрирован %(date)s"
+
+msgid "panel.user.save_role"
+msgstr "Сохранить роль"
+
+msgid "panel.user.unblock"
+msgstr "Разблокировать"
+
+msgid "panel.user_history.back"
+msgstr "← К профилю"
+
+msgid "panel.user_history.heading"
+msgstr "История: %(username)s"
+
+msgid "panel.user_history.title"
+msgstr "История · %(username)s"
+
+msgid "panel.user_history.total"
+msgstr "Завершённых анализов: %(total)s"
+
+msgid "panel.users.all_roles"
+msgstr "Все роли"
+
+msgid "panel.users.filter"
+msgstr "Фильтровать"
+
+msgid "panel.users.search"
+msgstr "Поиск по логину…"
+
+msgid "panel.users.subtitle"
+msgstr "Управление ролями и блокировками."
+
+msgid "plural.files.one"
+msgid_plural "plural.files.other"
+msgstr[0] "%(n)s файл"
+msgstr[1] "%(n)s файла"
+msgstr[2] "%(n)s файлов"
+
+msgid "plural.links.one"
+msgid_plural "plural.links.other"
+msgstr[0] "%(n)s ссылка"
+msgstr[1] "%(n)s ссылки"
+msgstr[2] "%(n)s ссылок"
+
+msgid "plural.records.one"
+msgid_plural "plural.records.other"
+msgstr[0] "%(n)s запись"
+msgstr[1] "%(n)s записи"
+msgstr[2] "%(n)s записей"
+
+msgid "profile.avatar.anim_note"
+msgstr "Анимированный файл: предпросмотр живой, а итоговые кадры обработает сервер. Размер исходника — до %(size)s МБ."
+
+msgid "profile.avatar.change"
+msgstr "Изменить аватар"
+
+msgid "profile.avatar.ctl.bri"
+msgstr "Яркость"
+
+msgid "profile.avatar.ctl.con"
+msgstr "Контраст"
+
+msgid "profile.avatar.ctl.dx"
+msgstr "Позиция по X"
+
+msgid "profile.avatar.ctl.dy"
+msgstr "Позиция по Y"
+
+msgid "profile.avatar.ctl.hue"
+msgstr "Оттенок"
+
+msgid "profile.avatar.ctl.rot"
+msgstr "Поворот"
+
+msgid "profile.avatar.ctl.sat"
+msgstr "Насыщенность"
+
+msgid "profile.avatar.ctl.sx"
+msgstr "Растяжение по X"
+
+msgid "profile.avatar.ctl.sy"
+msgstr "Растяжение по Y"
+
+msgid "profile.avatar.ctl.zoom"
+msgstr "Масштаб"
+
+msgid "profile.avatar.delete.confirm"
+msgstr "Удалить аватар?"
+
+msgid "profile.avatar.drag_hint"
+msgstr "Тяните мышью или пальцем — сдвиг. Колесо мыши — масштаб. В кружке — то, как аватар виден в меню."
+
+msgid "profile.avatar.flip_btn"
+msgstr "Отразить"
+
+msgid "profile.avatar.flip_title"
+msgstr "Отразить по горизонтали"
+
+msgid "profile.avatar.hint"
+msgstr "PNG, JPEG, WebP, GIF или BMP. Нажмите на кружок или «Загрузить фото». GIF и анимированный WebP сохраняются с анимацией. Без фото аватар закрашивается вашим цветом (его можно выбрать ниже). Аватар видят другие пользователи."
+
+msgid "profile.avatar.pick_title"
+msgstr "Нажмите, чтобы выбрать новое фото"
+
+msgid "profile.avatar.preview"
+msgstr "Предпросмотр аватара"
+
+msgid "profile.avatar.reset_all"
+msgstr "Сбросить всё"
+
+msgid "profile.avatar.reset_one"
+msgstr "Сбросить: %(label)s"
+
+msgid "profile.avatar.rotate_left"
+msgstr "Повернуть на 90° влево"
+
+msgid "profile.avatar.rotate_right"
+msgstr "Повернуть на 90° вправо"
+
+msgid "profile.avatar.save"
+msgstr "Сохранить аватар"
+
+msgid "profile.avatar.title"
+msgstr "Аватар"
+
+msgid "profile.avatar.upload"
+msgstr "Загрузить фото"
+
+msgid "profile.delete.hint"
+msgstr "Это необратимо: аккаунт и вся ваша история анализов будут удалены. Для подтверждения введите вручную команду ниже — с вашим логином (скопировать её нельзя):"
+
+msgid "profile.history.empty"
+msgstr "У вас пока нет завершённых анализов."
+
+msgid "profile.subtitle"
+msgstr "Основные данные вашего аккаунта."
+
+msgid "prompts.categories.empty"
+msgstr "Категорий пока нет."
+
+msgid "prompts.categories.import"
+msgstr "Загрузить с сервера анализа"
+
+msgid "prompts.categories.subtitle"
+msgstr "Сигналы, которые сервер анализа ищет на изображении. Хранятся только здесь — при каждом анализе текущий набор целиком уходит на сервер как разовые категории."
+
+msgid "prompts.categories.title"
+msgstr "Категории оценивания"
+
+msgid "prompts.category.add"
+msgstr "Добавить категорию"
+
+msgid "prompts.category.delete.confirm"
+msgstr "Удалить категорию «%(name)s»? Это нельзя отменить."
+
+msgid "prompts.category.disable"
+msgstr "Выключить"
+
+msgid "prompts.category.enable"
+msgstr "Включить"
+
+msgid "prompts.category.off"
+msgstr "выключена"
+
+msgid "prompts.category.on"
+msgstr "включена"
+
+msgid "prompts.chat.count"
+msgstr " Символов: {n} из {max}."
+
+msgid "prompts.chat.hint"
+msgstr "Задаёт роль, тон и общие правила ответов ассистента в чате. Применяется со следующего сообщения, во всех чатах. Описание инструментов (поиск по анализам и пользователям, постановка снимков в очередь) система добавляет после этого текста сама — повторять его не нужно, и изменить его здесь нельзя. Пустое поле — вернуть стандартный текст."
+
+msgid "prompts.chat.reset"
+msgstr "Сбросить к стандартному"
+
+msgid "prompts.chat.reset.confirm"
+msgstr "Вернуть стандартный системный промпт чата? Ваш текст будет удалён."
+
+msgid "prompts.chat.save"
+msgstr "Сохранить промпт"
+
+msgid "prompts.chat.show_default"
+msgstr "Показать стандартный текст"
+
+msgid "prompts.chat.tag.changed"
+msgstr "изменён"
+
+msgid "prompts.chat.tag.default"
+msgstr "стандартный"
+
+msgid "prompts.chat.title"
+msgstr "Системный промпт чата"
+
+msgid "prompts.col.actions"
+msgstr "Действия"
+
+msgid "prompts.col.name"
+msgstr "Имя"
+
+msgid "prompts.col.order"
+msgstr "Порядок"
+
+msgid "prompts.col.status"
+msgstr "Статус"
+
+msgid "prompts.col.title"
+msgstr "Название"
+
+msgid "prompts.subtitle"
+msgstr "Тексты, которые определяют поведение модели: роль ассистента в чате и категории оценивания."
+
+msgid "queue.cancel"
+msgstr "Убрать из очереди"
+
+msgid "queue.error.file_missing"
+msgstr "Файл изображения не найден на диске."
+
+msgid "queue.error.internal"
+msgstr "Внутренняя ошибка обработки: %(error)s"
+
+msgid "queue.error.link_failed"
+msgstr "Не удалось получить изображение по ссылке."
+
+msgid "queue.error.save_failed"
+msgstr "Не удалось сохранить скачанное изображение: %(error)s"
+
+msgid "queue.status.next"
+msgstr "В очереди · следующий"
+
+msgid "queue.status.processing"
+msgstr "Обрабатывается · %(time)s"
+
+msgid "queue.status.waiting"
+msgstr "В очереди · перед вами: %(ahead)s"
+
+msgid "result.back_to_queue"
+msgstr "← К очереди"
+
+msgid "result.card.context"
+msgstr "Контекст"
+
+msgid "result.card.context_short"
+msgstr "контекст"
+
+msgid "result.card.description"
+msgstr "Описание"
+
+msgid "result.card.raw"
+msgstr "Ответ модели (не JSON)"
+
+msgid "result.card.reasoning"
+msgstr "Обоснование"
+
+msgid "result.card.recommendation"
+msgstr "Рекомендация"
+
+msgid "result.card.signals"
+msgstr "Сигналы"
+
+msgid "result.card.text_in_image"
+msgstr "Текст на изображении"
+
+msgid "result.delete"
+msgstr "Удалить результат"
+
+msgid "result.delete.confirm"
+msgstr "Удалить этот результат вместе с изображением? Это нельзя отменить."
+
+msgid "result.error.title"
+msgstr "Ошибка анализа"
+
+msgid "result.id_hint"
+msgstr "Номер анализа — по нему можно найти запись в истории и в чате"
+
+msgid "result.owner"
+msgstr "· пользователь %(user)s"
+
+msgid "result.pending"
+msgstr "Анализ ещё не завершён. Страница обновляется сама — результат появится здесь и в истории."
+
+msgid "result.raw_note"
+msgstr "Модель ответила не в формате отчёта, поэтому разобрать его не удалось. Её ответ приведён ниже как есть."
+
+msgid "result.rename.hint"
+msgstr "Двойной клик — изменить название"
+
+msgid "result.rename.label"
+msgstr "Название"
+
+msgid "result.source"
+msgstr "· источник:"
+
+msgid "result.tag.backend"
+msgstr "бэкенд: %(name)s"
+
+msgid "result.tag.needs_review"
+msgstr "Требует проверки человеком"
+
+msgid "result.title"
+msgstr "Результат анализа"
+
+msgid "result.uploaded"
+msgstr "Загружено %(date)s"
+
+msgid "risk.level.high"
+msgstr "Высокий"
+
+msgid "risk.level.low"
+msgstr "Низкий"
+
+msgid "risk.level.medium"
+msgstr "Средний"
+
+msgid "risk.level.unknown"
+msgstr "Не определён"
+
+msgid "role.admin"
+msgstr "Администратор"
+
+msgid "role.blocked"
+msgstr "Заблокирован"
+
+msgid "role.head_admin"
+msgstr "Главный администратор"
+
+msgid "role.user"
+msgstr "Пользователь"
+
+msgid "services.credential.default_label"
+msgstr "API-ключ"
+
+msgid "services.error.bad_categories"
+msgstr "Сервер вернул некорректный список категорий."
+
+msgid "services.error.bad_category"
+msgstr "Сервер вернул некорректное описание категории «%(name)s»."
+
+msgid "services.error.bad_embeddings"
+msgstr "Сервер вернул некорректный ответ /embeddings."
+
+msgid "services.error.bad_json"
+msgstr "Сервер вернул некорректный JSON-ответ."
+
+msgid "services.error.connect"
+msgstr "Не удалось подключиться к серверу анализа изображений."
+
+msgid "services.error.connect_hint"
+msgstr "Не удалось подключиться к серверу анализа изображений. Проверьте, что vision_analyzer_server.py запущен."
+
+msgid "services.error.embeddings_loading"
+msgstr "Модель эмбеддингов ещё скачивается или загружается."
+
+msgid "services.error.embeddings_status"
+msgstr "Не удалось получить статус эмбеддингов: %(error)s"
+
+msgid "services.error.expected_object"
+msgstr "ожидался JSON-объект"
+
+msgid "services.error.no_embeddings_status"
+msgstr "Сервер анализа не отдаёт статус эмбеддингов (устаревшая версия?)."
+
+msgid "services.error.no_link_image"
+msgstr "Сервер анализа не вернул картинку из ссылки (устаревшая версия сервера без return_images?)."
+
+msgid "services.error.no_model_answer"
+msgstr "Сервер не вернул ответ модели."
+
+msgid "services.error.no_params"
+msgstr "Нет параметров для сохранения."
+
+msgid "services.error.no_providers"
+msgstr "Сервер анализа не отдаёт список провайдеров (устаревшая версия?)."
+
+msgid "services.error.no_results"
+msgstr "Сервер не вернул ни одного результата анализа."
+
+msgid "services.error.request"
+msgstr "Ошибка запроса к серверу анализа: %(error)s"
+
+msgid "services.error.server"
+msgstr "Сервер вернул ошибку (%(status)s): %(message)s"
+
+msgid "services.error.status"
+msgstr "Не удалось получить статус сервера: %(error)s"
+
+msgid "services.error.timeout"
+msgstr "Сервер анализа изображений не отвечает (таймаут)."
+
+msgid "services.error.timeout_late"
+msgstr "Сервер анализа изображений не ответил вовремя (таймаут)."
+
+msgid "services.error.timeout_short"
+msgstr "Сервер не ответил вовремя (таймаут)."
+
+msgid "settings.allowed"
+msgstr "Допустимо:"
+
+msgid "settings.allowed.from"
+msgstr "от %(value)s"
+
+msgid "settings.allowed.to"
+msgstr "до %(value)s"
+
+msgid "settings.body_marks_check_default_limit.label"
+msgstr "Проверка меток на теле: картинок за вызов"
+
+msgid "settings.body_marks_check_max_limit.label"
+msgstr "Проверка меток на теле: максимум картинок за вызов"
+
+msgid "settings.body_marks_check_time_budget.label"
+msgstr "Проверка меток на теле: время на вызов, сек"
+
+msgid "settings.bulk_delete_max_ids.label"
+msgstr "Записей за одно массовое удаление"
+
+msgid "settings.caption_max_chars.label"
+msgstr "Длина подписи к снимку, симв."
+
+msgid "settings.chat_action_max_pending.label"
+msgstr "Действия из чата: неподтверждённых заявок"
+
+msgid "settings.chat_action_ttl_minutes.label"
+msgstr "Действия из чата: срок заявки, мин"
+
+msgid "settings.chat_attachment_cache_seconds.label"
+msgstr "Кэш вложений в браузере, сек"
+
+msgid "settings.chat_attachment_name_max.label"
+msgstr "Длина имени вложения, симв."
+
+msgid "settings.chat_context_images.hint"
+msgstr "Каждая картинка — порядка 1–1,5 тыс. токенов контекста."
+
+msgid "settings.chat_context_images.label"
+msgstr "Вложений, которые модель «видит» напрямую"
+
+msgid "settings.chat_job_answer_chars.label"
+msgstr "Результат анализа: длина ответа, симв."
+
+msgid "settings.chat_job_category_chars.label"
+msgstr "Результат анализа: длина категории, симв."
+
+msgid "settings.chat_job_detail_chars.label"
+msgstr "Результат анализа: длина детали, симв."
+
+msgid "settings.chat_job_field_chars.label"
+msgstr "Результат анализа: длина поля, симв."
+
+msgid "settings.chat_job_max_signals.label"
+msgstr "Результат анализа: число сигналов"
+
+msgid "settings.chat_max_history_messages.label"
+msgstr "Сообщений истории, уходящих модели"
+
+msgid "settings.chat_max_image_bytes.hint"
+msgstr "Общий лимит запроса — «Максимальный размер запроса»."
+
+msgid "settings.chat_max_image_bytes.label"
+msgstr "Максимальный размер одного изображения, МБ"
+
+msgid "settings.chat_max_images_per_message.label"
+msgstr "Изображений в одном сообщении"
+
+msgid "settings.chat_max_message_len.label"
+msgstr "Максимальная длина сообщения, симв."
+
+msgid "settings.chat_max_tool_calls.label"
+msgstr "Обращений к инструментам за один ход"
+
+msgid "settings.chat_model_jpeg_quality.label"
+msgstr "Качество JPEG для модели"
+
+msgid "settings.chat_model_max_side.label"
+msgstr "Макс. сторона изображения для модели, px"
+
+msgid "settings.chat_model_passthrough_bytes.label"
+msgstr "Файлы до этого размера уходят модели как есть, байт"
+
+msgid "settings.chat_prompt_max_chars.hint"
+msgstr "Ограничение для поля «Системный промпт чата» в разделе «Промпты»."
+
+msgid "settings.chat_prompt_max_chars.label"
+msgstr "Длина системного промпта чата, симв."
+
+msgid "settings.chat_title_len.label"
+msgstr "Длина автоназвания чата, симв."
+
+msgid "settings.chat_turn_stale_seconds.hint"
+msgstr "Если сервер упал посреди ответа, чат снова примет сообщения через это время."
+
+msgid "settings.chat_turn_stale_seconds.label"
+msgstr "«Протухание» ответа модели, сек"
+
+msgid "settings.collapse_all"
+msgstr "Свернуть все"
+
+msgid "settings.dashboard_recent_limit.label"
+msgstr "Главная: последних анализов"
+
+msgid "settings.date_format.label"
+msgstr "Дата"
+
+msgid "settings.datetime_chat_format.label"
+msgstr "Дата в списке чатов"
+
+msgid "settings.datetime_format.label"
+msgstr "Дата и время"
+
+msgid "settings.datetime_short_format.label"
+msgstr "Дата и время без года"
+
+msgid "settings.dedup_cli_batch.label"
+msgstr "Хеши: записей за проход в CLI"
+
+msgid "settings.dedup_default_batch.label"
+msgstr "Хеши: записей по умолчанию"
+
+msgid "settings.dedup_idle_batch.label"
+msgstr "Хеши: записей за холостой проход"
+
+msgid "settings.dedup_idle_pause.label"
+msgstr "Хеши: пауза, когда считать нечего, сек"
+
+msgid "settings.default_lang.hint"
+msgstr "Передаётся серверу анализа как lang=..."
+
+msgid "settings.default_lang.label"
+msgstr "Язык ответов модели"
+
+msgid "settings.default_value"
+msgstr "значение по умолчанию"
+
+msgid "settings.embedding_batch_size.hint"
+msgstr "Сервер принимает максимум 64 текста за запрос."
+
+msgid "settings.embedding_batch_size.label"
+msgstr "Размер батча для сервера"
+
+msgid "settings.embedding_idle_batches.label"
+msgstr "Батчей за один холостой проход"
+
+msgid "settings.embedding_idle_pause_nothing.label"
+msgstr "Пауза: индексировать нечего, сек"
+
+msgid "settings.embedding_idle_pause_retry.label"
+msgstr "Пауза: модель качается / сбой, сек"
+
+msgid "settings.embedding_idle_pause_unavailable.label"
+msgstr "Пауза: эмбеддинги выключены/недоступны, сек"
+
+msgid "settings.embedding_max_matched_ids.label"
+msgstr "Сколько id выше порога держать для статистики"
+
+msgid "settings.embedding_max_text_chars.hint"
+msgstr "Серверный лимит — 8000."
+
+msgid "settings.embedding_max_text_chars.label"
+msgstr "Максимальная длина текста для эмбеддинга, симв."
+
+msgid "settings.embedding_memory_cache.hint"
+msgstr "Не читать векторы из БД на каждый поиск. Если выключить — поиск работает как раньше, но медленнее."
+
+msgid "settings.embedding_memory_cache.label"
+msgstr "Кэш векторов в памяти"
+
+msgid "settings.embedding_min_similarity.hint"
+msgstr "Ниже этого значения результат в выдачу не попадает. Если выдача шумная — поднимите."
+
+msgid "settings.embedding_min_similarity.label"
+msgstr "Порог сходства (cosine)"
+
+msgid "settings.embedding_relative_margin.hint"
+msgstr "В выдачу идёт только то, что не ниже «лучший скор − отступ». 0 — выключить."
+
+msgid "settings.embedding_relative_margin.label"
+msgstr "Отступ от лучшего результата"
+
+msgid "settings.embedding_scan_limit.label"
+msgstr "Сколько векторов сравнивать за запрос"
+
+msgid "settings.enabled"
+msgstr "включено"
+
+msgid "settings.err.bounds"
+msgstr "«%(lo)s» не может быть больше, чем «%(hi)s»."
+
+msgid "settings.err.choice"
+msgstr "«%(label)s»: допустимо одно из значений — %(choices)s."
+
+msgid "settings.err.date_format"
+msgstr "«%(label)s»: некорректный формат даты."
+
+msgid "settings.err.empty"
+msgstr "«%(label)s»: значение не может быть пустым."
+
+msgid "settings.err.enter"
+msgstr "«%(label)s»: введите %(kind)s."
+
+msgid "settings.err.kind_int"
+msgstr "целое число"
+
+msgid "settings.err.kind_number"
+msgstr "число"
+
+msgid "settings.err.max"
+msgstr "«%(label)s»: значение не может быть больше %(value)s."
+
+msgid "settings.err.min"
+msgstr "«%(label)s»: значение не может быть меньше %(value)s."
+
+msgid "settings.err.timezone"
+msgstr "«%(label)s»: неизвестный часовой пояс «%(value)s»."
+
+msgid "settings.err.too_long"
+msgstr "«%(label)s»: слишком длинное значение."
+
+msgid "settings.err.url"
+msgstr "«%(label)s»: адрес должен начинаться с http:// или https://."
+
+msgid "settings.expand_all"
+msgstr "Развернуть все"
+
+msgid "settings.file_hash_chunk_bytes.label"
+msgstr "Кусок при чтении файла для SHA-256, байт"
+
+msgid "settings.filter.placeholder"
+msgstr "Найти настройку по названию или имени…"
+
+msgid "settings.group.changed"
+msgstr "· изменено: %(count)s"
+
+msgid "settings.group.g1.desc"
+msgstr "Клиент vision-сервера: адрес, таймауты, язык ответов."
+
+msgid "settings.group.g1.title"
+msgstr "Сервер анализа"
+
+msgid "settings.group.g10.desc"
+msgstr "Пароли, сессии, cookie и CSRF."
+
+msgid "settings.group.g10.title"
+msgstr "Безопасность и сессии"
+
+msgid "settings.group.g11.title"
+msgstr "База данных"
+
+msgid "settings.group.g2.desc"
+msgstr "Фоновая обработка загруженных изображений."
+
+msgid "settings.group.g2.title"
+msgstr "Очередь анализов"
+
+msgid "settings.group.g3.desc"
+msgstr "Пределы, в которых можно выбирать значения выше. Нижняя граница не может быть больше верхней."
+
+msgid "settings.group.g3.title"
+msgstr "Границы допустимых значений"
+
+msgid "settings.group.g4.desc"
+msgstr "Эмбеддинги и фоновая индексация описаний анализов."
+
+msgid "settings.group.g4.title"
+msgstr "Поиск по смыслу"
+
+msgid "settings.group.g5.desc"
+msgstr "Сообщения, история и изображения в чате с моделью."
+
+msgid "settings.group.g5.title"
+msgstr "Чат"
+
+msgid "settings.group.g6.desc"
+msgstr "Результаты анализа для модели и поиск по анализам и пользователям. Числа попадают в промпт модели."
+
+msgid "settings.group.g6.title"
+msgstr "Инструменты чата"
+
+msgid "settings.group.g7.desc"
+msgstr "Размеры, кэш и фоновый подсчёт хешей файлов."
+
+msgid "settings.group.g7.title"
+msgstr "Загрузка, файлы и миниатюры"
+
+msgid "settings.group.g8.desc"
+msgstr "Сколько записей показывать на страницах."
+
+msgid "settings.group.g8.title"
+msgstr "Списки и пагинация"
+
+msgid "settings.group.g9.desc"
+msgstr "Часовой пояс и форматы дат (синтаксис strftime: %d.%m.%Y %H:%M)."
+
+msgid "settings.group.g9.title"
+msgstr "Дата и время"
+
+msgid "settings.history_per_page.label"
+msgstr "«Моя история»: записей на странице"
+
+msgid "settings.max_content_length.hint"
+msgstr "Жёсткий лимит: файлы больше отклоняются (HTTP 413)."
+
+msgid "settings.max_content_length.label"
+msgstr "Максимальный размер запроса, МБ"
+
+msgid "settings.model_name_max_len.label"
+msgstr "Длина названия модели в «Статусе сервера»"
+
+msgid "settings.models_cache_ttl.hint"
+msgstr "Сколько список моделей облачного провайдера хранится в БД до автообновления. 0 — не кэшировать."
+
+msgid "settings.models_cache_ttl.label"
+msgstr "Кэш списка моделей облачного провайдера, сек"
+
+msgid "settings.panel_per_page.label"
+msgstr "Админ-панель: записей на странице"
+
+msgid "settings.password_min_length.label"
+msgstr "Минимальная длина пароля"
+
+msgid "settings.password_username_min_len.label"
+msgstr "Логины короче не сравниваются с паролем"
+
+msgid "settings.password_username_similarity.label"
+msgstr "Порог похожести пароля на логин"
+
+msgid "settings.permanent_session_lifetime.hint"
+msgstr "Действует на сессии, которые будут продлены после изменения."
+
+msgid "settings.permanent_session_lifetime.label"
+msgstr "Время жизни сессии, дней"
+
+msgid "settings.queue_claim_retries.label"
+msgstr "Попыток захвата задачи при гонке"
+
+msgid "settings.queue_error_pause_seconds.label"
+msgstr "Пауза после ошибки цикла, сек"
+
+msgid "settings.queue_max_files_per_upload.label"
+msgstr "Файлов за одну загрузку"
+
+msgid "settings.queue_max_files_per_upload_max.label"
+msgstr "Файлов за загрузку: максимум"
+
+msgid "settings.queue_max_files_per_upload_min.label"
+msgstr "Файлов за загрузку: минимум"
+
+msgid "settings.queue_max_pending_per_user.label"
+msgstr "Задач в очереди на пользователя"
+
+msgid "settings.queue_max_pending_per_user_max.label"
+msgstr "Задач на пользователя: максимум"
+
+msgid "settings.queue_max_pending_per_user_min.label"
+msgstr "Задач на пользователя: минимум"
+
+msgid "settings.queue_max_pending_total.hint"
+msgstr "Общий потолок очереди и обработки. Лимит на пользователя действует отдельно."
+
+msgid "settings.queue_max_pending_total.label"
+msgstr "Задач в очереди всего (на всех пользователей)"
+
+msgid "settings.queue_max_pending_total_max.label"
+msgstr "Задач всего: максимум"
+
+msgid "settings.queue_max_pending_total_min.label"
+msgstr "Задач всего: минимум"
+
+msgid "settings.queue_poll_seconds.hint"
+msgstr "Как часто обработчик проверяет пустую очередь."
+
+msgid "settings.queue_poll_seconds.label"
+msgstr "Интервал опроса очереди, сек"
+
+msgid "settings.queue_poll_seconds_max.label"
+msgstr "Интервал опроса: максимум, сек"
+
+msgid "settings.queue_poll_seconds_min.label"
+msgstr "Интервал опроса: минимум, сек"
+
+msgid "settings.queue_stop_join_timeout.label"
+msgstr "Ожидание остановки потока, сек"
+
+msgid "settings.queue_worker_enabled.hint"
+msgstr "Если выключить, загруженные файлы будут копиться в очереди без обработки."
+
+msgid "settings.queue_worker_enabled.label"
+msgstr "Обработка очереди включена"
+
+msgid "settings.queue_workers.hint"
+msgstr "Сколько анализов выполнять параллельно."
+
+msgid "settings.queue_workers.label"
+msgstr "Потоков-обработчиков"
+
+msgid "settings.queue_workers_max.hint"
+msgstr "Потолок защищает от опечатки вроде 100 потоков."
+
+msgid "settings.queue_workers_max.label"
+msgstr "Потоков-обработчиков: максимум"
+
+msgid "settings.queue_workers_min.label"
+msgstr "Потоков-обработчиков: минимум"
+
+msgid "settings.rejected_files_shown.label"
+msgstr "Отклонённых файлов в сообщении"
+
+msgid "settings.reset"
+msgstr "сбросить"
+
+msgid "settings.reset_done"
+msgstr "сброшено"
+
+msgid "settings.save_hint"
+msgstr "Форма сохраняется целиком: если хотя бы одно значение неверно, не изменится ничего."
+
+msgid "settings.search_default_limit.label"
+msgstr "Поиск анализов: записей по умолчанию"
+
+msgid "settings.search_desc_chars.label"
+msgstr "Поиск анализов: длина описания, симв."
+
+msgid "settings.search_max_cards.label"
+msgstr "Поиск анализов: карточек под ответом"
+
+msgid "settings.search_max_keywords.label"
+msgstr "Поиск анализов: ключевых слов"
+
+msgid "settings.search_max_limit.label"
+msgstr "Поиск анализов: максимум записей"
+
+msgid "settings.search_max_query_chars.label"
+msgstr "Поиск анализов: длина запроса, симв."
+
+msgid "settings.search_max_since_days.label"
+msgstr "Поиск анализов: глубина, дней"
+
+msgid "settings.search_scan_limit.label"
+msgstr "Поиск анализов: строк для разбора"
+
+msgid "settings.session_cookie_httponly.label"
+msgstr "Cookie сессии недоступна для JavaScript (HttpOnly)"
+
+msgid "settings.session_cookie_samesite.hint"
+msgstr "None работает только вместе с «Cookie только по HTTPS»."
+
+msgid "settings.session_cookie_samesite.label"
+msgstr "Cookie сессии: SameSite"
+
+msgid "settings.session_cookie_secure.hint"
+msgstr "Включайте, только если сайт открывается по HTTPS: иначе вход перестанет работать у всех, включая вас. Вернуть можно командой `flask reset-settings SESSION_COOKIE_SECURE`."
+
+msgid "settings.session_cookie_secure.label"
+msgstr "Cookie сессии только по HTTPS"
+
+msgid "settings.setting_str_max_len.label"
+msgstr "Максимальная длина строковой настройки"
+
+msgid "settings.sql_in_chunk.hint"
+msgstr "Лимит числа параметров SQL (в SQLite — 999)."
+
+msgid "settings.sql_in_chunk.label"
+msgstr "Размер пачки id в DELETE/IN"
+
+msgid "settings.subtitle"
+msgstr "Все параметры из <code>config.py</code>, которые безопасно менять на ходу, — действуют сразу после сохранения, без перезапуска. Значение «по умолчанию» берётся из <code>config.py</code> и переменных окружения. Тема, шрифты и размеры интерфейса настраиваются в разделе <a href=\"%(url)s\">«Оформление»</a> — он доступен всем пользователям."
+
+msgid "settings.thumb_cache_seconds.label"
+msgstr "Кэш миниатюр в браузере, сек"
+
+msgid "settings.thumb_quality.label"
+msgstr "Качество JPEG миниатюр"
+
+msgid "settings.thumb_size.hint"
+msgstr "Уже созданные миниатюры остаются прежнего размера."
+
+msgid "settings.thumb_size.label"
+msgstr "Размер миниатюры, px"
+
+msgid "settings.time_format.label"
+msgstr "Время"
+
+msgid "settings.timezone.hint"
+msgstr "Название из базы IANA, например Asia/Aqtobe."
+
+msgid "settings.timezone.label"
+msgstr "Часовой пояс"
+
+msgid "settings.user_recent_analyses_limit.label"
+msgstr "Профиль и карточка пользователя: последних анализов"
+
+msgid "settings.user_search_default_limit.label"
+msgstr "Поиск пользователей: записей по умолчанию"
+
+msgid "settings.user_search_max_cards.label"
+msgstr "Поиск пользователей: карточек под ответом"
+
+msgid "settings.user_search_max_limit.label"
+msgstr "Поиск пользователей: максимум записей"
+
+msgid "settings.user_search_max_since_days.label"
+msgstr "Поиск пользователей: глубина, дней"
+
+msgid "settings.vision_api_backend_name_chars.hint"
+msgstr "Не больше 32 — столько влезает в колонку БД."
+
+msgid "settings.vision_api_backend_name_chars.label"
+msgstr "Длина названия бэкенда, симв."
+
+msgid "settings.vision_api_base_url.hint"
+msgstr "Например http://127.0.0.1:6769"
+
+msgid "settings.vision_api_base_url.label"
+msgstr "Адрес сервера анализа"
+
+msgid "settings.vision_api_call_timeout.hint"
+msgstr "/models, /providers/<имя>/settings, /categories и т. п."
+
+msgid "settings.vision_api_call_timeout.label"
+msgstr "Таймаут вспомогательных запросов, сек"
+
+msgid "settings.vision_api_embed_timeout.label"
+msgstr "Таймаут POST /embeddings, сек"
+
+msgid "settings.vision_api_error_chars.hint"
+msgstr "Сколько символов ответа-ошибки показывать пользователю."
+
+msgid "settings.vision_api_error_chars.label"
+msgstr "Длина текста ошибки сервера, симв."
+
+msgid "settings.vision_api_fallback.hint"
+msgstr "Если бэкенд недоступен или отвечает 5xx — сервер пробует следующий: локальные, затем облачные (облачные — только если разрешено на сервере и задан ключ). Работает и при ручном выборе бэкенда."
+
+msgid "settings.vision_api_fallback.label"
+msgstr "Фолбэк на другой бэкенд при сбое"
+
+msgid "settings.vision_api_health_timeout.label"
+msgstr "Таймаут /health и GET /embeddings, сек"
+
+msgid "settings.vision_api_model_name_chars.hint"
+msgstr "Не больше 120 — столько влезает в колонку БД."
+
+msgid "settings.vision_api_model_name_chars.label"
+msgstr "Длина названия модели, симв."
+
+msgid "settings.vision_api_models_timeout.hint"
+msgstr "/models облачных провайдеров (Gemini, Anthropic); отдельно от общего таймаута вспомогательных запросов."
+
+msgid "settings.vision_api_models_timeout.label"
+msgstr "Таймаут списка моделей облачного провайдера, сек"
+
+msgid "settings.vision_api_raw_text_chars.hint"
+msgstr "Для ответов без валидного JSON."
+
+msgid "settings.vision_api_raw_text_chars.label"
+msgstr "Усечение «сырого» ответа модели, симв."
+
+msgid "settings.vision_api_timeout.label"
+msgstr "Таймаут /analyze и /chat, сек"
+
+msgid "settings.vision_api_timeout_max.label"
+msgstr "Таймаут /analyze: максимум, сек"
+
+msgid "settings.vision_api_timeout_min.label"
+msgstr "Таймаут /analyze: минимум, сек"
+
+msgid "settings.warn.out_of_bounds"
+msgstr "«%(label)s»: текущее значение %(value)s вне новых границ."
+
+msgid "settings.wtf_csrf_time_limit.hint"
+msgstr "0 — без ограничения (токен живёт столько же, сколько сессия)."
+
+msgid "settings.wtf_csrf_time_limit.label"
+msgstr "Время жизни CSRF-токена, сек"
+
+msgid "stats.row.account_age"
+msgstr "Аккаунту"
+
+msgid "stats.row.account_days"
+msgstr "%(days)s дн."
+
+msgid "stats.row.active"
+msgstr "В очереди / в обработке"
+
+msgid "stats.row.by_link"
+msgstr "По ссылке на пост"
+
+msgid "stats.row.chats"
+msgstr "Чатов / сообщений"
+
+msgid "stats.row.first"
+msgstr "Первый анализ"
+
+msgid "stats.row.last"
+msgstr "Последний анализ"
+
+msgid "stats.row.last_days"
+msgstr "За 7 / 30 дней"
+
+msgid "stats.row.risk_mid_low"
+msgstr "Риск средний / низкий"
+
+msgid "stats.row.unknown"
+msgstr "· не определён: %(count)s"
+
+msgid "stats.row.with_error"
+msgstr "С ошибкой"
+
+msgid "stats.tile.done"
+msgstr "завершено"
+
+msgid "stats.tile.high"
+msgstr "высокий риск"
+
+msgid "stats.tile.review"
+msgstr "на проверку"
+
+msgid "stats.tile.total"
+msgstr "всего анализов"
+
+msgid "stats.title"
+msgstr "Статистика"
+
+msgid "status.done"
+msgstr "Готово"
+
+msgid "status.processing"
+msgstr "Обрабатывается"
+
+msgid "status.queued"
+msgstr "В очереди"
+
+msgid "theme.abyss.hint"
+msgstr "Глубокая тёмно-синяя"
+
+msgid "theme.andromeda.hint"
+msgstr "Космический бирюзовый"
+
+msgid "theme.ayu_dark.hint"
+msgstr "Графит с жёлтым акцентом"
+
+msgid "theme.ayu_dark.label"
+msgstr "Ayu тёмная"
+
+msgid "theme.ayu_light.hint"
+msgstr "Нейтральная с оранжевым акцентом"
+
+msgid "theme.ayu_light.label"
+msgstr "Ayu светлая"
+
+msgid "theme.ayu_mirage.hint"
+msgstr "Мягкий сине-серый"
+
+msgid "theme.bluloco_light.hint"
+msgstr "Нейтральная с синим"
+
+msgid "theme.bluloco_light.label"
+msgstr "Bluloco светлая"
+
+msgid "theme.carbon.hint"
+msgstr "Строгая серая в стиле IBM"
+
+msgid "theme.carbon_light.hint"
+msgstr "Строгая светлая в стиле IBM"
+
+msgid "theme.carbon_light.label"
+msgstr "Carbon светлая"
+
+msgid "theme.catppuccin_frappe.hint"
+msgstr "Пастельная, мягкая"
+
+msgid "theme.catppuccin_latte.hint"
+msgstr "Мягкие пастельные тона"
+
+msgid "theme.catppuccin_macchiato.hint"
+msgstr "Пастельная, средней глубины"
+
+msgid "theme.catppuccin_mocha.hint"
+msgstr "Мягкие пастельные тона"
+
+msgid "theme.challenger_deep.hint"
+msgstr "Глубокий сине-фиолетовый"
+
+msgid "theme.cobalt2.hint"
+msgstr "Насыщенный синий"
+
+msgid "theme.coffee.hint"
+msgstr "Тёплый коричневый"
+
+msgid "theme.coffee.label"
+msgstr "Кофе"
+
+msgid "theme.contrast.hint"
+msgstr "Максимальная читаемость"
+
+msgid "theme.contrast.label"
+msgstr "Контрастная"
+
+msgid "theme.contrast_light.hint"
+msgstr "Чёрное на белом"
+
+msgid "theme.contrast_light.label"
+msgstr "Контрастная светлая"
+
+msgid "theme.cyberpunk.hint"
+msgstr "Неоновая ночь"
+
+msgid "theme.darcula.hint"
+msgstr "Как в IntelliJ IDEA"
+
+msgid "theme.dark.hint"
+msgstr "Стандартная"
+
+msgid "theme.dark.label"
+msgstr "Тёмная"
+
+msgid "theme.dayfox.hint"
+msgstr "Дневная Nightfox"
+
+msgid "theme.dracula.hint"
+msgstr "Фиолетово-розовая классика"
+
+msgid "theme.everblush.hint"
+msgstr "Прохладный зелёно-серый"
+
+msgid "theme.everforest_dark.hint"
+msgstr "Спокойная лесная"
+
+msgid "theme.everforest_dark.label"
+msgstr "Everforest тёмная"
+
+msgid "theme.everforest_light.hint"
+msgstr "Спокойная лесная светлая"
+
+msgid "theme.everforest_light.label"
+msgstr "Everforest светлая"
+
+msgid "theme.flexoki_dark.hint"
+msgstr "Тёплые чернила на бумаге"
+
+msgid "theme.flexoki_dark.label"
+msgstr "Flexoki тёмная"
+
+msgid "theme.flexoki_light.hint"
+msgstr "Тёплая бумажная"
+
+msgid "theme.flexoki_light.label"
+msgstr "Flexoki светлая"
+
+msgid "theme.forest.hint"
+msgstr "Тёмный зелёный"
+
+msgid "theme.forest.label"
+msgstr "Лес"
+
+msgid "theme.github_dark.hint"
+msgstr "Привычный синеватый графит"
+
+msgid "theme.github_dark.label"
+msgstr "GitHub тёмная"
+
+msgid "theme.github_dark_hc.hint"
+msgstr "Высокий контраст GitHub"
+
+msgid "theme.github_dark_hc.label"
+msgstr "GitHub контрастная"
+
+msgid "theme.github_dimmed.hint"
+msgstr "Мягче стандартной тёмной GitHub"
+
+msgid "theme.github_dimmed.label"
+msgstr "GitHub приглушённая"
+
+msgid "theme.github_light.hint"
+msgstr "Чистая и нейтральная"
+
+msgid "theme.github_light.label"
+msgstr "GitHub светлая"
+
+msgid "theme.graphite.hint"
+msgstr "Нейтральный серый"
+
+msgid "theme.graphite.label"
+msgstr "Графит"
+
+msgid "theme.group.contrast"
+msgstr "Контрастные"
+
+msgid "theme.group.dark"
+msgstr "Тёмные"
+
+msgid "theme.group.light"
+msgstr "Светлые"
+
+msgid "theme.gruvbox_dark.hint"
+msgstr "Тёплая ретро-палитра"
+
+msgid "theme.gruvbox_dark.label"
+msgstr "Gruvbox тёмная"
+
+msgid "theme.gruvbox_light.hint"
+msgstr "Тёплая ретро-палитра"
+
+msgid "theme.gruvbox_light.label"
+msgstr "Gruvbox светлая"
+
+msgid "theme.hackthebox.hint"
+msgstr "Тёмно-синяя с лаймом"
+
+msgid "theme.hc_amber.hint"
+msgstr "Янтарь на чёрном"
+
+msgid "theme.hc_amber.label"
+msgstr "Янтарный терминал"
+
+msgid "theme.hc_green.hint"
+msgstr "Зелёный на чёрном"
+
+msgid "theme.hc_green.label"
+msgstr "Зелёный терминал"
+
+msgid "theme.hc_yellow.hint"
+msgstr "Для слабого зрения"
+
+msgid "theme.hc_yellow.label"
+msgstr "Жёлтый на чёрном"
+
+msgid "theme.horizon.hint"
+msgstr "Тёплый тёмный с кораллом"
+
+msgid "theme.horizon_bright.hint"
+msgstr "Светлый коралловый"
+
+msgid "theme.iceberg.hint"
+msgstr "Холодный синий"
+
+msgid "theme.jellybeans.hint"
+msgstr "Приглушённый графит"
+
+msgid "theme.kanagawa.hint"
+msgstr "Японская гравюра"
+
+msgid "theme.kimbie_dark.hint"
+msgstr "Тёплая коричневая"
+
+msgid "theme.laserwave.hint"
+msgstr "Ретро-лазер"
+
+msgid "theme.lavender.hint"
+msgstr "Светлая сиреневая"
+
+msgid "theme.lavender.label"
+msgstr "Лаванда"
+
+msgid "theme.light.hint"
+msgstr "Для яркого освещения"
+
+msgid "theme.light.label"
+msgstr "Светлая"
+
+msgid "theme.material_lighter.hint"
+msgstr "Светлая Material"
+
+msgid "theme.material_ocean.hint"
+msgstr "Глубокий тёмно-синий"
+
+msgid "theme.material_palenight.hint"
+msgstr "Пастельный фиолетово-синий"
+
+msgid "theme.melange_dark.hint"
+msgstr "Тёплый коричнево-серый"
+
+msgid "theme.melange_dark.label"
+msgstr "Melange тёмная"
+
+msgid "theme.melange_light.hint"
+msgstr "Тёплая бумажная"
+
+msgid "theme.melange_light.label"
+msgstr "Melange светлая"
+
+msgid "theme.midnight.hint"
+msgstr "Глубокий синий"
+
+msgid "theme.midnight.label"
+msgstr "Полночь"
+
+msgid "theme.min_light.hint"
+msgstr "Минималистичная"
+
+msgid "theme.min_light.label"
+msgstr "Min светлая"
+
+msgid "theme.mint.hint"
+msgstr "Светлая зеленоватая"
+
+msgid "theme.mint.label"
+msgstr "Мята"
+
+msgid "theme.molokai.hint"
+msgstr "Классика Vim"
+
+msgid "theme.monokai.hint"
+msgstr "Тёплая палитра редактора"
+
+msgid "theme.monokai_pro.hint"
+msgstr "Тёплая современная Monokai"
+
+msgid "theme.moonlight.hint"
+msgstr "Лунный сине-фиолетовый"
+
+msgid "theme.night_owl.hint"
+msgstr "Глубокий синий для ночной работы"
+
+msgid "theme.night_owl_light.hint"
+msgstr "Светлая версия Night Owl"
+
+msgid "theme.night_owl_light.label"
+msgstr "Night Owl светлая"
+
+msgid "theme.nightfox.hint"
+msgstr "Сине-стальная"
+
+msgid "theme.nord.hint"
+msgstr "Холодная сине-серая"
+
+msgid "theme.nord.label"
+msgstr "Арктика"
+
+msgid "theme.nord_light.hint"
+msgstr "Снежная версия Nord"
+
+msgid "theme.nord_light.label"
+msgstr "Nord светлая"
+
+msgid "theme.oceanic_next.hint"
+msgstr "Сине-серый океан"
+
+msgid "theme.oled.hint"
+msgstr "Чёрный фон для экономии"
+
+msgid "theme.one_dark.hint"
+msgstr "Как в Atom и VS Code"
+
+msgid "theme.one_light.hint"
+msgstr "Светлая из Atom"
+
+msgid "theme.panda.hint"
+msgstr "Тёмная с розовым"
+
+msgid "theme.paper.hint"
+msgstr "Тёплая, как книжная страница"
+
+msgid "theme.paper.label"
+msgstr "Бумага"
+
+msgid "theme.papercolor_light.hint"
+msgstr "Мягкая бумажная светлая"
+
+msgid "theme.papercolor_light.label"
+msgstr "PaperColor светлая"
+
+msgid "theme.peach.hint"
+msgstr "Светлая тёплая розоватая"
+
+msgid "theme.peach.label"
+msgstr "Персик"
+
+msgid "theme.plum.hint"
+msgstr "Тёмный фиолетовый"
+
+msgid "theme.plum.label"
+msgstr "Слива"
+
+msgid "theme.poimandres.hint"
+msgstr "Холодная мятно-синяя"
+
+msgid "theme.quiet_light.hint"
+msgstr "Спокойная светлая"
+
+msgid "theme.rose_pine.hint"
+msgstr "Приглушённая пудровая"
+
+msgid "theme.rose_pine_dawn.hint"
+msgstr "Тёплая пудровая светлая"
+
+msgid "theme.rose_pine_moon.hint"
+msgstr "Пудровая, светлее обычной"
+
+msgid "theme.sepia.hint"
+msgstr "Тёплая, как старая бумага"
+
+msgid "theme.sepia.label"
+msgstr "Сепия"
+
+msgid "theme.shades_of_purple.hint"
+msgstr "Яркая фиолетовая"
+
+msgid "theme.sky.hint"
+msgstr "Светлая голубоватая"
+
+msgid "theme.sky.label"
+msgstr "Небо"
+
+msgid "theme.snazzy_light.hint"
+msgstr "Чистая светлая"
+
+msgid "theme.snazzy_light.label"
+msgstr "Snazzy светлая"
+
+msgid "theme.solarized_dark.hint"
+msgstr "Классика для кода"
+
+msgid "theme.solarized_dark.label"
+msgstr "Solarized тёмная"
+
+msgid "theme.solarized_light.hint"
+msgstr "Классика для кода"
+
+msgid "theme.solarized_light.label"
+msgstr "Solarized светлая"
+
+msgid "theme.sonokai.hint"
+msgstr "Приглушённая Monokai"
+
+msgid "theme.spacegray.hint"
+msgstr "Холодный серо-синий"
+
+msgid "theme.srcery.hint"
+msgstr "Тёплая ретро-палитра"
+
+msgid "theme.synthwave_84.hint"
+msgstr "Неоновая ретро-волна"
+
+msgid "theme.tokyo_night.hint"
+msgstr "Прохладный сине-фиолетовый"
+
+msgid "theme.tokyo_night_day.hint"
+msgstr "Дневная Tokyo Night"
+
+msgid "theme.tokyo_night_storm.hint"
+msgstr "Светлее обычной Tokyo Night"
+
+msgid "theme.tomorrow.hint"
+msgstr "Классическая светлая"
+
+msgid "theme.tomorrow_night.hint"
+msgstr "Классика Tomorrow"
+
+msgid "theme.tomorrow_night_blue.hint"
+msgstr "Тёмно-синяя классика"
+
+msgid "theme.tomorrow_night_bright.hint"
+msgstr "Чёрная и яркая"
+
+msgid "theme.vesper.hint"
+msgstr "Минималистичный чёрный с персиковым"
+
+msgid "theme.vscode_dark.hint"
+msgstr "Как Dark+ в VS Code"
+
+msgid "theme.vscode_dark.label"
+msgstr "VS Code тёмная"
+
+msgid "theme.vscode_light.hint"
+msgstr "Как Light+ в VS Code"
+
+msgid "theme.vscode_light.label"
+msgstr "VS Code светлая"
+
+msgid "theme.zenburn.hint"
+msgstr "Низкий контраст для долгой работы"
+

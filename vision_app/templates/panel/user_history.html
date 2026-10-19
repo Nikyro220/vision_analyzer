@@ -1,9 +1,9 @@
 {% extends "base.html" %}
-{% block title %}История · {{ target.username }}{% endblock %}
+{% block title %}{{ _('panel.user_history.title', username=target.username) }}{% endblock %}
 {% block content %}
 <div class="page-header">
-    <h1>История: {{ target.username }}</h1>
-    <p class="page-sub">Завершённых анализов: {{ page.total }} · <a href="{{ url_for('panel.user_detail', pk=target.id) }}">← К профилю</a></p>
+    <h1>{{ _('panel.user_history.heading', username=target.username) }}</h1>
+    <p class="page-sub">{{ _('panel.user_history.total', total=page.total) }} · <a href="{{ url_for('panel.user_detail', pk=target.id) }}">{{ _('panel.user_history.back') }}</a></p>
 </div>
 
 {% if page.items %}
@@ -11,12 +11,12 @@
     <table class="data-table">
         <thead>
             <tr>
-                <th class="col-id">№</th>
-                <th>Файл</th>
-                <th>Риск</th>
-                <th>Проверка</th>
-                <th>Бэкенд</th>
-                <th>Дата</th>
+                <th class="col-id">{{ _('common.id_col') }}</th>
+                <th>{{ _('history.col.file') }}</th>
+                <th>{{ _('history.col.risk') }}</th>
+                <th>{{ _('panel.col.review') }}</th>
+                <th>{{ _('history.col.backend') }}</th>
+                <th>{{ _('history.col.date') }}</th>
             </tr>
         </thead>
         <tbody>
@@ -24,8 +24,8 @@
             <tr class="row-clickable" data-href="{{ url_for('analyzer.result_detail', pk=item.id) }}">
                 <td class="col-id">{{ item.id }}</td>
                 <td><span class="cell-file">{% if item.image_path %}<img class="row-thumb" src="{{ url_for('analyzer.thumb', filename=item.image_path) }}" alt="" loading="lazy" width="44" height="44" onerror="this.style.visibility='hidden'">{% endif %}<span class="cell-file-name">{{ (item.original_name or '—')|trunc(40) }}</span></span></td>
-                <td><span class="risk-pill risk-pill-{{ item.risk_level }}">{{ item.risk_level_display }}</span>{% if item.is_error %} <span class="tag tag-warn">ошибка</span>{% endif %}</td>
-                <td>{% if item.needs_human_review %}<span class="tag tag-warn">да</span>{% else %}<span class="tag">нет</span>{% endif %}</td>
+                <td><span class="risk-pill risk-pill-{{ item.risk_level }}">{{ item.risk_level_display }}</span>{% if item.is_error %} <span class="tag tag-warn">{{ _('history.tag.error') }}</span>{% endif %}</td>
+                <td>{% if item.needs_human_review %}<span class="tag tag-warn">{{ _('history.review.yes') }}</span>{% else %}<span class="tag">{{ _('history.review.no') }}</span>{% endif %}</td>
                 <td>{{ item.backend or '—' }}</td>
                 <td>{{ item.created_at|localdt }}</td>
             </tr>
@@ -35,6 +35,6 @@
 </div>
 {% include "partials/pagination.html" %}
 {% else %}
-<p class="empty-hint">У этого пользователя нет завершённых анализов.</p>
+<p class="empty-hint">{{ _('panel.user.no_analyses') }}</p>
 {% endif %}
 {% endblock %}

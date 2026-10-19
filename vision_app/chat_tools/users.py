@@ -175,7 +175,7 @@ def user_card(u: User, analyses_count: int) -> dict:
         "label": u.username,
         "subtitle": u.full_name or "",
         "role": u.role,
-        "role_label": ROLE_LABELS.get(u.role, u.role),
+        "role_label": str(ROLE_LABELS.get(u.role, u.role)),
         "active": bool(u.active),
         "avatar_url": u.avatar_src,
         "avatar_color": u.color_hex,
@@ -232,7 +232,7 @@ def search_users(user: User, raw_args) -> ToolResult:
     payload: dict = {
         "scope": "все пользователи" if user.is_head_admin else "только пользователи и заблокированные (без администраторов)",
         "total_matched": total,
-        "by_role": {ROLE_LABELS.get(role, role): cnt for role, cnt in sorted(by_role_rows)},
+        "by_role": {str(ROLE_LABELS.get(role, role)): cnt for role, cnt in sorted(by_role_rows)},
     }
     if args["analyses_days"]:
         payload["analyses_period_days"] = args["analyses_days"]
@@ -281,7 +281,7 @@ def search_users(user: User, raw_args) -> ToolResult:
             "email": u.email or "",
             "full_name": _display_name(u),
             "role": u.role,
-            "role_label": ROLE_LABELS.get(u.role, u.role),
+            "role_label": str(ROLE_LABELS.get(u.role, u.role)),
             "active": u.active,
             "registered": local_dt(u.created_at, "date") if u.created_at else "неизвестно",
             "analyses_count": int(cnt),  # за analyses_period_days, если он указан, иначе за всё время

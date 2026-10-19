@@ -1,32 +1,18 @@
 {% extends "base.html" %}
-{% block title %}{% if category %}{{ category.name }}{% else %}Новая категория{% endif %}{% endblock %}
+{% block title %}{% if category %}{{ category.name }}{% else %}{{ _('catform.new') }}{% endif %}{% endblock %}
 {% block content %}
 <div class="page-header">
-    <h1>{% if category %}Категория «{{ category.name }}»{% else %}Новая категория{% endif %}</h1>
+    <h1>{% if category %}{{ _('catform.title', name=category.name) }}{% else %}{{ _('catform.new') }}{% endif %}</h1>
 </div>
 
 <details class="help-callout" open>
-    <summary>Как устроена категория — прочитать перед первым разом</summary>
+    <summary>{{ _('catform.help.title') }}</summary>
     <ul>
-        <li><b>Summary</b> — короткое описание по-английски для быстрого первого прохода: что должно быть
-            видно на фото, чтобы модель вообще присмотрелась к этой категории.</li>
-        <li><b>Правила (Full)</b> — подробное описание признаков для второго, внимательного прохода.
-            Пишите отдельными абзацами через кнопку «Добавить правило» — например, один абзац на то,
-            что вообще ищем, ещё один — список конкретных примет, ещё один — при каком их сочетании
-            считать сигнал найденным и как это влияет на уровень риска. Тег
-            <code>&lt;signal_category&gt;</code> оборачивается автоматически — писать его самому не нужно.</li>
-        <li><b>Служебное слово <code>__OUTPUT_LANGUAGE__</code></b> — если в правиле нужно попросить
-            модель что-то написать (например, в detail/rationale), не пишите конкретный язык («напиши
-            по-русски») — анализ может идти и на английском. Вместо этого вставьте буквально
-            <code>__OUTPUT_LANGUAGE__</code> — сервер сам подставит нужный язык перед отправкой модели.
-            Работает только в Full/Compact, в Summary — нет смысла, там его никто не подставляет.
-            Кнопка «Вставить __OUTPUT_LANGUAGE__» рядом с полем делает это без опечаток — от них не
-            спасает ничего, кроме точного совпадения: ни лишний пробел, ни другое число подчёркиваний
-            не сработают, а сохранение такого текста форма не пропустит и подскажет, что не так.</li>
-        <li><b>Compact</b> — та же суть, но сжато: применяется только если модель на первом проходе
-            не смогла уверенно определить категории. Можно собрать нажатием «Скопировать из Full»
-            и сократить вручную.</li>
-        <li><b>Пример сцены</b> — необязательно; готовый разбор похожей ситуации помогает модели.</li>
+        <li>{{ _('catform.help.summary') }}</li>
+        <li>{{ _('catform.help.rules') }}</li>
+        <li>{{ _('catform.help.language') }}</li>
+        <li>{{ _('catform.help.compact') }}</li>
+        <li>{{ _('catform.help.scene') }}</li>
     </ul>
 </details>
 
@@ -37,13 +23,13 @@
         <div class="field">
             {{ form.name.label }}
             {{ form.name(class_="input") }}
-            <p class="field-hint">Только латиница, цифры и «_». Меняйте с осторожностью — это же имя сервер анализа видит в промпте.</p>
+            <p class="field-hint">{{ _('catform.name.hint') }}</p>
             {% for error in form.name.errors %}<div class="field-error">{{ error }}</div>{% endfor %}
         </div>
         <div class="field">
             {{ form.title.label }}
             {{ form.title(class_="input") }}
-            <p class="field-hint">Только для списка в этой панели, на анализ не влияет.</p>
+            <p class="field-hint">{{ _('catform.title.hint') }}</p>
             {% for error in form.title.errors %}<div class="field-error">{{ error }}</div>{% endfor %}
         </div>
         <div class="field field-narrow">
@@ -60,15 +46,13 @@
     </div>
 
     <div class="field">
-        <label>Правила (Full) — используются во внимательном, втором проходе</label>
-        <p class="field-hint">Каждый блок ниже — отдельный абзац итогового текста. Добавляйте по одному
-            смысловому блоку: что ищем → конкретные приметы → когда считать сигнал найденным → как это
-            влияет на риск.</p>
+        <label>{{ _('catform.rules.label') }}</label>
+        <p class="field-hint">{{ _('catform.rules.hint') }}</p>
         <div id="full-rules" class="rule-list-wrap">
             <div class="rule-list"></div>
             <div class="rule-list-toolbar">
-                <button type="button" class="btn btn-secondary btn-sm" data-add>+ Добавить правило</button>
-                <button type="button" class="btn btn-secondary btn-sm" data-insert-placeholder>Вставить __OUTPUT_LANGUAGE__</button>
+                <button type="button" class="btn btn-secondary btn-sm" data-add>{{ _('catform.rule.add') }}</button>
+                <button type="button" class="btn btn-secondary btn-sm" data-insert-placeholder>{{ _('catform.insert_placeholder') }}</button>
             </div>
         </div>
         {{ form.full(id="full", style="display:none") }}
@@ -77,14 +61,14 @@
 
     <div class="field">
         <div class="field-label-row">
-            <label>Compact — сокращённая версия, fallback</label>
-            <button type="button" id="copy-to-compact" class="btn btn-secondary btn-sm">Скопировать из Full</button>
+            <label>{{ _('catform.compact.label') }}</label>
+            <button type="button" id="copy-to-compact" class="btn btn-secondary btn-sm">{{ _('catform.compact.copy') }}</button>
         </div>
         <div id="compact-rules" class="rule-list-wrap">
             <div class="rule-list"></div>
             <div class="rule-list-toolbar">
-                <button type="button" class="btn btn-secondary btn-sm" data-add>+ Добавить правило</button>
-                <button type="button" class="btn btn-secondary btn-sm" data-insert-placeholder>Вставить __OUTPUT_LANGUAGE__</button>
+                <button type="button" class="btn btn-secondary btn-sm" data-add>{{ _('catform.rule.add') }}</button>
+                <button type="button" class="btn btn-secondary btn-sm" data-insert-placeholder>{{ _('catform.insert_placeholder') }}</button>
             </div>
         </div>
         {{ form.compact(id="compact", style="display:none") }}
@@ -92,11 +76,9 @@
     </div>
 
     <details class="advanced-fields">
-        <summary>Доп. блоки к Full/Compact (нужно очень редко)</summary>
+        <summary>{{ _('catform.advanced.title') }}</summary>
         <p class="field-hint">
-            Почти всегда не нужно. Сюда попадает вспомогательный текст, который в промпте должен идти
-            <i>после</i> закрывающего <code>&lt;signal_category&gt;</code> как отдельный блок (например,
-            справочник известных фраз для транскрипции) — а не как ещё один абзац правил внутри него.
+            {{ _('catform.advanced.hint') }}
         </p>
         <div class="field-row">
             <div class="field">
@@ -111,10 +93,8 @@
     </details>
 
     <div class="field">
-        <label>Примеры сцен</label>
-        <p class="field-hint">Готовые разборы похожих ситуаций для модели — отдельно для каждого языка. Сцена:
-            описание, список сигналов (id и категория проставляются сами), обоснование, уровень риска и
-            флаг «нужна проверка человеком». JSON собирается автоматически.</p>
+        <label>{{ _('catform.scenes.label') }}</label>
+        <p class="field-hint">{{ _('catform.scenes.hint') }}</p>
         <div class="tabs" role="tablist">
             <button type="button" class="tab active" data-tab="ru">RU</button>
             <button type="button" class="tab" data-tab="en">EN</button>
@@ -132,8 +112,8 @@
     </label>
 
     <div class="form-actions">
-        <button type="submit" class="btn btn-primary">Сохранить</button>
-        <a href="{{ url_for('panel.categories_list') }}" class="btn btn-secondary">Отмена</a>
+        <button type="submit" class="btn btn-primary">{{ _('common.save') }}</button>
+        <a href="{{ url_for('panel.categories_list') }}" class="btn btn-secondary">{{ _('common.cancel') }}</a>
     </div>
 </form>
 {% endblock %}
@@ -167,7 +147,7 @@ function createRuleList(rootId, hiddenId, initialParagraphs) {
         btn.type = 'button';
         btn.className = 'btn btn-secondary btn-sm rule-item-remove';
         btn.textContent = '✕';
-        btn.title = 'Удалить это правило';
+        btn.title = {{ _('catform.js.rule_delete')|tojson }};
         btn.addEventListener('click', () => {
             row.remove();
             if (lastFocused === ta) lastFocused = null;
@@ -220,7 +200,7 @@ function createExamplesEditor(panel, hidden, initialScenes) {
     const addScene = document.createElement('button');
     addScene.type = 'button';
     addScene.className = 'btn btn-secondary btn-sm';
-    addScene.textContent = '+ Добавить сцену';
+    addScene.textContent = {{ _('catform.js.scene_add')|tojson }};
     panel.append(list, addScene);
 
     function el(tag, cls, text) {
@@ -245,7 +225,7 @@ function createExamplesEditor(panel, hidden, initialScenes) {
     function renumber() {
         [...list.children].forEach((card, i) => {
             const letter = i < 26 ? String.fromCharCode(65 + i) : String(i + 1);
-            card.querySelector('.scene-title').textContent = 'Сцена ' + letter;
+            card.querySelector('.scene-title').textContent = {{ _('catform.js.scene_title')|tojson }}.replace('{letter}', letter);
         });
     }
 
@@ -254,7 +234,7 @@ function createExamplesEditor(panel, hidden, initialScenes) {
         const ta = textarea(value, 2);
         const rm = el('button', 'btn btn-secondary btn-sm rule-item-remove', '✕');
         rm.type = 'button';
-        rm.title = 'Удалить сигнал';
+        rm.title = {{ _('catform.js.signal_delete')|tojson }};
         rm.addEventListener('click', () => { row.remove(); renumberSignals(sigList); });
         row.append(el('span', 'signal-id'), ta, rm);
         sigList.appendChild(row);
@@ -271,7 +251,7 @@ function createExamplesEditor(panel, hidden, initialScenes) {
         const card = el('div', 'scene-card');
         const head = el('div', 'scene-head');
         head.append(el('b', 'scene-title'));
-        const rm = el('button', 'btn btn-secondary btn-sm', '✕ Удалить сцену');
+        const rm = el('button', 'btn btn-secondary btn-sm', {{ _('catform.js.scene_delete')|tojson }});
         rm.type = 'button';
         rm.addEventListener('click', () => { card.remove(); renumber(); });
         head.append(rm);
@@ -281,11 +261,11 @@ function createExamplesEditor(panel, hidden, initialScenes) {
         const sigList = el('div', 'rule-list');
         sigList.dataset.role = 'signals';
         (scene.signals || []).forEach((d) => addSignal(sigList, d));
-        const addSig = el('button', 'btn btn-secondary btn-sm', '+ Добавить сигнал');
+        const addSig = el('button', 'btn btn-secondary btn-sm', {{ _('catform.js.signal_add')|tojson }});
         addSig.type = 'button';
         addSig.addEventListener('click', () => addSignal(sigList, '').focus());
         const sigWrap = el('div', 'field');
-        sigWrap.append(el('label', '', 'Сигналы (пусто — сигналов нет)'), sigList, addSig);
+        sigWrap.append(el('label', '', {{ _('catform.js.signals_label')|tojson }}), sigList, addSig);
 
         const rationale = textarea(scene.rationale, 2);
         rationale.dataset.role = 'rationale';
@@ -306,7 +286,7 @@ function createExamplesEditor(panel, hidden, initialScenes) {
         const meta = el('div', 'field-row');
         meta.append(labelled('risk_level', risk), reviewLabel);
 
-        card.append(head, labelled('Описание сцены', desc), sigWrap, labelled('rationale', rationale), meta);
+        card.append(head, labelled({{ _('catform.js.scene_desc')|tojson }}, desc), sigWrap, labelled('rationale', rationale), meta);
         list.appendChild(card);
         renumber();
         fitHeight(desc); fitHeight(rationale);

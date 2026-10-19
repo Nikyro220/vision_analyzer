@@ -11,6 +11,7 @@ from functools import lru_cache
 from urllib.parse import urlsplit
 
 from flask import current_app, request
+from flask_babel import gettext, lazy_gettext
 from flask_wtf import FlaskForm
 from flask_wtf.file import FileRequired, MultipleFileField
 from PIL import Image
@@ -49,45 +50,45 @@ def validate_password_strength(password: str, username: str = "") -> None:
     """Аналог AUTH_PASSWORD_VALIDATORS из Django-версии. Бросает ValidationError."""
     min_length = conf("PASSWORD_MIN_LENGTH")
     if len(password) < min_length:
-        raise ValidationError(f"Пароль слишком короткий. Минимум {min_length} символов.")
+        raise ValidationError(gettext("forms.password.too_short", min=min_length))
     if password.isdigit():
-        raise ValidationError("Пароль не может состоять только из цифр.")
+        raise ValidationError(gettext("forms.password.digits_only"))
     if password.lower() in COMMON_PASSWORDS:
-        raise ValidationError("Этот пароль слишком широко распространён.")
+        raise ValidationError(gettext("forms.password.common"))
     if username:
         u, p = username.lower(), password.lower()
         similar = SequenceMatcher(a=p, b=u).quick_ratio() >= conf("PASSWORD_USERNAME_SIMILARITY")
         if len(u) >= conf("PASSWORD_USERNAME_MIN_LEN") and (u in p or similar):
-            raise ValidationError("Пароль слишком похож на логин.")
+            raise ValidationError(gettext("forms.password.similar"))
 
 
 class RegisterForm(FlaskForm):
     username = StringField(
-        "Имя пользователя",
+        lazy_gettext("forms.register.username"),
         validators=[
-            DataRequired("Введите логин."),
-            Length(max=150, message="Не более 150 символов."),
-            Regexp(r"^[\w.@+-]+$", message="Допустимы только буквы, цифры и символы @/./+/-/_"),
+            DataRequired(lazy_gettext("forms.common.enter_login")),
+            Length(max=150, message=lazy_gettext("forms.common.max150")),
+            Regexp(r"^[\w.@+-]+$", message=lazy_gettext("forms.common.login_chars")),
         ],
-        render_kw={"placeholder": "Придумайте логин", "autocomplete": "username", "autofocus": True},
+        render_kw={"placeholder": lazy_gettext("forms.register.username_placeholder"), "autocomplete": "username", "autofocus": True},
     )
     email = EmailField(
         "Email",
-        validators=[Optional(), Email("Введите корректный адрес электронной почты."), Length(max=254)],
+        validators=[Optional(), Email(lazy_gettext("forms.common.email_invalid")), Length(max=254)],
         render_kw={"placeholder": "you@example.com", "autocomplete": "email"},
     )
     password1 = PasswordField(
-        "Пароль",
-        validators=[DataRequired("Введите пароль.")],
-        render_kw={"placeholder": "Придумайте пароль", "autocomplete": "new-password"},
+        lazy_gettext("forms.common.password"),
+        validators=[DataRequired(lazy_gettext("forms.common.enter_password"))],
+        render_kw={"placeholder": lazy_gettext("forms.register.password_placeholder"), "autocomplete": "new-password"},
     )
     password2 = PasswordField(
-        "Подтверждение пароля",
+        lazy_gettext("forms.register.password2"),
         validators=[
-            DataRequired("Повторите пароль."),
-            EqualTo("password1", message="Введённые пароли не совпадают."),
+            DataRequired(lazy_gettext("forms.register.repeat_required")),
+            EqualTo("password1", message=lazy_gettext("forms.register.mismatch")),
         ],
-        render_kw={"placeholder": "Повторите пароль", "autocomplete": "new-password"},
+        render_kw={"placeholder": lazy_gettext("forms.register.password2_placeholder"), "autocomplete": "new-password"},
     )
 
     def validate_username(self, field):
@@ -95,7 +96,7 @@ class RegisterForm(FlaskForm):
             select(func.count(User.id)).where(func.lower(User.username) == field.data.strip().lower())
         )
         if exists:
-            raise ValidationError("Пользователь с таким логином уже существует.")
+            raise ValidationError(lazy_gettext("forms.common.login_exists"))
 
     def validate_password1(self, field):
         validate_password_strength(field.data, self.username.data or "")
@@ -103,14 +104,14 @@ class RegisterForm(FlaskForm):
 
 class LoginForm(FlaskForm):
     username = StringField(
-        "Имя пользователя",
-        validators=[DataRequired("Введите логин.")],
-        render_kw={"placeholder": "Логин", "autocomplete": "username", "autofocus": True},
+        lazy_gettext("forms.register.username"),
+        validators=[DataRequired(lazy_gettext("forms.common.enter_login"))],
+        render_kw={"placeholder": lazy_gettext("account.field.login"), "autocomplete": "username", "autofocus": True},
     )
     password = PasswordField(
-        "Пароль",
-        validators=[DataRequired("Введите пароль.")],
-        render_kw={"placeholder": "Пароль", "autocomplete": "current-password"},
+        lazy_gettext("forms.common.password"),
+        validators=[DataRequired(lazy_gettext("forms.common.enter_password"))],
+        render_kw={"placeholder": lazy_gettext("forms.common.password"), "autocomplete": "current-password"},
     )
 
 
@@ -122,53 +123,53 @@ class AccountForm(FlaskForm):
     """Редактирование данных аккаунта: свой профиль или (для админа) карточка пользователя."""
 
     username = StringField(
-        "Логин",
+        lazy_gettext("account.field.login"),
         validators=[
-            DataRequired("Введите логин."),
-            Length(max=150, message="Не более 150 символов."),
-            Regexp(r"^[\w.@+-]+$", message="Допустимы только буквы, цифры и символы @/./+/-/_"),
+            DataRequired(lazy_gettext("forms.common.enter_login")),
+            Length(max=150, message=lazy_gettext("forms.common.max150")),
+            Regexp(r"^[\w.@+-]+$", message=lazy_gettext("forms.common.login_chars")),
         ],
-        render_kw={"placeholder": "Логин", "autocomplete": "username"},
+        render_kw={"placeholder": lazy_gettext("account.field.login"), "autocomplete": "username"},
     )
     email = EmailField(
         "Email",
-        validators=[Optional(), Email("Введите корректный адрес электронной почты."), Length(max=254)],
+        validators=[Optional(), Email(lazy_gettext("forms.common.email_invalid")), Length(max=254)],
         render_kw={"placeholder": "you@example.com", "autocomplete": "email"},
     )
     family_name = StringField(
-        "Фамилия",
-        validators=[Length(max=150, message="Не более 150 символов.")],
+        lazy_gettext("forms.account.family_name"),
+        validators=[Length(max=150, message=lazy_gettext("forms.common.max150"))],
         filters=[_squash_spaces],
-        render_kw={"placeholder": "Необязательно", "autocomplete": "family-name"},
+        render_kw={"placeholder": lazy_gettext("forms.account.optional"), "autocomplete": "family-name"},
     )
     given_name = StringField(
-        "Имя",
-        validators=[Length(max=150, message="Не более 150 символов.")],
+        lazy_gettext("forms.account.given_name"),
+        validators=[Length(max=150, message=lazy_gettext("forms.common.max150"))],
         filters=[_squash_spaces],
-        render_kw={"placeholder": "Необязательно", "autocomplete": "given-name"},
+        render_kw={"placeholder": lazy_gettext("forms.account.optional"), "autocomplete": "given-name"},
     )
     middle_name = StringField(
-        "Отчество",
-        validators=[Length(max=150, message="Не более 150 символов.")],
+        lazy_gettext("forms.account.middle_name"),
+        validators=[Length(max=150, message=lazy_gettext("forms.common.max150"))],
         filters=[_squash_spaces],
-        render_kw={"placeholder": "Необязательно", "autocomplete": "additional-name"},
+        render_kw={"placeholder": lazy_gettext("forms.account.optional"), "autocomplete": "additional-name"},
     )
     nickname = StringField(
-        "Название аккаунта",
-        validators=[Length(max=150, message="Не более 150 символов.")],
+        lazy_gettext("account.field.nickname_title"),
+        validators=[Length(max=150, message=lazy_gettext("forms.common.max150"))],
         filters=[_squash_spaces],  # лишние пробелы и переводы строк -> один пробел
-        render_kw={"placeholder": "Необязательно: как называется ваш аккаунт", "autocomplete": "nickname"},
+        render_kw={"placeholder": lazy_gettext("forms.account.nickname_placeholder"), "autocomplete": "nickname"},
     )
     display_style = SelectField(
-        "Как показывать моё имя",
+        lazy_gettext("forms.account.display_style"),
         choices=DISPLAY_STYLE_CHOICES,
         default=DISPLAY_STYLE_CHOICES[0][0],
     )
     color = StringField(
-        "Цвет пользователя",
-        validators=[Optional(), Regexp(COLOR_RE, message="Цвет задаётся как #rrggbb.")],  # пусто — цвет не меняем
+        lazy_gettext("forms.account.color"),
+        validators=[Optional(), Regexp(COLOR_RE, message=lazy_gettext("forms.account.color_format"))],  # пусто — цвет не меняем
         widget=ColorInput(),
-        render_kw={"title": "Красит аватар без картинки и ваши сообщения в чате"},
+        render_kw={"title": lazy_gettext("forms.account.color_hint")},
     )
 
     def __init__(self, *args, current_id: int | None = None, **kwargs):
@@ -181,7 +182,7 @@ class AccountForm(FlaskForm):
         if self._current_id is not None:
             stmt = stmt.where(User.id != self._current_id)
         if db.session.scalar(stmt):
-            raise ValidationError("Пользователь с таким логином уже существует.")
+            raise ValidationError(lazy_gettext("forms.common.login_exists"))
 
 
 # Обратная совместимость на случай, если что-то ещё импортирует старое имя.
@@ -192,8 +193,8 @@ class DeleteAccountForm(FlaskForm):
     """Подтверждение удаления аккаунта — тупо по приколу просим вручную ввести SQL-запрос с логином."""
 
     confirm_sql = StringField(
-        "Подтверждение",
-        validators=[DataRequired("Введите команду подтверждения.")],
+        lazy_gettext("forms.delete.confirm_label"),
+        validators=[DataRequired(lazy_gettext("forms.delete.confirm_required"))],
         render_kw={"placeholder": "DELETE FROM users WHERE username = '...';", "autocomplete": "off"},
     )
 
@@ -221,12 +222,11 @@ def _placeholder_typo_check(field):
     text = field.data or ""
     for match in _PLACEHOLDER_LOOKALIKE_RE.finditer(text):
         if match.group(0) != OUTPUT_LANGUAGE_PLACEHOLDER:
-            raise ValidationError(
-                f"Похоже на опечатку в служебном слове «{match.group(0).strip()}». "
-                f"Нужно написать ровно «{OUTPUT_LANGUAGE_PLACEHOLDER}» (два подчёркивания "
-                "с каждой стороны, заглавными) — иначе сервер анализа не подставит язык, "
-                "и это слово останется в промпте как есть."
-            )
+            raise ValidationError(gettext(
+                "forms.category.placeholder_typo",
+                found=match.group(0).strip(),
+                expected=OUTPUT_LANGUAGE_PLACEHOLDER,
+            ))
 
 
 class CategoryForm(FlaskForm):
@@ -236,54 +236,53 @@ class CategoryForm(FlaskForm):
     inference/tools/vision_analyzer/categories/<имя>.json (см. models.Category)."""
 
     name = StringField(
-        "Техническое имя",
+        lazy_gettext("forms.category.name"),
         validators=[
-            DataRequired("Введите техническое имя категории."),
-            Length(max=64, message="Не более 64 символов."),
-            Regexp(CATEGORY_NAME_RE, message="Допустимы только латинские буквы, цифры и «_»."),
+            DataRequired(lazy_gettext("forms.category.name_required")),
+            Length(max=64, message=lazy_gettext("forms.category.name_max")),
+            Regexp(CATEGORY_NAME_RE, message=lazy_gettext("forms.category.name_chars")),
         ],
         render_kw={"placeholder": "weapons_and_dangerous_objects", "autocomplete": "off"},
     )
     title = StringField(
-        "Название для интерфейса",
-        validators=[Length(max=150, message="Не более 150 символов.")],
-        render_kw={"placeholder": "Оружие и опасные предметы"},
+        lazy_gettext("forms.category.title"),
+        validators=[Length(max=150, message=lazy_gettext("forms.common.max150"))],
+        render_kw={"placeholder": lazy_gettext("forms.category.title_placeholder")},
     )
     summary = TextAreaField(
-        "Summary (для первого, классифицирующего прохода)",
-        validators=[DataRequired("Заполните summary.")],
+        lazy_gettext("forms.category.summary"),
+        validators=[DataRequired(lazy_gettext("forms.category.summary_required"))],
         render_kw={
             "rows": 3,
-            "placeholder": "Короткое описание на английском: что должно быть видно на "
-            "изображении, чтобы категория стала кандидатом.",
+            "placeholder": lazy_gettext("forms.category.summary_placeholder"),
         },
     )
     full = TextAreaField(
-        "Full (полные правила для второго прохода)",
-        validators=[DataRequired("Заполните full.")],
+        lazy_gettext("forms.category.full"),
+        validators=[DataRequired(lazy_gettext("forms.category.full_required"))],
         render_kw={"rows": 10, "placeholder": '<signal_category name="...">...</signal_category>'},
     )
     compact = TextAreaField(
-        "Compact (сокращённая версия, fallback)",
-        validators=[DataRequired("Заполните compact.")],
+        lazy_gettext("forms.category.compact"),
+        validators=[DataRequired(lazy_gettext("forms.category.compact_required"))],
         render_kw={"rows": 6, "placeholder": '<signal_category name="...">...</signal_category>'},
     )
     full_extra = TextAreaField(
-        "Доп. блоки к Full (редко нужно)", validators=[Optional()], render_kw={"rows": 4}
+        lazy_gettext("forms.category.full_extra"), validators=[Optional()], render_kw={"rows": 4}
     )
     compact_extra = TextAreaField(
-        "Доп. блоки к Compact (редко нужно)", validators=[Optional()], render_kw={"rows": 4}
+        lazy_gettext("forms.category.compact_extra"), validators=[Optional()], render_kw={"rows": 4}
     )
     # Примеры сцен редактируются структурно (JS в category_form.html) и приходят
     # сюда JSON-списком сцен; в текст для БД их превращает examples_codec.
     examples_en_data = HiddenField(validators=[Optional()])
     examples_ru_data = HiddenField(validators=[Optional()])
     position = IntegerField(
-        "Порядок появления в промпте",
-        validators=[Optional(), NumberRange(min=0, max=100000, message="От 0 до 100000.")],
+        lazy_gettext("forms.category.position"),
+        validators=[Optional(), NumberRange(min=0, max=100000, message=lazy_gettext("forms.category.position_range"))],
         render_kw={"placeholder": "0"},
     )
-    is_active = BooleanField("Включена (участвует в анализе)", default=True)
+    is_active = BooleanField(lazy_gettext("forms.category.is_active"), default=True)
 
     def __init__(self, *args, current_id: int | None = None, **kwargs):
         """current_id — id редактируемой категории, чтобы не спотыкаться о её же имя."""
@@ -295,13 +294,13 @@ class CategoryForm(FlaskForm):
         if self._current_id is not None:
             stmt = stmt.where(Category.id != self._current_id)
         if db.session.scalar(stmt):
-            raise ValidationError("Категория с таким именем уже существует.")
+            raise ValidationError(lazy_gettext("forms.category.exists"))
 
     def _validate_examples(self, field):
         try:
             examples_codec.data_to_text(field.data, "x")
         except (ValueError, TypeError):
-            raise ValidationError("Не удалось разобрать примеры сцен — обновите страницу и повторите.")
+            raise ValidationError(lazy_gettext("forms.category.examples_bad"))
 
     def validate_examples_en_data(self, field):
         self._validate_examples(field)
@@ -329,12 +328,12 @@ class DeleteCategoryForm(FlaskForm):
 class ChatPromptForm(FlaskForm):
     """Системный промпт чата (раздел «Промпты»). Пустое значение = вернуть стандартный текст."""
 
-    prompt = TextAreaField("Системный промпт чата", validators=[Optional()])
+    prompt = TextAreaField(lazy_gettext("prompts.chat.title"), validators=[Optional()])
 
     def validate_prompt(self, field) -> None:
         limit = conf("CHAT_PROMPT_MAX_CHARS")
         if len((field.data or "").strip()) > limit:
-            raise ValidationError(f"Слишком длинный промпт: не более {limit} символов.")
+            raise ValidationError(gettext("forms.prompt.too_long", limit=limit))
 
 
 # Форматы Pillow -> (расширение файла, MIME-тип)
@@ -378,16 +377,16 @@ def parse_links(raw: str) -> tuple[list[str], list[tuple[str, str]]]:
         if "://" not in link and _BARE_LINK_RE.match(link):
             link = "https://" + link
         if len(link) > LINK_MAX_LEN:
-            bad.append((link[:60] + "…", "слишком длинная ссылка"))
+            bad.append((link[:60] + "…", gettext("forms.link.too_long")))
             continue
         try:
             parts = urlsplit(link)
             host = parts.hostname
         except ValueError:
-            bad.append((link, "некорректный адрес"))
+            bad.append((link, gettext("forms.link.invalid")))
             continue
         if parts.scheme not in ("http", "https") or not host:
-            bad.append((link[:80], "нужна ссылка вида https://…"))
+            bad.append((link[:80], gettext("forms.link.need_url")))
             continue
         if link in seen:
             continue
@@ -404,8 +403,8 @@ class ImageUploadForm(FlaskForm):
     картинки и контекст (автор, текст), который попадает в подпись к снимку.
     """
 
-    image = MultipleFileField("Изображения")
-    links = TextAreaField("Ссылки на посты", render_kw={"rows": 3})
+    image = MultipleFileField(lazy_gettext("forms.upload.images"))
+    links = TextAreaField(lazy_gettext("forms.upload.links"), render_kw={"rows": 3})
 
     # Заполняются в validate_image / validate_links
     accepted: list[AcceptedImage]
@@ -437,7 +436,7 @@ class ImageUploadForm(FlaskForm):
         caption_max = conf("CAPTION_MAX_CHARS")
         max_files = get_runtime_setting("QUEUE_MAX_FILES_PER_UPLOAD")
         if len(files) > max_files:
-            raise ValidationError(f"За один раз можно загрузить не больше {max_files} файлов.")
+            raise ValidationError(gettext("forms.upload.too_many", max=max_files))
 
         for idx, upload in enumerate(files):
             name = upload.filename
@@ -446,17 +445,17 @@ class ImageUploadForm(FlaskForm):
             caption = raw_captions[idx].strip()[:caption_max] if idx < len(raw_captions) else ""
 
             if not data:
-                self.rejected.append((name, "файл пуст"))
+                self.rejected.append((name, gettext("forms.upload.empty")))
                 continue
             try:
                 with Image.open(io.BytesIO(data)) as img:
                     fmt = img.format
                     img.verify()
             except Exception:  # noqa: BLE001
-                self.rejected.append((name, "не является изображением или повреждён"))
+                self.rejected.append((name, gettext("forms.upload.not_image")))
                 continue
             if fmt not in IMAGE_FORMATS:
-                self.rejected.append((name, "формат не поддерживается"))
+                self.rejected.append((name, gettext("forms.upload.unsupported")))
                 continue
 
             ext, mime = IMAGE_FORMATS[fmt]
@@ -473,23 +472,23 @@ class ImageUploadForm(FlaskForm):
 
         total = len(self.accepted) + len(self.link_urls)
         if not total:
-            reasons = "; ".join(f"«{n}»: {why}" for n, why in self.rejected[: conf("REJECTED_FILES_SHOWN")])
+            reasons = "; ".join(gettext("forms.upload.reason", name=n, why=why) for n, why in self.rejected[: conf("REJECTED_FILES_SHOWN")])
             if self.rejected_links:
                 reasons = "; ".join(
                     [reasons] * bool(reasons)
-                    + [f"«{n}»: {why}" for n, why in self.rejected_links[: conf("REJECTED_FILES_SHOWN")]]
+                    + [gettext("forms.upload.reason", name=n, why=why) for n, why in self.rejected_links[: conf("REJECTED_FILES_SHOWN")]]
                 )
             message = (
-                "Загрузите правильное изображение или ссылку. " + reasons
+                gettext("forms.upload.invalid", reasons=reasons)
                 if reasons
-                else "Выберите файл изображения или вставьте ссылку на пост."
+                else gettext("forms.upload.nothing")
             )
             self.image.errors = [*self.image.errors, message]
             return False
 
         max_files = get_runtime_setting("QUEUE_MAX_FILES_PER_UPLOAD")
         if total > max_files:
-            self.links.errors = [*self.links.errors, f"За один раз можно добавить не больше {max_files} файлов и ссылок суммарно."]
+            self.links.errors = [*self.links.errors, gettext("forms.upload.too_many_total", max=max_files)]
             return False
         return True
 
@@ -509,19 +508,19 @@ def _parse_number(raw: str, kind: str, lo, hi, lo_exclusive: bool = False):
     """Разбирает число из поля. Бросает ValueError с русским сообщением."""
     if kind == "int":
         if not re.fullmatch(r"[+-]?\d+", raw):
-            raise ValueError("Введите целое число.")
+            raise ValueError(gettext("forms.number.int"))
         value = int(raw)
     else:
         try:
             value = float(raw)
         except ValueError:
-            raise ValueError("Введите число (например, 0.7).") from None
+            raise ValueError(gettext("forms.number.float")) from None
         if not math.isfinite(value):
-            raise ValueError("Введите обычное число.")
+            raise ValueError(gettext("forms.number.finite"))
 
     too_low = lo is not None and (value <= lo if lo_exclusive else value < lo)
     if too_low or (hi is not None and value > hi):
-        raise ValueError(f"Допустимое значение: {_range_text(lo, hi, lo_exclusive)}.")
+        raise ValueError(gettext("forms.number.allowed", range=_range_text(lo, hi, lo_exclusive)))
     return value
 
 
@@ -531,12 +530,13 @@ def _fmt(x) -> str:
 
 def _range_text(lo, hi, lo_exclusive: bool = False) -> str:
     if lo is not None and hi is not None:
-        return f"{'больше' if lo_exclusive else 'от'} {_fmt(lo)} до {_fmt(hi)}"
+        return (gettext("forms.range.gt_to", lo=_fmt(lo), hi=_fmt(hi)) if lo_exclusive
+                else gettext("forms.range.from_to", lo=_fmt(lo), hi=_fmt(hi)))
     if lo is not None:
-        return f"{'больше' if lo_exclusive else 'не меньше'} {_fmt(lo)}"
+        return (gettext("forms.range.gt", lo=_fmt(lo)) if lo_exclusive else gettext("forms.range.ge", lo=_fmt(lo)))
     if hi is not None:
-        return f"не больше {_fmt(hi)}"
-    return "любое число"
+        return gettext("forms.range.le", hi=_fmt(hi))
+    return gettext("forms.range.any")
 
 
 def _display(value) -> str:
@@ -558,7 +558,7 @@ def _setting_field(spec: tuple):
     key, kind, label, hint, default, lo, hi, lo_excl, choices, nullable = spec
     description = " ".join(filter(None, [
         hint,
-        f"По умолчанию: {_display(default) or 'auto'}.",
+        gettext("forms.setting.default", value=_display(default) or "auto"),
     ]))
     if kind == "choice":
         return SelectField(
@@ -567,9 +567,9 @@ def _setting_field(spec: tuple):
     if lo is not None or hi is not None:
         placeholder = f"{_fmt(lo)}–{_fmt(hi)}" if lo is not None and hi is not None else _range_text(lo, hi, lo_excl)
     else:
-        placeholder = "целое" if kind == "int" else "число"
+        placeholder = gettext("forms.number.placeholder_int") if kind == "int" else gettext("forms.number.placeholder_number")
     if nullable:
-        placeholder += " или auto"
+        placeholder += gettext("forms.number.or_auto")
     return StringField(
         label or key,
         validators=[Optional(), Length(max=32)],

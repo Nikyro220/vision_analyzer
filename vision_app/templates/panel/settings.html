@@ -1,18 +1,18 @@
 {% extends "base.html" %}
-{% block title %}Настройки{% endblock %}
+{% block title %}{{ _('nav.system.settings') }}{% endblock %}
 {% block content %}
 <div class="page-header">
-    <h1>Настройки</h1>
-    <p class="page-sub">Все параметры из <code>config.py</code>, которые безопасно менять на ходу, — действуют сразу после сохранения, без перезапуска. Значение «по умолчанию» берётся из <code>config.py</code> и переменных окружения. Тема, шрифты и размеры интерфейса настраиваются в разделе <a href="{{ url_for('accounts.appearance') }}">«Оформление»</a> — он доступен всем пользователям.</p>
+    <h1>{{ _('nav.system.settings') }}</h1>
+    <p class="page-sub">{{ _('settings.subtitle', url=url_for('accounts.appearance')) }}</p>
 </div>
 
 <form method="post" class="settings-form" novalidate id="settings-form">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 
     <div class="card settings-toolbar">
-        <input type="search" id="settings-filter" class="input" placeholder="Найти настройку по названию или имени…" autocomplete="off">
-        <button type="button" class="btn btn-secondary" id="settings-toggle-all" data-state="collapsed">Развернуть все</button>
-        <button type="submit" class="btn btn-primary">Сохранить</button>
+        <input type="search" id="settings-filter" class="input" placeholder="{{ _('settings.filter.placeholder') }}" autocomplete="off">
+        <button type="button" class="btn btn-secondary" id="settings-toggle-all" data-state="collapsed">{{ _('settings.expand_all') }}</button>
+        <button type="submit" class="btn btn-primary">{{ _('common.save') }}</button>
     </div>
 
     {% for group in groups %}
@@ -20,7 +20,7 @@
     <details class="card settings-group" data-settings-group id="group-{{ loop.index0 }}">
         <summary class="settings-group-summary">
             <h2 class="card-title">{{ group.title }}</h2>
-            <span class="settings-group-meta">{{ group.rows|length }}{% if changed %} · изменено: {{ changed }}{% endif %}</span>
+            <span class="settings-group-meta">{{ group.rows|length }}{% if changed %} {{ _('settings.group.changed', count=changed) }}{% endif %}</span>
         </summary>
         {% if group.description %}<p class="field-hint">{{ group.description }}</p>{% endif %}
 
@@ -38,9 +38,9 @@
                             data-reset-for="{{ spec.key }}"
                             data-kind="{{ 'bool' if spec.kind == 'bool' else 'text' }}"
                             data-default="{{ (row.default | int) if spec.kind == 'bool' else row.default }}"
-                        >сбросить</button>
+                        >{{ _('settings.reset') }}</button>
                     {% else %}
-                        <span class="tag">значение по умолчанию</span>
+                        <span class="tag">{{ _('settings.default_value') }}</span>
                     {% endif %}
                 </span>
                 {% if spec.hint %}<p class="field-hint">{{ spec.hint }}</p>{% endif %}
@@ -50,7 +50,7 @@
                 {% if spec.kind == "bool" %}
                 <label class="checkbox-label">
                     <input type="checkbox" id="field-{{ spec.key }}" name="{{ spec.key }}" value="1" {% if row.value %}checked{% endif %} data-default="{{ (row.default | int) }}">
-                    включено
+                    {{ _('settings.enabled') }}
                 </label>
                 {% elif spec.kind == "choice" %}
                 <select id="field-{{ spec.key }}" name="{{ spec.key }}" class="input" data-default="{{ row.default }}">
@@ -70,7 +70,7 @@
                 >
                 {% if row.lo is not none or row.hi is not none %}
                 <span class="field-hint">
-                    Допустимо: {% if row.lo is not none %}от {{ row.lo }}{% endif %}{% if row.hi is not none %} до {{ row.hi }}{% endif %}
+                    {{ _('settings.allowed') }}{% if row.lo is not none %} {{ _('settings.allowed.from', value=row.lo) }}{% endif %}{% if row.hi is not none %} {{ _('settings.allowed.to', value=row.hi) }}{% endif %}
                 </span>
                 {% endif %}
                 {% endif %}
@@ -84,11 +84,11 @@
     </details>
     {% endfor %}
 
-    <p class="empty-hint" id="settings-empty" hidden>Ничего не найдено.</p>
+    <p class="empty-hint" id="settings-empty" hidden>{{ _('common.nothing_found') }}</p>
 
     <div class="card settings-footer">
-        <button type="submit" class="btn btn-primary">Сохранить</button>
-        <span class="field-hint">Форма сохраняется целиком: если хотя бы одно значение неверно, не изменится ничего.</span>
+        <button type="submit" class="btn btn-primary">{{ _('common.save') }}</button>
+        <span class="field-hint">{{ _('settings.save_hint') }}</span>
     </div>
 </form>
 
@@ -109,15 +109,15 @@ document.addEventListener("DOMContentLoaded", () => {
         btn.dataset.resetFor = key;
         btn.dataset.kind = kind;
         btn.dataset.default = defaultValue;
-        btn.textContent = "сбросить";
+        btn.textContent = {{ _('settings.reset')|tojson }};
         return btn;
     };
 
-    // Функция для создания статического спана "значение по умолчанию"
+    // Функция для создания статического спана "{{ _('settings.default_value') }}"
     const createDefaultSpan = () => {
         const span = document.createElement("span");
         span.className = "tag";
-        span.textContent = "значение по умолчанию";
+        span.textContent = {{ _('settings.default_value')|tojson }};
         return span;
     };
 
@@ -159,7 +159,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
         const markPending = () => {
             btn.classList.add("tag-reset-btn-pending");
-            btn.textContent = "сброшено";
+            btn.textContent = {{ _('settings.reset_done')|tojson }};
         };
 
         btn.addEventListener("click", () => {
@@ -222,7 +222,7 @@ document.addEventListener("DOMContentLoaded", () => {
         if (!toggleAll) return;
         const allOpen = groups.length > 0 && groups.filter((g) => !g.hidden).every((g) => g.open);
         toggleAll.dataset.state = allOpen ? "expanded" : "collapsed";
-        toggleAll.textContent = allOpen ? "Свернуть все" : "Развернуть все";
+        toggleAll.textContent = allOpen ? {{ _('settings.collapse_all')|tojson }} : {{ _('settings.expand_all')|tojson }};
     };
     groups.forEach((g) => g.addEventListener("toggle", syncToggleLabel));
     if (toggleAll) {

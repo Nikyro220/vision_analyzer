@@ -14,3 +14,6 @@ inference/upscaler/*.part
 logs/
 temp/
 inference/models/
+
+# Локальные файлы прогресса i18n (не должны попадать в репозиторий)
+i18n_progress.md

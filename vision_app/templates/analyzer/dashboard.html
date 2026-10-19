@@ -1,22 +1,22 @@
 {% extends "base.html" %}
 {% from "partials/icons.html" import icon %}
-{% block title %}Новый анализ{% endblock %}
+{% block title %}{{ _('nav.analysis.new') }}{% endblock %}
 {% block head_extra %}<link rel="stylesheet" href="{{ url_for('static', filename='css/dashboard.css') }}">{% endblock %}
 
 {# Одна строка очереди. Разметку зеркалит функция renderQueueItem() в static/js/queue.js #}
 {% macro queue_row(item) %}
 <li class="queue-item queue-item--{{ item.status }}" data-id="{{ item.id }}">
     <span class="queue-icon" aria-hidden="true"></span>
-    <span class="queue-name" title="{{ item.name }}"><span class="id-tag">№{{ item.id }}</span> {{ item.name|trunc(30) }}</span>
+    <span class="queue-name" title="{{ item.name }}"><span class="id-tag">{{ _('common.id_tag', id=item.id) }}</span> {{ item.name|trunc(30) }}</span>
     <span class="queue-status">
-        {% if item.status == 'processing' %}Обрабатывается · {{ '%d:%02d' % (item.elapsed // 60, item.elapsed % 60) }}
-        {% elif item.ahead > 0 %}В очереди · перед вами: {{ item.ahead }}
-        {% else %}В очереди · следующий{% endif %}
+        {% if item.status == 'processing' %}{{ _('queue.status.processing', time='%d:%02d' % (item.elapsed // 60, item.elapsed % 60)) }}
+        {% elif item.ahead > 0 %}{{ _('queue.status.waiting', ahead=item.ahead) }}
+        {% else %}{{ _('queue.status.next') }}{% endif %}
     </span>
     {% if item.cancel_url %}
     <form method="post" action="{{ item.cancel_url }}" class="queue-cancel">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-        <button type="submit" class="queue-cancel-btn" title="Убрать из очереди" aria-label="Убрать из очереди">✕</button>
+        <button type="submit" class="queue-cancel-btn" title="{{ _('queue.cancel') }}" aria-label="{{ _('queue.cancel') }}">✕</button>
     </form>
     {% endif %}
 </li>
@@ -25,30 +25,30 @@
 {% block content %}
 <div class="dash-page">
 <div class="page-header">
-    <h1>Новый анализ изображения</h1>
-    <p class="page-sub">Загрузите файлы или вставьте ссылки на посты — всё встанет в очередь и будет обработано vision-моделью по одному.</p>
+    <h1>{{ _('dashboard.heading') }}</h1>
+    <p class="page-sub">{{ _('dashboard.subtitle') }}</p>
 </div>
 
 <div class="panel-grid panel-grid-uneven">
     <div class="stack">
         <div class="card">
-            <h2 class="card-title">Загрузка</h2>
+            <h2 class="card-title">{{ _('dashboard.upload.title') }}</h2>
             <p class="dash-target">
-                {% if target_backend %}Анализирует <strong>{{ target_model or 'модель по умолчанию' }}</strong> на <strong>{{ target_backend }}</strong>
-                {% else %}Используется бэкенд и модель по умолчанию.{% endif %}
+                {% if target_backend %}{{ _('dashboard.target.analyzing', model=(target_model or _('dashboard.target.default_model')), backend=target_backend) }}
+                {% else %}{{ _('dashboard.target.default') }}{% endif %}
             </p>
             <form method="post" enctype="multipart/form-data" class="form" id="upload-form" data-caption-max="{{ conf("CAPTION_MAX_CHARS") }}" novalidate>
                 {{ form.hidden_tag() }}
                 {# Одно поле: ссылки пишутся/вставляются в текст, картинки — вставкой из буфера, перетаскиванием или кнопкой #}
                 <div class="intake" id="dropzone">
-                    <label for="id_links" class="sr-only">Ссылки на посты или изображения</label>
-                    {{ form.links(class_="input", id="id_links", rows="4", placeholder="Вставьте ссылку на пост или изображение (Ctrl+V). Несколько ссылок — каждую с новой строки.", spellcheck="false", autocapitalize="off") }}
+                    <label for="id_links" class="sr-only">{{ _('dashboard.intake.label') }}</label>
+                    {{ form.links(class_="input", id="id_links", rows="4", placeholder=_('dashboard.intake.placeholder'), spellcheck="false", autocapitalize="off") }}
                     <div class="intake-bar">
                         <button type="button" class="btn btn-secondary btn-sm intake-pick" id="pick-files">
-                            {{ icon('image-plus', 16) }} Выбрать изображения
+                            {{ icon('image-plus', 16) }} {{ _('dashboard.intake.pick') }}
                         </button>
                         <span class="intake-status" id="file-name"></span>
-                        <span class="intake-hint">или перетащите файлы сюда</span>
+                        <span class="intake-hint">{{ _('dashboard.intake.drop_hint') }}</span>
                     </div>
                     <input type="file" name="image" id="id_image" class="sr-only" accept="image/*" multiple tabindex="-1">
                 </div>
@@ -56,13 +56,13 @@
                 {% for error in form.links.errors %}<div class="field-error">{{ error }}</div>{% endfor %}
                 <div class="caption-list" id="caption-list" hidden></div>
                 <div class="intake-sources">
-                    <ul class="source-chips" aria-label="Поддерживаемые сайты">
+                    <ul class="source-chips" aria-label="{{ _('dashboard.sources.label') }}">
                         <li>Instagram</li><li>X / Twitter</li><li>TikTok</li><li>Reddit</li><li>VK</li><li>YouTube</li>
-                        <li>Bluesky</li><li>Pinterest</li><li>Telegram</li><li>новостные сайты</li><li>прямые ссылки на картинки</li>
+                        <li>Bluesky</li><li>Pinterest</li><li>Telegram</li><li>{{ _('dashboard.sources.news') }}</li><li>{{ _('dashboard.sources.direct') }}</li>
                     </ul>
-                    <div class="field-hint">Картинку и текст поста подтянет сервер анализа. Для видео берётся обложка.</div>
+                    <div class="field-hint">{{ _('dashboard.sources.hint') }}</div>
                 </div>
-                <button type="submit" class="btn btn-primary btn-block" id="submit-btn">Добавить в очередь</button>
+                <button type="submit" class="btn btn-primary btn-block" id="submit-btn">{{ _('dashboard.submit') }}</button>
             </form>
         </div>
 
@@ -70,18 +70,18 @@
              data-status-url="{{ url_for('analyzer.queue_status') }}"
              data-csrf="{{ csrf_token() }}"
              data-pending="{{ pending|length }}">
-            <h2 class="card-title">Очередь <span class="queue-count" id="queue-count" {% if not pending %}hidden{% endif %}>{{ pending|length }}</span></h2>
+            <h2 class="card-title">{{ _('dashboard.queue.title') }} <span class="queue-count" id="queue-count" {% if not pending %}hidden{% endif %}>{{ pending|length }}</span></h2>
             <ul class="queue-list" id="queue-list">
                 {% for item in pending %}{{ queue_row(item) }}{% endfor %}
             </ul>
-            <p class="empty-hint" id="queue-empty" {% if pending %}hidden{% endif %}>Очередь пуста. Загруженные файлы и ссылки появятся здесь.</p>
-            <p class="field-hint">Обработка идёт в фоне: страницу можно закрыть, очередь не потеряется. Готовые результаты появятся справа.</p>
-            <p class="field-hint queue-error" id="queue-error" hidden>Не удаётся обновить очередь — повторяю попытку…</p>
+            <p class="empty-hint" id="queue-empty" {% if pending %}hidden{% endif %}>{{ _('dashboard.queue.empty') }}</p>
+            <p class="field-hint">{{ _('dashboard.queue.hint') }}</p>
+            <p class="field-hint queue-error" id="queue-error" hidden>{{ _('dashboard.queue.error') }}</p>
         </div>
     </div>
 
     <div class="card">
-        <h2 class="card-title">Последние загрузки</h2>
+        <h2 class="card-title">{{ _('dashboard.recent.title') }}</h2>
         <ul class="mini-list" id="recent-list" {% if not recent %}hidden{% endif %}>
             {% for item in recent %}
             <li>
@@ -92,17 +92,17 @@
                         <span class="mini-list-name" title="{{ item.name }}">{{ item.name|trunc(60) }}</span>
                         <span class="mini-list-meta">
                             <span class="mini-list-risk"><span class="risk-dot risk-{{ item.risk_level }}"></span>{{ item.risk_label }}</span>
-                            <span class="id-tag">№{{ item.id }}</span>
+                            <span class="id-tag">{{ _('common.id_tag', id=item.id) }}</span>
                             <span class="mini-list-date">{{ item.date }}</span>
-                            {% if item.is_new %}<span class="tag tag-new">новое</span>{% endif %}
+                            {% if item.is_new %}<span class="tag tag-new">{{ _('history.tag.new') }}</span>{% endif %}
                         </span>
                     </span>
                 </a>
             </li>
             {% endfor %}
         </ul>
-        <a href="{{ url_for('analyzer.history') }}" class="link-more" id="recent-more" {% if not recent %}hidden{% endif %}>Вся история →</a>
-        <p class="empty-hint" id="recent-empty" {% if recent %}hidden{% endif %}>Пока нет завершённых анализов. Загрузите первое изображение или ссылку слева.</p>
+        <a href="{{ url_for('analyzer.history') }}" class="link-more" id="recent-more" {% if not recent %}hidden{% endif %}>{{ _('history.all') }} →</a>
+        <p class="empty-hint" id="recent-empty" {% if recent %}hidden{% endif %}>{{ _('dashboard.recent.empty') }}</p>
     </div>
 </div>
 </div>

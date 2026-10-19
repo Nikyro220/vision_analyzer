@@ -6,13 +6,14 @@ import os
 from pathlib import Path
 
 import click
-from flask import Flask, Response, flash, redirect, render_template, request, url_for
+from flask import Flask, Response, flash, has_request_context, redirect, render_template, request, url_for
+from flask_babel import get_locale, gettext
 from flask_login import current_user
 from flask_wtf.csrf import CSRFError
 
 from .categories_store import normalize_legacy_wrappers, seed_default_categories
 from .config import Config, conf
-from .extensions import csrf, db, login_manager, migrate
+from .extensions import babel, csrf, db, login_manager, migrate
 from .logging_setup import setup_logging
 from .models import ROLE_CHOICES, ROLE_LABELS, RISK_LABELS, Role, User
 from .queue_worker import ensure_worker, worker_enabled
@@ -65,6 +66,18 @@ def create_app(config: dict | None = None) -> Flask:
     migrate.init_app(app, db)
     csrf.init_app(app)
     login_manager.init_app(app)
+    # --- i18n (Flask-Babel): язык берём только из cookie lang (en/ru), Accept-Language игнорируем ---
+    def _select_locale():
+        # Фоновые потоки (очередь, чат) работают без запроса — там язык по умолчанию (ru).
+        if has_request_context() and request.cookies.get("lang") == "en":
+            return "en"
+        return "ru"
+
+    app.config.setdefault("BABEL_DEFAULT_LOCALE", "ru")
+    babel.init_app(app, locale_selector=_select_locale)
+    # get_locale() недоступен в шаблонах по умолчанию (Flask-Babel 4.x), регистрируем явно.
+    app.jinja_env.globals["get_locale"] = get_locale
+
     login_manager.login_view = "accounts.login"
     login_manager.login_message = None  # как в Django-версии: без служебного сообщения
 
@@ -134,7 +147,7 @@ def create_app(config: dict | None = None) -> Flask:
     # --- обработчики ошибок ---
     @app.errorhandler(CSRFError)
     def handle_csrf_error(_exc):
-        flash("Сессия истекла или форма устарела. Повторите действие.", "error")
+        flash(gettext("flash.csrf_expired"), "error")
         if current_user.is_authenticated:
             return redirect(url_for("analyzer.dashboard"))
         return redirect(url_for("accounts.login"))
@@ -142,25 +155,25 @@ def create_app(config: dict | None = None) -> Flask:
     @app.errorhandler(413)
     def handle_too_large(_exc):
         limit_mb = app.config["MAX_CONTENT_LENGTH"] // (1024 * 1024)
-        flash(f"Файл слишком большой. Максимальный размер — {limit_mb} МБ.", "error")
+        flash(gettext("flash.file_too_large", limit=limit_mb), "error")
         if current_user.is_authenticated:
             return redirect(url_for("analyzer.dashboard"))
         return redirect(url_for("accounts.login"))
 
     @app.errorhandler(404)
     def not_found(_exc):
-        return render_template("error.html", code=404, title="Страница не найдена",
-                               text="Такой страницы нет или у вас нет к ней доступа."), 404
+        return render_template("error.html", code=404, title=gettext("error.404.title"),
+                               text=gettext("error.404.text")), 404
 
     @app.errorhandler(405)
     def method_not_allowed(_exc):
-        return render_template("error.html", code=405, title="Метод не разрешён",
-                               text="Этот адрес не принимает такой тип запроса."), 405
+        return render_template("error.html", code=405, title=gettext("error.405.title"),
+                               text=gettext("error.405.text")), 405
 
     @app.errorhandler(500)
     def server_error(_exc):
-        return render_template("error.html", code=500, title="Внутренняя ошибка",
-                               text="Что-то пошло не так. Попробуйте ещё раз позже."), 500
+        return render_template("error.html", code=500, title=gettext("error.500.title"),
+                               text=gettext("error.500.text")), 500
 
     # --- БД и CLI ---
     if app.config.get("AUTO_CREATE_DB", True):
@@ -193,7 +206,7 @@ def _register_cli(app: Flask) -> None:
             raise click.ClickException(f"Пользователь «{username}» не найден.")
         user.role = role
         db.session.commit()
-        click.echo(f"«{username}» → {ROLE_LABELS[role]}")
+        click.echo(f"«{username}» → {str(ROLE_LABELS[role])}")
 
     @app.cli.command("reset-settings")
     @click.argument("keys", nargs=-1)

@@ -25,6 +25,7 @@ import json
 from datetime import datetime, timedelta, timezone
 
 from flask import current_app, url_for
+from flask_babel import gettext, lazy_gettext
 from sqlalchemy import func, select, update
 from werkzeug.datastructures import MultiDict
 
@@ -55,19 +56,19 @@ ACTIONS = (ACTION_EDIT, ACTION_SET_ROLE, ACTION_BLOCK, ACTION_UNBLOCK, ACTION_DE
 
 EDIT_FIELDS = ("username", "email", "family_name", "given_name", "middle_name", "nickname")
 _FIELD_LABELS = {
-    "username": "Логин",
+    "username": lazy_gettext("account.field.login"),
     "email": "Email",
-    "family_name": "Фамилия",
-    "given_name": "Имя",
-    "middle_name": "Отчество",
-    "nickname": "Название аккаунта",
+    "family_name": lazy_gettext("forms.account.family_name"),
+    "given_name": lazy_gettext("forms.account.given_name"),
+    "middle_name": lazy_gettext("forms.account.middle_name"),
+    "nickname": lazy_gettext("account.field.nickname_title"),
 }
 _TITLES = {
-    ACTION_EDIT: "Изменить данные",
-    ACTION_SET_ROLE: "Сменить роль",
-    ACTION_BLOCK: "Заблокировать",
-    ACTION_UNBLOCK: "Разблокировать",
-    ACTION_DELETE: "Удалить аккаунт",
+    ACTION_EDIT: lazy_gettext("account.edit.title"),
+    ACTION_SET_ROLE: lazy_gettext("chat.action.title.set_role"),
+    ACTION_BLOCK: lazy_gettext("panel.user.block"),
+    ACTION_UNBLOCK: lazy_gettext("panel.user.unblock"),
+    ACTION_DELETE: lazy_gettext("account.delete"),
 }
 
 
@@ -135,7 +136,7 @@ def _check_edit(target: User, changes: dict) -> tuple[dict, str | None]:
         return {}, "не указано, что менять (changes)"
     form = _edit_form(target, changes)
     form.validate()
-    problems = [msg for field, errs in form.errors.items() if field in changes for msg in errs]
+    problems = [str(msg) for field, errs in form.errors.items() if field in changes for msg in errs]
     if problems:
         return {}, "; ".join(dict.fromkeys(problems))
     cleaned = {k: (getattr(form, k).data or "").strip() for k in changes}
@@ -153,23 +154,23 @@ def _check_edit(target: User, changes: dict) -> tuple[dict, str | None]:
 def check_allowed(admin: User, target: User | None, action: str, params: dict) -> str | None:
     """Текст ошибки или None. Одни и те же правила для заявки и для её выполнения."""
     if not admin.is_head_admin:
-        return "действия над пользователями доступны только главному администратору"
+        return gettext("chat.action.error.head_only")
     if target is None:
-        return "пользователь не найден (нужен точный логин или id)"
+        return gettext("chat.action.error.user_not_found")
     if target.id == admin.id:
-        return "нельзя изменять, блокировать или удалять собственный аккаунт"
+        return gettext("chat.action.error.self")
     if not admin.can_manage(target):
-        return "у вас нет прав управлять этим пользователем"
+        return gettext("chat.action.error.no_rights")
     if action == ACTION_SET_ROLE:
         role = params.get("role")
         if role not in admin.assignable_roles():
-            return "эту роль назначить нельзя; доступно: " + ", ".join(admin.assignable_roles())
+            return gettext("chat.action.error.role_forbidden", roles=", ".join(admin.assignable_roles()))
         if role == target.role:
-            return f"у пользователя уже роль «{ROLE_LABELS.get(role, role)}»"
+            return gettext("chat.action.error.same_role", role=str(ROLE_LABELS.get(role, role)))
     elif action == ACTION_BLOCK and target.role == Role.BLOCKED:
-        return "пользователь уже заблокирован"
+        return gettext("chat.action.error.already_blocked")
     elif action == ACTION_UNBLOCK and target.role != Role.BLOCKED:
-        return "пользователь не заблокирован"
+        return gettext("chat.action.error.not_blocked")
     elif action == ACTION_EDIT:
         _, err = _check_edit(target, params.get("changes") or {})
         return err
@@ -183,23 +184,23 @@ def _describe(target: User, action: str, params: dict) -> tuple[str, list[str]]:
     name = target.username
     details: list[str] = []
     if action == ACTION_SET_ROLE:
-        new = ROLE_LABELS.get(params["role"], params["role"])
-        details.append(f"Роль: {ROLE_LABELS.get(target.role, target.role)} → {new}")
-        return f"Сменить роль «{name}» на «{new}»", details
+        new = str(ROLE_LABELS.get(params["role"], params["role"]))
+        details.append(gettext("chat.action.detail.role", old=str(ROLE_LABELS.get(target.role, target.role)), new=new))
+        return gettext("chat.action.summary.set_role", name=name, new=new), details
     if action == ACTION_BLOCK:
         if target.role in (Role.ADMIN, Role.HEAD_ADMIN):
-            details.append(f"Текущая роль «{ROLE_LABELS[target.role]}» будет потеряна: после разблокировки пользователь станет рядовым")
-        return f"Заблокировать «{name}»", details
+            details.append(gettext("chat.action.detail.role_lost", role=str(ROLE_LABELS[target.role])))
+        return gettext("chat.action.summary.block", name=name), details
     if action == ACTION_UNBLOCK:
-        details.append("Роль после разблокировки: Пользователь")
-        return f"Разблокировать «{name}»", details
+        details.append(gettext("chat.action.detail.unblock_role"))
+        return gettext("chat.action.summary.unblock", name=name), details
     if action == ACTION_DELETE:
-        details.append("Будут безвозвратно удалены аккаунт, все его анализы, чаты и файлы изображений")
-        return f"Удалить аккаунт «{name}» со всеми данными", details
+        details.append(gettext("chat.action.detail.delete"))
+        return gettext("chat.action.summary.delete", name=name), details
     for key, value in (params.get("changes") or {}).items():
         old = getattr(target, key, "") or ""
         details.append(f"{_FIELD_LABELS[key]}: {old or '—'} → {value or '—'}")
-    return f"Изменить данные «{name}»", details
+    return gettext("chat.action.summary.edit", name=name), details
 
 
 # ---------------------------------------------------------------------------
@@ -227,7 +228,7 @@ def action_card(a: ChatAction) -> dict:
         "kind": "action",
         "id": a.id,
         "action": a.action,
-        "title": _TITLES.get(a.action, a.action),
+        "title": str(_TITLES.get(a.action, a.action)),
         "summary": a.summary,
         "details": details,
         "status": a.status,
@@ -252,7 +253,7 @@ def _expire_stale(admin_id: int) -> None:
         update(ChatAction)
         .where(ChatAction.admin_id == admin_id, ChatAction.status == ChatActionStatus.PENDING,
                ChatAction.expires_at < utcnow())
-        .values(status=ChatActionStatus.EXPIRED, resolved_at=utcnow(), result="Срок подтверждения истёк.")
+        .values(status=ChatActionStatus.EXPIRED, resolved_at=utcnow(), result=gettext("chat.action.expired"))
     )
 
 
@@ -342,10 +343,10 @@ def _finish(a: ChatAction, status: str, result: str) -> None:
 
 def cancel_action(admin: User, a: ChatAction) -> tuple[bool, str]:
     if a.admin_id != admin.id:
-        return False, "заявка принадлежит другому администратору"
+        return False, gettext("chat.action.error.foreign")
     if a.status != ChatActionStatus.PENDING:
-        return False, "заявка уже обработана"
-    _finish(a, ChatActionStatus.CANCELLED, "Отменено администратором.")
+        return False, gettext("chat.action.error.processed")
+    _finish(a, ChatActionStatus.CANCELLED, gettext("chat.action.cancelled"))
     return True, a.result
 
 
@@ -357,15 +358,15 @@ def confirm_action(admin: User, a: ChatAction, typed_text: str = "") -> tuple[bo
     if categories.is_category_action(a.action):  # заявки на категории выполняет их собственный модуль
         return categories.confirm_action(admin, a, typed_text)
     if a.admin_id != admin.id:
-        return False, "заявка принадлежит другому администратору"
+        return False, gettext("chat.action.error.foreign")
     if a.status == ChatActionStatus.PENDING and _aware(a.expires_at) < utcnow():
-        _finish(a, ChatActionStatus.EXPIRED, "Срок подтверждения истёк. Попросите подготовить действие заново.")
+        _finish(a, ChatActionStatus.EXPIRED, gettext("chat.action.expired_retry"))
         return False, a.result
 
     target = db.session.get(User, a.target_id)
     params = {k: v for k, v in (a.params or {}).items() if k != "details"}
     if a.action == ACTION_DELETE and target is not None and (typed_text or "").strip() != target.username:
-        return False, f"для удаления введите логин «{target.username}» точно как он написан"
+        return False, gettext("chat.action.error.type_login", username=target.username)
 
     # Атомарный захват: двойной клик или две вкладки не выполнят заявку дважды.
     claimed = db.session.execute(
@@ -376,11 +377,11 @@ def confirm_action(admin: User, a: ChatAction, typed_text: str = "") -> tuple[bo
     db.session.commit()
     db.session.refresh(a)
     if not claimed:
-        return False, "заявка уже обработана"
+        return False, gettext("chat.action.error.processed")
 
     err = check_allowed(admin, target, a.action, params)
     if err:
-        _finish(a, ChatActionStatus.FAILED, f"Не выполнено: {err}.")
+        _finish(a, ChatActionStatus.FAILED, gettext("chat.action.failed", error=err))
         return False, a.result
 
     try:
@@ -388,7 +389,7 @@ def confirm_action(admin: User, a: ChatAction, typed_text: str = "") -> tuple[bo
     except Exception:  # noqa: BLE001
         db.session.rollback()
         current_app.logger.exception("chat action %s: сбой выполнения", a.id)
-        _finish(a, ChatActionStatus.FAILED, "Не выполнено: внутренняя ошибка.")
+        _finish(a, ChatActionStatus.FAILED, gettext("chat.action.failed_internal"))
         return False, a.result
 
     current_app.logger.info(
@@ -405,22 +406,22 @@ def _apply(target: User, action: str, params: dict, delete_user_account) -> str:
         old = target.role
         target.role = params["role"]
         db.session.commit()
-        return f"Роль «{name}» изменена: {ROLE_LABELS.get(old, old)} → {ROLE_LABELS[params['role']]}."
+        return gettext("chat.action.done.role", name=name, old=str(ROLE_LABELS.get(old, old)), new=str(ROLE_LABELS[params["role"]]))
     if action == ACTION_BLOCK:
         target.role = Role.BLOCKED
         db.session.commit()
-        return f"Пользователь «{name}» заблокирован."
+        return gettext("flash.panel.blocked", username=name)
     if action == ACTION_UNBLOCK:
         target.role = Role.USER
         db.session.commit()
-        return f"Пользователь «{name}» разблокирован."
+        return gettext("flash.panel.unblocked", username=name)
     if action == ACTION_DELETE:
         delete_user_account(target)
-        return f"Аккаунт «{name}» удалён вместе с его данными."
+        return gettext("chat.action.done.delete", name=name)
     changes, err = _check_edit(target, params.get("changes") or {})
     if err:
         raise ValueError(err)
     for key, value in changes.items():
         setattr(target, key, value)
     db.session.commit()
-    return f"Данные «{target.username}» обновлены: " + ", ".join(_FIELD_LABELS[k] for k in changes) + "."
+    return gettext("chat.action.done.edit", name=target.username, fields=", ".join(str(_FIELD_LABELS[k]) for k in changes))

@@ -26,6 +26,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from flask import current_app
+from flask_babel import gettext
 from PIL import Image, ImageOps
 from sqlalchemy import select
 
@@ -74,7 +75,7 @@ def validate_and_save(files) -> list[dict]:
     max_images = conf("CHAT_MAX_IMAGES_PER_MESSAGE")
     max_bytes = conf("CHAT_MAX_IMAGE_BYTES")
     if len(files) > max_images:
-        raise AttachmentError(f"К одному сообщению можно прикрепить не больше {max_images} изображений.")
+        raise AttachmentError(gettext("chat.attach.too_many", max=max_images))
 
     root = _root()
     now = datetime.now(timezone.utc)
@@ -84,17 +85,17 @@ def validate_and_save(files) -> list[dict]:
             name = clean_name(upload.filename)
             data = upload.read(max_bytes + 1)
             if not data:
-                raise AttachmentError(f"Файл «{name}» пуст.")
+                raise AttachmentError(gettext("chat.attach.empty", name=name))
             if len(data) > max_bytes:
-                raise AttachmentError(f"Файл «{name}» слишком большой (максимум {max_bytes // (1024 * 1024)} МБ).")
+                raise AttachmentError(gettext("chat.attach.too_big", name=name, mb=max_bytes // (1024 * 1024)))
             try:
                 with Image.open(io.BytesIO(data)) as img:
                     fmt = img.format
                     img.verify()
             except Exception:  # noqa: BLE001 — Pillow бросает разные исключения на битых файлах
-                raise AttachmentError(f"Файл «{name}» не является изображением или повреждён.") from None
+                raise AttachmentError(gettext("chat.attach.not_image", name=name)) from None
             if fmt not in IMAGE_FORMATS:
-                raise AttachmentError(f"Формат файла «{name}» не поддерживается.")
+                raise AttachmentError(gettext("chat.attach.unsupported", name=name))
 
             ext, mime = IMAGE_FORMATS[fmt]
             rel = f"{CHAT_UPLOADS_DIR}/{now:%Y/%m/%d}/{uuid.uuid4().hex}{ext}"

@@ -1,15 +1,15 @@
 {% extends "base.html" %}
-{% block title %}Статус сервера{% endblock %}
+{% block title %}{{ _('nav.system.status') }}{% endblock %}
 {% block content %}
 <div class="page-header">
-    <h1>Сервер анализа</h1>
-    <p class="page-sub">Бэкенды vision_analyzer_server.py{% if can_configure %}: выбор модели и параметры генерации{% endif %}.</p>
+    <h1>{{ _('health.heading') }}</h1>
+    <p class="page-sub">{{ _('health.subtitle') }}{% if can_configure %}{{ _('health.subtitle.configure') }}{% endif %}.</p>
 </div>
 
 <div class="health-page" id="health-page" data-tab="{{ tab }}">
-<nav class="tabs" aria-label="Назначение">
-    <a class="tab {% if tab == 'analysis' %}is-active{% endif %}" data-tab-link="analysis" href="{{ url_for('analyzer.health', tab='analysis') }}">Анализ</a>
-    <a class="tab {% if tab == 'chat' %}is-active{% endif %}" data-tab-link="chat" href="{{ url_for('analyzer.health', tab='chat') }}">Чат</a>
+<nav class="tabs" aria-label="{{ _('health.tabs.label') }}">
+    <a class="tab {% if tab == 'analysis' %}is-active{% endif %}" data-tab-link="analysis" href="{{ url_for('analyzer.health', tab='analysis') }}">{{ _('health.tab.analysis') }}</a>
+    <a class="tab {% if tab == 'chat' %}is-active{% endif %}" data-tab-link="chat" href="{{ url_for('analyzer.health', tab='chat') }}">{{ _('health.tab.chat') }}</a>
 </nav>
 
 {% if error %}
@@ -18,11 +18,11 @@
 </div>
 {% else %}
 <div class="health-toolbar">
-    <p class="field-hint">Состояние бэкендов хранится в кэше, вкладки переключаются без запросов к серверу.</p>
-    {% if not status.get('ok') %}<span class="tag tag-warn">Сервер недоступен</span>{% endif %}
+    <p class="field-hint">{{ _('health.cache_hint') }}</p>
+    {% if not status.get('ok') %}<span class="tag tag-warn">{{ _('health.server_down') }}</span>{% endif %}
     <a class="btn btn-secondary btn-sm health-refresh" href="{{ url_for('analyzer.health', tab=tab, refresh=1) }}" data-keep-tab>
         <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.6-5.9"/><path d="M20 4v5h-5"/></svg>
-        Обновить статус
+        {{ _('health.refresh') }}
     </a>
 </div>
 
@@ -31,41 +31,41 @@
         {% for t, ctx in tabs.items() %}
         {% set is_chat = t == 'chat' %}
         <div data-tab-only="{{ t }}">
-        <h2 class="card-title">Используемый бэкенд — {{ 'чат' if is_chat else 'анализ' }}</h2>
+        <h2 class="card-title">{{ _('health.used_backend', target=(_('health.target.chat') if is_chat else _('health.target.analysis'))) }}</h2>
         <p class="health-current">
             {% if ctx.follows_analysis %}
-                Как для анализов: <strong>{{ ctx.backend or ctx.effective_backend or '—' }}</strong>, модель: <strong>{{ ctx.model or 'авто' }}</strong>
+                {{ _('health.current.follows', backend=(ctx.backend or ctx.effective_backend or '—'), model=(ctx.model or _('health.model.auto'))) }}
             {% elif ctx.backend %}
-                <strong>{{ ctx.backend }}</strong>, модель: <strong>{{ ctx.model or 'авто' }}</strong>
+                {{ _('health.current.explicit', backend=ctx.backend, model=(ctx.model or _('health.model.auto'))) }}
             {% elif ctx.effective_backend %}
-                <strong>{{ ctx.effective_backend }}</strong>, модель: авто
-                {% if ctx.via_fallback %}<span class="field-hint">(фолбэк: основной бэкенд сервера недоступен)</span>{% endif %}
+                {{ _('health.current.auto_model', backend=ctx.effective_backend) }}
+                {% if ctx.via_fallback %}<span class="field-hint">{{ _('health.current.fallback') }}</span>{% endif %}
             {% else %}
-                <strong>ни на чём</strong>: ни один бэкенд сейчас не доступен
+                {{ _('health.current.none') }}
             {% endif %}
         </p>
         {% if ctx.target_down %}
         <div class="field-error">
-            Выбранный бэкенд «{{ ctx.backend }}» недоступен.
-            {% if conf("VISION_API_FALLBACK") %}Включён фолбэк — запросы уйдут на другой доступный бэкенд, если сервер сможет.{% else %}Фолбэк выключен — запросы будут завершаться ошибкой.{% endif %}
+            {{ _('health.target_down', backend=ctx.backend) }}
+            {% if conf("VISION_API_FALLBACK") %}{{ _('health.fallback_on') }}{% else %}{{ _('health.fallback_off') }}{% endif %}
         </div>
         {% endif %}
         {% if can_configure and ctx.options %}
         <form method="post" action="{{ url_for('analyzer.save_used_backend', tab=t) }}" class="form form-inline form-wrap">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-            <select name="backend" class="input input-grow" aria-label="Используемый бэкенд">
-                <option value="">{{ 'Как для анализов' if is_chat else 'Авто (определяет сервер)' }}</option>
+            <select name="backend" class="input input-grow" aria-label="{{ _('health.select.label') }}">
+                <option value="">{{ _('health.option.like_analysis') if is_chat else _('health.option.auto') }}</option>
                 {% for o in ctx.options %}
                 <option value="{{ o.name }}" {% if o.selected %}selected{% endif %} {% if not o.configured %}disabled{% endif %}>
-                    {{ o.title }}{% if not o.configured %} — не настроен{% elif not o.available %} — недоступен{% endif %}
+                    {{ o.title }}{% if not o.configured %} {{ _('health.option.not_configured') }}{% elif not o.available %} {{ _('health.option.unavailable') }}{% endif %}
                 </option>
                 {% endfor %}
             </select>
-            <button type="submit" class="btn btn-primary">Использовать</button>
+            <button type="submit" class="btn btn-primary">{{ _('health.use') }}</button>
         </form>
         <div class="field-hint">
-            {% if is_chat %}Выбор для чата не влияет на анализы.{% else %}Выбор для анализов не влияет на чат, пока для него не задан свой.{% endif %}
-            {% if conf("VISION_API_FALLBACK") %}Если бэкенд недоступен или отвечает 5xx, сервер пробует следующий: локальные, затем облачные (при заданном ключе).{% else %}Фолбэк выключен: запрос идёт строго на выбранный бэкенд.{% endif %}
+            {% if is_chat %}{{ _('health.hint.chat') }}{% else %}{{ _('health.hint.analysis') }}{% endif %}
+            {% if conf("VISION_API_FALLBACK") %}{{ _('health.hint.fallback_on') }}{% else %}{{ _('health.hint.fallback_off') }}{% endif %}
         </div>
         {% endif %}
         </div>
@@ -78,59 +78,59 @@
     <div class="card backend-card{% if not card.available %} is-down{% endif %}">
         <div class="backend-head">
             <h2 class="card-title">{{ card.title }}</h2>
-            {% if card.available %}<span class="tag tag-ok">Работает</span>{% elif not card.configured %}<span class="tag tag-warn">Не настроен</span>{% else %}<span class="tag tag-warn">Недоступен</span>{% endif %}
+            {% if card.available %}<span class="tag tag-ok">{{ _('health.card.ok') }}</span>{% elif not card.configured %}<span class="tag tag-warn">{{ _('health.card.not_configured') }}</span>{% else %}<span class="tag tag-warn">{{ _('health.card.unavailable') }}</span>{% endif %}
             {% for t, st in card.by_tab.items() %}{% if st.is_active %}<span data-tab-only="{{ t }}">
-                {% if card.available %}<span class="tag tag-accent">Используется{% if st.via_fallback %} (фолбэк){% endif %}</span>
-                {% else %}<span class="tag tag-warn">Выбран, но недоступен</span>{% endif %}
+                {% if card.available %}<span class="tag tag-accent">{{ _('health.card.in_use') }}{% if st.via_fallback %} {{ _('health.card.via_fallback') }}{% endif %}</span>
+                {% else %}<span class="tag tag-warn">{{ _('health.card.selected_down') }}</span>{% endif %}
             </span>{% endif %}{% endfor %}
         </div>
 
         <dl class="def-list">
-            <dt>Адрес</dt><dd>{{ card.info.get('endpoint', '—') }}</dd>
-            {% if card.info.get('model') %}<dt>Модель (авто)</dt><dd>{{ card.info.get('model') }}</dd>{% endif %}
-            {% for t, st in card.by_tab.items() %}{% if st.is_active %}<dt data-tab-only="{{ t }}">Выбранная модель</dt><dd data-tab-only="{{ t }}">{{ st.active_model or 'авто' }}</dd>{% endif %}{% endfor %}
-            {% if card.info.get('error') %}<dt>Ошибка</dt><dd class="is-error">{{ card.info.get('error') }}</dd>{% endif %}
+            <dt>{{ _('health.card.address') }}</dt><dd>{{ card.info.get('endpoint', '—') }}</dd>
+            {% if card.info.get('model') %}<dt>{{ _('health.card.model_auto') }}</dt><dd>{{ card.info.get('model') }}</dd>{% endif %}
+            {% for t, st in card.by_tab.items() %}{% if st.is_active %}<dt data-tab-only="{{ t }}">{{ _('health.card.model_selected') }}</dt><dd data-tab-only="{{ t }}">{{ st.active_model or _('health.model.auto') }}</dd>{% endif %}{% endfor %}
+            {% if card.info.get('error') %}<dt>{{ _('health.card.error') }}</dt><dd class="is-error">{{ card.info.get('error') }}</dd>{% endif %}
         </dl>
 
         {% if card.credential %}
         {% set cs = card.credential_status %}
         <div class="backend-section">
-            <h3 class="section-title">Подключение</h3>
+            <h3 class="section-title">{{ _('health.conn.title') }}</h3>
             {% if not card.credentials_available %}
-            <div class="field-error">Ключ сохранить нельзя: не задана переменная окружения <code>VISION_CREDENTIALS_KEY</code> (мастер-ключ шифрования). Сгенерируйте значение: <code>python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"</code> и перезапустите приложение.</div>
+            <div class="field-error">{{ _('health.key.no_master') }}</div>
             {% endif %}
             {% set key_locked = cs and cs.stored and cs.ok %}
             <div class="field">
                 <label for="credential-{{ card.name }}">{{ card.credential.label }}
-                    {% if key_locked %}<span class="tag tag-ok">задан</span>
-                    {% elif cs and cs.stored %}<span class="tag tag-warn">не расшифровывается — введите заново</span>
-                    {% else %}<span class="tag tag-warn">не задан</span>{% endif %}
+                    {% if key_locked %}<span class="tag tag-ok">{{ _('health.key.set') }}</span>
+                    {% elif cs and cs.stored %}<span class="tag tag-warn">{{ _('health.key.undecryptable') }}</span>
+                    {% else %}<span class="tag tag-warn">{{ _('health.key.unset') }}</span>{% endif %}
                 </label>
                 {# Секрет: значение никогда не подставляется в страницу — у заданного ключа видны только маска и последние 4 символа. #}
                 {% if key_locked %}
                 <form method="post" action="{{ url_for('analyzer.save_provider_settings', name=card.name, tab=tab) }}" class="form form-inline"
-                      onsubmit="return confirm('Стереть сохранённый ключ «{{ card.title }}»?');">
+                      data-confirm="{{ _('health.key.erase.confirm', title=card.title) }}" onsubmit="return confirm(this.dataset.confirm);">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <input type="hidden" name="clear_credential" value="1">
                     <input type="text" id="credential-{{ card.name }}" class="input input-grow input-locked" value="••••••••{{ cs.hint }}"
-                           disabled readonly aria-label="{{ card.credential.label }} (задан, изменить нельзя — сначала сотрите)">
-                    <button type="submit" class="btn btn-danger">Стереть</button>
+                           disabled readonly aria-label="{{ _('health.key.locked_aria', label=card.credential.label) }}">
+                    <button type="submit" class="btn btn-danger">{{ _('health.key.erase') }}</button>
                 </form>
-                <div class="field-hint">Чтобы заменить ключ, сначала сотрите текущий, затем введите новый.</div>
+                <div class="field-hint">{{ _('health.key.replace_hint') }}</div>
                 {% else %}
                 <form method="post" action="{{ url_for('analyzer.save_provider_settings', name=card.name, tab=tab) }}" class="form form-inline" autocomplete="off">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <input type="password" id="credential-{{ card.name }}" name="credential" class="input input-grow"
                            maxlength="512" autocomplete="new-password" spellcheck="false" autocapitalize="off"
-                           placeholder="Вставьте значение">
-                    <button type="submit" class="btn btn-primary">Сохранить</button>
+                           placeholder="{{ _('health.key.placeholder') }}">
+                    <button type="submit" class="btn btn-primary">{{ _('common.save') }}</button>
                 </form>
                 {% if cs and cs.stored %}
                 <form method="post" action="{{ url_for('analyzer.save_provider_settings', name=card.name, tab=tab) }}" class="form form-inline"
-                      onsubmit="return confirm('Стереть сохранённый ключ «{{ card.title }}»?');">
+                      data-confirm="{{ _('health.key.erase.confirm', title=card.title) }}" onsubmit="return confirm(this.dataset.confirm);">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <input type="hidden" name="clear_credential" value="1">
-                    <button type="submit" class="btn btn-danger btn-sm">Стереть</button>
+                    <button type="submit" class="btn btn-danger btn-sm">{{ _('health.key.erase') }}</button>
                 </form>
                 {% endif %}
                 {% endif %}
@@ -141,43 +141,43 @@
 
         {% if card.configurable %}
         <div class="backend-section">
-            <h3 class="section-title">Модель</h3>
+            <h3 class="section-title">{{ _('health.model.title') }}</h3>
             {% for t, st in card.by_tab.items() %}
             <form method="post" action="{{ url_for('analyzer.save_model', name=card.name, tab=t) }}" class="form form-inline form-wrap" data-tab-only="{{ t }}">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 {% if card.models %}
-                <select name="model" class="input input-grow" aria-label="Модель {{ card.title }}">
-                    <option value="">Авто (определяет сервер)</option>
+                <select name="model" class="input input-grow" aria-label="{{ _('health.model.aria', name=card.title) }}">
+                    <option value="">{{ _('health.option.auto') }}</option>
                     {% for m in st.models %}
                     <option value="{{ m }}" {% if m == st.active_model %}selected{% endif %}>{{ m }}</option>
                     {% endfor %}
                 </select>
                 {% else %}
                 <input type="text" name="model" class="input input-grow" maxlength="{{ conf("MODEL_NAME_MAX_LEN") }}"
-                       value="{{ st.active_model }}" placeholder="ID модели (пусто — авто)" aria-label="Модель {{ card.name }}">
+                       value="{{ st.active_model }}" placeholder="{{ _('health.model.placeholder') }}" aria-label="{{ _('health.model.aria', name=card.name) }}">
                 {% endif %}
-                <button type="submit" class="btn btn-primary">Использовать для {{ 'чата' if t == 'chat' else 'анализа' }}</button>
+                <button type="submit" class="btn btn-primary">{{ _('health.use_for', target=(_('health.target.chat_gen') if t == 'chat' else _('health.target.analysis_gen'))) }}</button>
             </form>
             {% endfor %}
             {% if card.models_error %}
-            <div class="field-error">Не удалось получить список моделей: {{ card.models_error }}. Введите ID модели вручную.</div>
+            <div class="field-error">{{ _('health.models.error', error=card.models_error) }}</div>
             {% elif not card.models and card.credential_status and card.credential_status.stored %}
-            <div class="field-hint">Список моделей ещё не загружен — нажмите «Обновить список» или введите ID вручную.</div>
+            <div class="field-hint">{{ _('health.models.not_loaded') }}</div>
             {% elif not card.models %}
-            <div class="field-hint">Бэкенд не вернул список моделей — введите ID вручную или оставьте пустым (авто).</div>
+            <div class="field-hint">{{ _('health.models.empty') }}</div>
             {% endif %}
             {% if card.credential_status and card.credential_status.stored %}
             <form method="post" action="{{ url_for('analyzer.refresh_models', name=card.name, tab=tab) }}" class="form form-inline">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                <button type="submit" class="btn btn-secondary">Обновить список</button>
-                {% if card.models_cached_at %}<span class="field-hint">Загружен {{ card.models_cached_at|localdt }}; хранится в кэше, страница ради него к провайдеру не ходит.</span>{% endif %}
+                <button type="submit" class="btn btn-secondary">{{ _('health.models.refresh') }}</button>
+                {% if card.models_cached_at %}<span class="field-hint">{{ _('health.models.cached', date=card.models_cached_at|localdt) }}</span>{% endif %}
             </form>
             {% endif %}
         </div>
 
         {% if card.form %}
         <div class="backend-section">
-            <h3 class="section-title">Параметры генерации</h3>
+            <h3 class="section-title">{{ _('health.sampling.title') }}</h3>
             <form method="post" action="{{ url_for('analyzer.save_sampling', name=card.name, tab=tab) }}" class="form" novalidate>
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <div class="sampling-grid">
@@ -191,22 +191,19 @@
                     {% endfor %}
                 </div>
                 <div class="field-hint">
-                    Пустое поле — не менять. Параметры относятся <strong>только к этому бэкенду</strong>:
-                    у каждого бэкенда свой набор параметров и свои допустимые значения, изменения здесь
-                    не затрагивают другие бэкенды. Применяются сразу ко всем последующим запросам к нему
-                    (в том числе от других клиентов сервера).
+                    {{ _('health.sampling.hint') }}
                 </div>
                 <div>
-                    <button type="submit" class="btn btn-secondary">Сохранить параметры</button>
-                    <button type="submit" class="btn btn-secondary" formaction="{{ url_for('analyzer.reset_sampling', name=card.name, tab=tab) }}" formnovalidate>Сбросить к значениям по умолчанию</button>
+                    <button type="submit" class="btn btn-secondary">{{ _('health.sampling.save') }}</button>
+                    <button type="submit" class="btn btn-secondary" formaction="{{ url_for('analyzer.reset_sampling', name=card.name, tab=tab) }}" formnovalidate>{{ _('health.sampling.reset') }}</button>
                 </div>
             </form>
         </div>
         {% endif %}
         {% elif can_configure and not card.available %}
         <p class="field-hint">
-            {% if card.credential and not card.configured %}Введите данные подключения выше — после этого здесь появятся выбор модели и параметры генерации.
-            {% else %}Выбор модели и параметры станут доступны, когда бэкенд заработает.{% endif %}
+            {% if card.credential and not card.configured %}{{ _('health.unavailable.need_key') }}
+            {% else %}{{ _('health.unavailable.wait') }}{% endif %}
         </p>
         {% endif %}
     </div>

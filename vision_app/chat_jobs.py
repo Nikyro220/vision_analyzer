@@ -25,6 +25,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from flask import current_app, url_for
+from flask_babel import gettext
 from sqlalchemy import delete, func, select, update
 
 from . import chat_images, image_dedup
@@ -257,7 +258,7 @@ def report_payload(row: AnalysisResult) -> dict:
             signals.append({"category": "", "detail": _clip(item, conf("CHAT_JOB_DETAIL_CHARS"))})
     return {
         "risk_level": row.risk_level,
-        "risk_label": RISK_LABELS.get(row.risk_level, row.risk_level),
+        "risk_label": str(RISK_LABELS.get(row.risk_level, row.risk_level)),
         "needs_human_review": bool(row.needs_human_review),
         "description": _clip(row.description),
         "signals": signals,
@@ -310,7 +311,7 @@ def card(row: AnalysisResult) -> dict:
         "id": row.id,
         "url": url_for("analyzer.result_detail", pk=row.id),
         "thumb_url": url_for("analyzer.thumb", filename=row.image_path) if row.image_path else "",
-        "label": row.original_name or f"Анализ #{row.id}",
+        "label": row.original_name or gettext("chat.job.default_label", id=row.id),
         "risk_level": row.risk_level,
         "risk_label": row.risk_level_display,
         "date": local_dt(row.created_at),
@@ -320,17 +321,17 @@ def card(row: AnalysisResult) -> dict:
 def fallback_text(job: ChatAnalysisJob, row: AnalysisResult | None) -> str:
     """Сообщение без участия модели — если она недоступна, а результат уже готов."""
     name = job.image_name or f"#{job.image_number}"
-    subject = f"Анализ ссылки «{name}»" if is_link_job(job) else f"Анализ изображения «{name}»"
+    subject = gettext("chat.job.subject_link", name=name) if is_link_job(job) else gettext("chat.job.subject_image", name=name)
     if row is None:
-        return f"{subject} отменён — записи в очереди больше нет."
+        return gettext("chat.job.cancelled", subject=subject)
     if row.is_error:
-        return f"{subject} завершился ошибкой: {_clip(row.error, conf("CHAT_JOB_DETAIL_CHARS"))}"
-    text = f"{subject} завершён. Уровень риска: {row.risk_level_display.lower()}."
+        return gettext("chat.job.failed", subject=subject, error=_clip(row.error, conf("CHAT_JOB_DETAIL_CHARS")))
+    text = gettext("chat.job.done", subject=subject, risk=row.risk_level_display.lower())
     if row.needs_human_review:
-        text += " Требуется проверка человеком."
+        text += " " + gettext("chat.job.needs_review")
     if row.description:
         text += f"\n\n{_clip(row.description)}"
-    return text + "\n\nПодробный отчёт — по ссылке ниже."
+    return text + "\n\n" + gettext("chat.job.see_report")
 
 
 # ----------------------------------------------------------------------------

@@ -21,6 +21,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from flask import current_app
+from flask_babel import gettext
 from PIL import Image, ImageOps, ImageSequence, UnidentifiedImageError
 
 from .config import Config
@@ -75,7 +76,7 @@ _RANGES = {
 def parse_params(raw: dict) -> EditParams:
     """Проверяет присланные из браузера параметры (числа в допустимых диапазонах)."""
     if not isinstance(raw, dict):
-        raise AvatarError("Некорректные параметры редактора.")
+        raise AvatarError(gettext("flash.avatar.bad_params"))
     values: dict = {}
     for key, (lo, hi) in _RANGES.items():
         if key not in raw:
@@ -83,9 +84,9 @@ def parse_params(raw: dict) -> EditParams:
         try:
             number = float(raw[key])
         except (TypeError, ValueError):
-            raise AvatarError("Некорректные параметры редактора.") from None
+            raise AvatarError(gettext("flash.avatar.bad_params")) from None
         if not math.isfinite(number):
-            raise AvatarError("Некорректные параметры редактора.")
+            raise AvatarError(gettext("flash.avatar.bad_params"))
         values[key] = min(hi, max(lo, number))
     values["flip"] = -1 if raw.get("flip") in (-1, "-1") else 1
     return EditParams(**values)
@@ -96,9 +97,9 @@ def parse_params(raw: dict) -> EditParams:
 # ----------------------------------------------------------------------------
 def _check_size(data: bytes, limit: int) -> None:
     if not data:
-        raise AvatarError("Файл пустой.")
+        raise AvatarError(gettext("avatars.error.empty"))
     if len(data) > limit:
-        raise AvatarError(f"Файл слишком большой (максимум {limit // 1024} КБ).")
+        raise AvatarError(gettext("avatars.error.too_big", kb=limit // 1024))
 
 
 def process_avatar(data: bytes) -> bytes:
@@ -110,15 +111,15 @@ def process_avatar(data: bytes) -> bytes:
     try:
         with Image.open(io.BytesIO(data)) as img:
             if img.format not in ALLOWED_FORMATS:
-                raise AvatarError("Поддерживаются только PNG, JPEG и WebP.")
+                raise AvatarError(gettext("avatars.error.format_static"))
             if max(img.size) > max_side:  # размер известен до распаковки пикселей
-                raise AvatarError(f"Изображение слишком большое (максимум {max_side}x{max_side}).")
+                raise AvatarError(gettext("avatars.error.too_large_image", side=max_side))
             img.load()
             img = ImageOps.exif_transpose(img).convert("RGBA")
     except AvatarError:
         raise
     except (UnidentifiedImageError, OSError, Image.DecompressionBombError, ValueError):
-        raise AvatarError("Не удалось прочитать изображение.") from None
+        raise AvatarError(gettext("avatars.error.unreadable")) from None
 
     # Редактор уже отдаёт квадрат; если прислали другое — вырезаем центр, без искажений.
     img = ImageOps.fit(img, (size, size), Image.Resampling.LANCZOS)
@@ -164,7 +165,7 @@ def render_frame(frame: Image.Image, p: EditParams, size: int, matrix: tuple[flo
     k = size / min(w, h) * p.zoom  # «cover»: при масштабе 100% кадр заполнен
     tw, th = max(1, round(w * k * p.sx)), max(1, round(h * k * p.sy))
     if max(tw, th) > MAX_RENDERED_SIDE or tw * th > MAX_RENDERED_PIXELS:
-        raise AvatarError("Слишком сильное увеличение для такой картинки. Уменьшите масштаб или растяжение.")
+        raise AvatarError(gettext("avatars.error.too_zoomed"))
 
     scaled = frame.resize((tw, th), Image.Resampling.LANCZOS)  # RGBA ресайзится с учётом прозрачности
     if p.flip < 0:
@@ -207,14 +208,14 @@ def process_animated(data: bytes, params: EditParams) -> tuple[bytes, bool]:
     try:
         with Image.open(io.BytesIO(data)) as img:
             if img.format not in ANIMATED_FORMATS:
-                raise AvatarError("Поддерживаются PNG, JPEG, WebP и GIF.")
+                raise AvatarError(gettext("avatars.error.format_animated"))
             if max(img.size) > max_side:
-                raise AvatarError(f"Изображение слишком большое (максимум {max_side}x{max_side}).")
+                raise AvatarError(gettext("avatars.error.too_large_image", side=max_side))
             count = getattr(img, "n_frames", 1)
             if count > max_frames:
-                raise AvatarError(f"Слишком много кадров ({count}, максимум {max_frames}).")
+                raise AvatarError(gettext("avatars.error.too_many_frames", count=count, max=max_frames))
             if img.size[0] * img.size[1] * count > max_pixels:
-                raise AvatarError("Анимация слишком тяжёлая: уменьшите размер или число кадров.")
+                raise AvatarError(gettext("avatars.error.anim_heavy"))
             animated = count > 1
             for frame in ImageSequence.Iterator(img):
                 duration = int(frame.info.get("duration") or 0)
@@ -226,10 +227,10 @@ def process_animated(data: bytes, params: EditParams) -> tuple[bytes, bool]:
     except AvatarError:
         raise
     except (UnidentifiedImageError, OSError, Image.DecompressionBombError, ValueError, EOFError):
-        raise AvatarError("Не удалось прочитать изображение.") from None
+        raise AvatarError(gettext("avatars.error.unreadable")) from None
 
     if not frames:
-        raise AvatarError("В файле нет кадров.")
+        raise AvatarError(gettext("avatars.error.no_frames"))
 
     if len(frames) == 1:
         out = io.BytesIO()
@@ -244,7 +245,7 @@ def process_animated(data: bytes, params: EditParams) -> tuple[bytes, bool]:
         )
         if out.tell() <= max_out:
             return out.getvalue(), True
-    raise AvatarError(f"Анимация получилась слишком тяжёлой (больше {max_out // 1024} КБ). Попробуйте файл покороче.")
+    raise AvatarError(gettext("avatars.error.anim_output", kb=max_out // 1024))
 
 
 def save_avatar(user_id: int, data: bytes) -> None:

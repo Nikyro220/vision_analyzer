@@ -3,11 +3,11 @@
 
 {% block content %}
 <div class="page-header">
-    <h1>Чат с моделью</h1>
+    <h1>{{ _('chat.heading') }}</h1>
     <p class="page-sub">
-        Свободный диалог с моделью, без риск-JSON-схемы анализа.
-        {% if target_backend %}Сейчас отвечает: <strong>{{ target_backend }}</strong> · модель: <strong>{{ target_model or 'авто' }}</strong>.
-        {% else %}Отвечает бэкенд по умолчанию.{% endif %}
+        {{ _('chat.subtitle') }}
+        {% if target_backend %}{{ _('chat.target.answering', backend=target_backend, model=(target_model or _('health.model.auto'))) }}
+        {% else %}{{ _('chat.target.default') }}{% endif %}
     </p>
 </div>
 
@@ -19,7 +19,7 @@
     <div class="card chat-sessions-card" id="chat-sessions">
         <form method="post" action="{{ url_for('chat.new_session') }}">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-            <button type="submit" class="btn btn-secondary btn-block">+ Новый чат</button>
+            <button type="submit" class="btn btn-secondary btn-block">{{ _('chat.new') }}</button>
         </form>
         <ul class="chat-session-list">
             {% for s in sessions %}
@@ -30,14 +30,14 @@
                         <span class="chat-session-date">{{ s.updated_at|localdt('chat') }}</span>
                     </a>
                     <form method="post" action="{{ url_for('chat.delete_session', session_id=s.id) }}"
-                          class="chat-session-delete" data-confirm="Удалить этот чат безвозвратно?">
+                          class="chat-session-delete" data-confirm="{{ _('chat.delete.confirm') }}">
                         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                        <button type="submit" class="chat-session-delete-btn" title="Удалить чат" aria-label="Удалить чат">✕</button>
+                        <button type="submit" class="chat-session-delete-btn" title="{{ _('chat.delete') }}" aria-label="{{ _('chat.delete') }}">✕</button>
                     </form>
                 </div>
             </li>
             {% else %}
-            <li class="chat-session-empty">Пока нет ни одного чата.</li>
+            <li class="chat-session-empty">{{ _('chat.sessions.empty') }}</li>
             {% endfor %}
         </ul>
     </div>
@@ -54,18 +54,18 @@
          data-max-images="{{ max_images }}"
          data-max-image-mb="{{ max_image_mb }}">
         <div class="chat-head">
-            <button type="button" class="chat-head-toggle" id="chat-sessions-toggle" aria-controls="chat-sessions" aria-expanded="true" title="Скрыть список чатов" aria-label="Скрыть список чатов">
+            <button type="button" class="chat-head-toggle" id="chat-sessions-toggle" aria-controls="chat-sessions" aria-expanded="true" title="{{ _('chat.sessions.hide') }}" aria-label="{{ _('chat.sessions.hide') }}">
                 <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="3"/><path d="M9 4v16"/></svg>
             </button>
             <span class="chat-head-title" title="{{ session.display_title }}">{{ session.display_title|trunc(60) }}</span>
             <div class="chat-head-actions">
                 <button type="button" class="chat-head-toggle" id="chat-copy-btn"
                         data-url="{{ url_for('chat.export_text', session_id=session.id) }}"
-                        title="Скопировать весь диалог в буфер обмена" aria-label="Скопировать весь диалог в буфер обмена">
+                        title="{{ _('chat.copy_all') }}" aria-label="{{ _('chat.copy_all') }}">
                     <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V6a2 2 0 0 1 2-2h9"/></svg>
                 </button>
                 <a class="chat-head-toggle" id="chat-export-btn" href="{{ url_for('chat.export_json', session_id=session.id) }}"
-                   download title="Экспорт диалога в JSON" aria-label="Экспорт диалога в JSON">
+                   download title="{{ _('chat.export_json') }}" aria-label="{{ _('chat.export_json') }}">
                     <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v11M7 11l5 5 5-5M5 20h14"/></svg>
                 </a>
             </div>
@@ -74,7 +74,7 @@
             {% for m in messages %}
             <div class="chat-turn chat-turn-{{ m.role }}" data-msg-id="{{ m.id }}">
                 <div class="chat-turn-head">
-                    <span class="chat-turn-role">{{ 'вы' if m.role == 'user' else 'модель' }}</span>
+                    <span class="chat-turn-role">{{ _('chat.role.user') if m.role == 'user' else _('chat.role.model') }}</span>
                     <span class="chat-turn-time">{{ m.created_at|localdt('time') }}</span>
                 </div>
                 {% if attachments.get(m.id) %}
@@ -93,8 +93,8 @@
             </div>
             {% else %}
             <div class="chat-empty" id="chat-empty">
-                <p class="chat-empty-title">чат пуст</p>
-                <p class="chat-empty-hint">Спросите про категории риска, что значит уже готовый отчёт /analyze, настройки сэмплинга — или прикрепите изображение (скрепка, перетаскивание или вставка из буфера) и задайте вопрос о нём — модель увидит картинку сама. Чтобы запустить полноценный риск-анализ, попросите добавить изображение в анализ: оно встанет в общую очередь, а результат появится в чате сам.</p>
+                <p class="chat-empty-title">{{ _('chat.empty.title') }}</p>
+                <p class="chat-empty-hint">{{ _('chat.empty.hint') }}</p>
             </div>
             {% endfor %}
         </div>
@@ -104,21 +104,21 @@
         <form class="chat-composer" id="chat-form" novalidate>
             <input type="file" id="chat-file-input" accept="image/*" multiple hidden>
             <button type="button" class="btn btn-secondary chat-attach-btn" id="chat-attach-btn"
-                    title="Прикрепить изображение (до {{ max_images }} шт., до {{ max_image_mb }} МБ каждое)"
-                    aria-label="Прикрепить изображение">📎</button>
+                    title="{{ _('chat.attach.title', count=max_images, mb=max_image_mb) }}"
+                    aria-label="{{ _('chat.attach.label') }}">📎</button>
             <textarea id="chat-input" class="chat-input" rows="1" maxlength="{{ conf("CHAT_MAX_MESSAGE_LEN") }}"
-                      placeholder="Сообщение…" autofocus></textarea>
-            <button type="submit" class="btn btn-primary" id="chat-send-btn">Отправить</button>
+                      placeholder="{{ _('chat.input.placeholder') }}" autofocus></textarea>
+            <button type="submit" class="btn btn-primary" id="chat-send-btn">{{ _('chat.send') }}</button>
         </form>
         <div class="chat-composer-foot">
-            <span class="chat-composer-hint">Enter — отправить · Shift+Enter — новая строка · ↑/↓ — прошлые сообщения · изображение можно перетащить или вставить из буфера</span>
+            <span class="chat-composer-hint">{{ _('chat.composer.hint') }}</span>
             <p class="chat-error" id="chat-error" hidden></p>
         </div>
     </div>
 
     <button type="button" class="chat-resize" id="chat-resize"
-            title="Потяните, чтобы изменить размер. Двойной клик — сбросить"
-            aria-label="Изменить размер окна чата (стрелки — изменить, Home — сбросить)">
+            title="{{ _('chat.resize.title') }}"
+            aria-label="{{ _('chat.resize.label') }}">
         <svg viewBox="0 0 12 12" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><path d="M11 3L3 11M11 7L7 11"/></svg>
     </button>
 </div>
@@ -131,7 +131,7 @@
     if (!layout || !btn) return;
     function sync() {
         var hidden = layout.getAttribute("data-sessions") === "collapsed";
-        var label = hidden ? "Показать список чатов" : "Скрыть список чатов";
+        var label = hidden ? {{ _('chat.sessions.show')|tojson }} : {{ _('chat.sessions.hide')|tojson }};
         btn.title = label;
         btn.setAttribute("aria-label", label);
         btn.setAttribute("aria-expanded", hidden ? "false" : "true");

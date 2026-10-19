@@ -1,29 +1,29 @@
 {% extends "base.html" %}
-{% block title %}Все анализы{% endblock %}
+{% block title %}{{ _('nav.admin.analyses') }}{% endblock %}
 {% block content %}
 <div class="page-header">
-    <h1>Все анализы</h1>
-    <p class="page-sub">Результаты анализа всех пользователей системы.</p>
+    <h1>{{ _('nav.admin.analyses') }}</h1>
+    <p class="page-sub">{{ _('panel.analyses.subtitle') }}</p>
 </div>
 
 <form method="get" class="filter-bar" data-filter-form onsubmit="return false;">
-    <input type="search" name="q" class="input" placeholder="Поиск по имени файла или номеру…" value="{{ query }}" autocomplete="off" data-filter-field>
-    <input type="search" name="user" class="input" placeholder="Поиск по пользователю…" value="{{ user_query }}" autocomplete="off" data-filter-field>
-    <select name="uid" class="input" aria-label="Пользователь" data-filter-field>
-        <option value="">Все пользователи</option>
+    <input type="search" name="q" class="input" placeholder="{{ _('history.search.placeholder') }}" value="{{ query }}" autocomplete="off" data-filter-field>
+    <input type="search" name="user" class="input" placeholder="{{ _('panel.analyses.search_user') }}" value="{{ user_query }}" autocomplete="off" data-filter-field>
+    <select name="uid" class="input" aria-label="{{ _('panel.col.user') }}" data-filter-field>
+        <option value="">{{ _('panel.analyses.all_users') }}</option>
         {% for u in users %}
         <option value="{{ u.id }}" {% if uid == u.id %}selected{% endif %}>{{ u.username }}</option>
         {% endfor %}
     </select>
     <select name="risk" class="input" data-filter-field>
-        <option value="">Любой риск</option>
-        <option value="low" {% if risk_filter == "low" %}selected{% endif %}>Низкий</option>
-        <option value="medium" {% if risk_filter == "medium" %}selected{% endif %}>Средний</option>
-        <option value="high" {% if risk_filter == "high" %}selected{% endif %}>Высокий</option>
+        <option value="">{{ _('panel.analyses.any_risk') }}</option>
+        <option value="low" {% if risk_filter == "low" %}selected{% endif %}>{{ _('risk.level.low') }}</option>
+        <option value="medium" {% if risk_filter == "medium" %}selected{% endif %}>{{ _('risk.level.medium') }}</option>
+        <option value="high" {% if risk_filter == "high" %}selected{% endif %}>{{ _('risk.level.high') }}</option>
     </select>
     <label class="checkbox-label">
         <input type="checkbox" name="review" value="1" {% if review_only %}checked{% endif %} data-filter-field>
-        Только требующие проверки
+        {{ _('panel.analyses.review_only') }}
     </label>
 </form>
 

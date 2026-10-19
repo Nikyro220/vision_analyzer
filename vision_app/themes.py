@@ -16,6 +16,8 @@ import hashlib
 import json
 from pathlib import Path
 
+from .theme_texts import GROUP_LABELS, THEME_TEXTS
+
 THEMES_DIR = Path(__file__).parent / "themes"
 GROUP_ORDER = ("Тёмные", "Светлые", "Контрастные")
 REQUIRED_VARS = ("--bg", "--bg-panel", "--text")
@@ -81,6 +83,10 @@ def theme_presets() -> list[dict]:
     out = []
     for t in load_themes():
         p = {k: t[k] for k in ("id", "label", "hint", "group", "mode")}
+        # Названия, подсказки и группы — на языке интерфейса (JSON хранит русский исходник).
+        for field, text in THEME_TEXTS.get(t["id"], {}).items():
+            p[field] = str(text)
+        p["group"] = str(GROUP_LABELS.get(p["group"], p["group"]))
         p["panel"] = t["vars"]["--bg-panel"]
         if "--accent" in t["vars"]:
             p["accent"] = t["vars"]["--accent"]

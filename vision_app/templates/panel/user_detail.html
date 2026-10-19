@@ -4,27 +4,27 @@
 {% block content %}
 <div class="page-header">
     <h1 class="user-heading">{{ avatar(target, 'avatar-md') }}{{ target.username }}</h1>
-    <p class="page-sub">{{ target.email or "Email не указан" }} · зарегистрирован {{ target.created_at|localdt }}</p>
+    <p class="page-sub">{{ target.email or _('panel.user.no_email') }} {{ _('panel.user.registered', date=target.created_at|localdt) }}</p>
 </div>
 
 <div class="panel-grid panel-grid-3">
     <div class="card">
-        <h2 class="card-title">Данные аккаунта</h2>
+        <h2 class="card-title">{{ _('account.data.title') }}</h2>
         <dl class="def-list">
-            <dt>Логин</dt><dd>{{ target.username }}</dd>
-            <dt>Роль</dt><dd><span class="role-badge role-{{ target.role }}">{{ target.role_display_ru }}</span></dd>
+            <dt>{{ _('account.field.login') }}</dt><dd>{{ target.username }}</dd>
+            <dt>{{ _('account.field.role') }}</dt><dd><span class="role-badge role-{{ target.role }}">{{ target.role_display_ru }}</span></dd>
             <dt>Email</dt><dd>{{ target.email or "—" }}</dd>
-            <dt>Название аккаунта</dt><dd>{{ target.nickname or "—" }}</dd>
-            <dt>Никнейм</dt><dd>{{ target.display_name }}</dd>
-            <dt>ФИО</dt><dd>{{ target.full_name or "—" }}</dd>
-            <dt>Цвет</dt><dd><span class="color-chip" style="background: {{ target.color_hex }}"></span> {{ target.color_hex }}</dd>
-            <dt>Дата регистрации</dt><dd>{{ target.created_at|localdt }}</dd>
+            <dt>{{ _('account.field.nickname_title') }}</dt><dd>{{ target.nickname or "—" }}</dd>
+            <dt>{{ _('account.field.nickname') }}</dt><dd>{{ target.display_name }}</dd>
+            <dt>{{ _('account.field.fullname') }}</dt><dd>{{ target.full_name or "—" }}</dd>
+            <dt>{{ _('account.field.color') }}</dt><dd><span class="color-chip" style="background: {{ target.color_hex }}"></span> {{ target.color_hex }}</dd>
+            <dt>{{ _('account.field.registered') }}</dt><dd>{{ target.created_at|localdt }}</dd>
         </dl>
         {% include "partials/user_stats.html" %}
     </div>
 
     <div class="card">
-        <h2 class="card-title">Изменить данные</h2>
+        <h2 class="card-title">{{ _('account.edit.title') }}</h2>
 
         {% if can_manage and assignable_roles %}
         <form method="post" action="{{ url_for('panel.user_set_role', pk=target.id) }}" class="form form-inline">
@@ -36,45 +36,45 @@
                     {% endif %}
                 {% endfor %}
             </select>
-            <button type="submit" class="btn btn-primary">Сохранить роль</button>
+            <button type="submit" class="btn btn-primary">{{ _('panel.user.save_role') }}</button>
         </form>
         {% elif not can_manage %}
-        <p class="empty-hint">У вас нет прав на изменение этого пользователя.</p>
+        <p class="empty-hint">{{ _('panel.user.no_rights') }}</p>
         {% endif %}
 
         {% if can_manage %}
         <form method="post" action="{{ url_for('panel.user_toggle_block', pk=target.id) }}" class="form-inline form-block-toggle">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             {% if target.role == "blocked" %}
-            <button type="submit" class="btn btn-secondary">Разблокировать</button>
+            <button type="submit" class="btn btn-secondary">{{ _('panel.user.unblock') }}</button>
             {% else %}
-            <button type="submit" class="btn btn-danger">Заблокировать</button>
+            <button type="submit" class="btn btn-danger">{{ _('panel.user.block') }}</button>
             {% endif %}
         </form>
         {% endif %}
 
         {% if can_manage %}
-        <h2 class="card-title">Данные профиля</h2>
+        <h2 class="card-title">{{ _('panel.user.profile_data') }}</h2>
         <form method="post" action="{{ url_for('panel.user_edit', pk=target.id) }}" class="form" novalidate>
             {{ edit_form.hidden_tag() }}
             {% set form = edit_form %}
             {% include "partials/form_fields.html" %}
-            <button type="submit" class="btn btn-primary">Сохранить</button>
+            <button type="submit" class="btn btn-primary">{{ _('common.save') }}</button>
         </form>
 
         <details class="danger-zone">
-            <summary>Удалить аккаунт</summary>
+            <summary>{{ _('account.delete') }}</summary>
             <div class="danger-zone-body">
-                <p class="danger-zone-hint">Это необратимо: аккаунт и вся история анализов пользователя «{{ target.username }}» будут удалены. Для подтверждения введите вручную команду ниже — с логином этого пользователя (скопировать её нельзя):</p>
+                <p class="danger-zone-hint">{{ _('panel.user.delete.hint', username=target.username) }}</p>
                 <code class="sql-prompt no-select">{{ delete_sql }}</code>
                 <form method="post" action="{{ url_for('panel.user_delete', pk=target.id) }}" class="form"
-                      onsubmit="return confirm('Точно удалить аккаунт «{{ target.username }}»? Это нельзя отменить.')">
+                      data-confirm="{{ _('account.delete.confirm', username=target.username) }}" onsubmit="return confirm(this.dataset.confirm)">
                     {{ delete_form.hidden_tag() }}
                     <div class="field">
                         {{ delete_form.confirm_sql.label }}
                         {{ delete_form.confirm_sql(autocomplete="off") }}
                     </div>
-                    <button type="submit" class="btn btn-danger">Удалить аккаунт</button>
+                    <button type="submit" class="btn btn-danger">{{ _('account.delete') }}</button>
                 </form>
             </div>
         </details>
@@ -82,7 +82,7 @@
     </div>
 
     <div class="card">
-        <h2 class="card-title">История</h2>
+        <h2 class="card-title">{{ _('nav.analysis.history') }}</h2>
         {% if analyses %}
         <ul class="mini-list">
             {% for item in analyses %}
@@ -90,24 +90,24 @@
                 <a href="{{ url_for('analyzer.result_detail', pk=item.id) }}" class="mini-list-row">
                     {% if item.image_path %}<img class="row-thumb" src="{{ url_for('analyzer.thumb', filename=item.image_path) }}" alt="" loading="lazy" width="36" height="36" onerror="this.style.visibility='hidden'">{% endif %}
                     <span class="risk-dot risk-{{ item.risk_level }}"></span>
-                    <span class="id-tag">№{{ item.id }}</span>
-                    <span class="mini-list-name">{{ (item.original_name or 'без имени')|trunc(28) }}</span>
+                    <span class="id-tag">{{ _('common.id_tag', id=item.id) }}</span>
+                    <span class="mini-list-name">{{ (item.original_name or _('account.history.unnamed'))|trunc(28) }}</span>
                     <span class="mini-list-date">{{ item.created_at|localdt('short') }}</span>
                 </a>
             </li>
             {% endfor %}
         </ul>
         {% else %}
-        <p class="empty-hint">У этого пользователя нет завершённых анализов.</p>
+        <p class="empty-hint">{{ _('panel.user.no_analyses') }}</p>
         {% endif %}
         {% if history_count > analyses|length %}
-        <a href="{{ url_for('panel.user_history', pk=target.id) }}" class="link-more">Вся история ({{ history_count }}) →</a>
+        <a href="{{ url_for('panel.user_history', pk=target.id) }}" class="link-more">{{ _('panel.user.all_history', count=history_count) }}</a>
         {% endif %}
         {% if history_count %}
         <form method="post" action="{{ url_for('panel.user_clear_history', pk=target.id) }}" class="form-inline"
-              onsubmit="return confirm('Удалить всю историю пользователя «{{ target.username }}» ({{ history_count }} шт.) вместе с изображениями? Это нельзя отменить.')">
+              data-confirm="{{ _('panel.user.clear_history.confirm', username=target.username, count=history_count) }}" onsubmit="return confirm(this.dataset.confirm)">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-            <button type="submit" class="btn btn-danger">Очистить историю ({{ history_count }})</button>
+            <button type="submit" class="btn btn-danger">{{ _('panel.user.clear_history', count=history_count) }}</button>
         </form>
         {% endif %}
     </div>

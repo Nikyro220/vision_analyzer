@@ -1,20 +1,20 @@
 {% extends "base.html" %}
-{% block title %}Вход{% endblock %}
+{% block title %}{{ _('auth.login.title') }}{% endblock %}
 {% block guest_content %}
 <div class="auth-screen">
     <div class="auth-card">
         <div class="auth-mark">◈</div>
         <h1>Vision Triage</h1>
-        <p class="auth-sub">Войдите, чтобы отправить изображение на анализ риска.</p>
+        <p class="auth-sub">{{ _('auth.login.subtitle') }}</p>
 
         <form method="post" class="form" novalidate>
             {{ form.hidden_tag() }}
             {% include "partials/form_fields.html" %}
             {% if error %}<div class="field-error">{{ error }}</div>{% endif %}
-            <button type="submit" class="btn btn-primary btn-block">Войти</button>
+            <button type="submit" class="btn btn-primary btn-block">{{ _('auth.login.submit') }}</button>
         </form>
 
-        <p class="auth-switch">Нет аккаунта? <a href="{{ url_for('accounts.register') }}">Зарегистрироваться</a></p>
+        <p class="auth-switch">{{ _('auth.login.no_account') }} <a href="{{ url_for('accounts.register') }}">{{ _('auth.login.register_link') }}</a></p>
     </div>
 </div>
 {% endblock %}

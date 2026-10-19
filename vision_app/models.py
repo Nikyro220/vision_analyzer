@@ -7,6 +7,7 @@ import random
 import re
 from datetime import datetime, timezone
 
+from flask_babel import gettext, lazy_gettext
 from flask_login import UserMixin
 from werkzeug.security import check_password_hash, generate_password_hash
 
@@ -36,9 +37,9 @@ class DisplayStyle:
 
 
 DISPLAY_STYLE_LABELS = {
-    DisplayStyle.FIO: "ФИО",
-    DisplayStyle.FI: "Фамилия Имя",
-    DisplayStyle.NICKNAME: "Никнейм",
+    DisplayStyle.FIO: lazy_gettext("account.field.fullname"),
+    DisplayStyle.FI: lazy_gettext("models.display_style.fi"),
+    DisplayStyle.NICKNAME: lazy_gettext("account.field.nickname"),
 }
 DISPLAY_STYLE_CHOICES = list(DISPLAY_STYLE_LABELS.items())
 
@@ -54,10 +55,10 @@ COLOR_RE = re.compile(r"^#[0-9a-fA-F]{6}$")
 
 
 ROLE_LABELS = {
-    Role.BLOCKED: "Заблокирован",
-    Role.USER: "Пользователь",
-    Role.ADMIN: "Администратор",
-    Role.HEAD_ADMIN: "Главный администратор",
+    Role.BLOCKED: lazy_gettext("role.blocked"),
+    Role.USER: lazy_gettext("role.user"),
+    Role.ADMIN: lazy_gettext("role.admin"),
+    Role.HEAD_ADMIN: lazy_gettext("role.head_admin"),
 }
 ROLE_CHOICES = list(ROLE_LABELS.items())
 
@@ -86,17 +87,17 @@ class Status:
 
 
 STATUS_LABELS = {
-    Status.QUEUED: "В очереди",
-    Status.PROCESSING: "Обрабатывается",
-    Status.DONE: "Готово",
+    Status.QUEUED: lazy_gettext("status.queued"),
+    Status.PROCESSING: lazy_gettext("status.processing"),
+    Status.DONE: lazy_gettext("status.done"),
 }
 
 
 RISK_LABELS = {
-    RiskLevel.LOW: "Низкий",
-    RiskLevel.MEDIUM: "Средний",
-    RiskLevel.HIGH: "Высокий",
-    RiskLevel.UNKNOWN: "Не определён",
+    RiskLevel.LOW: lazy_gettext("risk.level.low"),
+    RiskLevel.MEDIUM: lazy_gettext("risk.level.medium"),
+    RiskLevel.HIGH: lazy_gettext("risk.level.high"),
+    RiskLevel.UNKNOWN: lazy_gettext("risk.level.unknown"),
 }
 
 
@@ -230,7 +231,7 @@ class User(UserMixin, db.Model):
 
     @property
     def role_display_ru(self) -> str:
-        return ROLE_LABELS.get(self.role, self.role)
+        return str(ROLE_LABELS.get(self.role, self.role))
 
     def can_manage(self, target: "User") -> bool:
         """Может ли self управлять ролью/блокировкой пользователя target."""
@@ -312,7 +313,7 @@ class AnalysisResult(db.Model):
         убрать такие записи можно командой `flask purge-orphans`."""
         if self.user is not None:
             return self.user.username
-        return f"удалённый пользователь (id {self.user_id})"
+        return gettext("models.owner.deleted", id=self.user_id)
 
     def can_rename(self, user) -> bool:
         """Переименовать запись может её автор или администратор (admin / head_admin)."""
@@ -332,11 +333,11 @@ class AnalysisResult(db.Model):
 
     @property
     def status_display(self) -> str:
-        return STATUS_LABELS.get(self.status, self.status)
+        return str(STATUS_LABELS.get(self.status, self.status))
 
     @property
     def risk_level_display(self) -> str:
-        return RISK_LABELS.get(self.risk_level, self.risk_level)
+        return str(RISK_LABELS.get(self.risk_level, self.risk_level))
 
     def __repr__(self) -> str:
         return f"<AnalysisResult {self.id} {self.risk_level}>"
@@ -424,7 +425,7 @@ class ChatSession(db.Model):
 
     @property
     def display_title(self) -> str:
-        return self.title or "Новый чат"
+        return self.title or gettext("chat.session.default_title")
 
     def __repr__(self) -> str:
         return f"<ChatSession {self.id} {self.title!r}>"

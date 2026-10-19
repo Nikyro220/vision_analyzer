@@ -83,7 +83,7 @@
     // расчёта производных цветов), panel (фон панели), accent (только если у темы свой акцент;
     // иначе акцент остаётся выбранным пользователем или бирюзовым по умолчанию).
     // «Авто» — не тема, а режим «как в системе», он добавляется здесь.
-    var PRESETS = [{ id: "auto", label: "Авто", hint: "Как в системе", group: "" }]
+    var PRESETS = [{ id: "auto", label: _t("js.theme.auto"), hint: _t("js.theme.system"), group: "" }]
         .concat(Array.isArray(global.VT_PRESETS) ? global.VT_PRESETS : []);
     function presetOf(id) { return PRESETS.filter(function (p) { return p.id === id; })[0]; }
     function isLightTheme(id) { var p = presetOf(id); return !!p && p.mode === "light"; }
@@ -96,20 +96,20 @@
     var SERIF = 'Georgia, "Iowan Old Style", "Palatino Linotype", "Times New Roman", serif';
 
     var FONTS_BODY = [
-        { id: "system", label: "Системный (по умолчанию)", stack: null },
-        { id: "humanist", label: "Гуманистический", stack: '"Segoe UI", "Trebuchet MS", "Gill Sans", Candara, Ubuntu, sans-serif' },
-        { id: "grotesk", label: "Гротеск", stack: '"Helvetica Neue", Helvetica, Arial, "Liberation Sans", sans-serif' },
-        { id: "readable", label: "Читаемый (широкий)", stack: '"Atkinson Hyperlegible", Verdana, Tahoma, "DejaVu Sans", sans-serif' },
-        { id: "serif", label: "С засечками", stack: SERIF },
-        { id: "mono", label: "Моноширинный", stack: DEFAULT_MONO },
-        { id: "custom", label: "Свой шрифт…", stack: "custom" }
+        { id: "system", label: _t("js.theme.font.system"), stack: null },
+        { id: "humanist", label: _t("js.theme.font.humanist"), stack: '"Segoe UI", "Trebuchet MS", "Gill Sans", Candara, Ubuntu, sans-serif' },
+        { id: "grotesk", label: _t("js.theme.font.grotesque"), stack: '"Helvetica Neue", Helvetica, Arial, "Liberation Sans", sans-serif' },
+        { id: "readable", label: _t("js.theme.font.wide"), stack: '"Atkinson Hyperlegible", Verdana, Tahoma, "DejaVu Sans", sans-serif' },
+        { id: "serif", label: _t("js.theme.font.serif"), stack: SERIF },
+        { id: "mono", label: _t("js.theme.font.mono"), stack: DEFAULT_MONO },
+        { id: "custom", label: _t("js.theme.font.custom"), stack: "custom" }
     ];
     var FONTS_MONO = [
-        { id: "default", label: "Моноширинный (по умолчанию)", stack: null },
-        { id: "coder", label: "Программистский", stack: '"JetBrains Mono", "Fira Code", "Cascadia Code", ui-monospace, Consolas, monospace' },
-        { id: "body", label: "Как основной шрифт", stack: "var(--font-body)" },
-        { id: "serif", label: "С засечками", stack: SERIF },
-        { id: "custom", label: "Свой шрифт…", stack: "custom" }
+        { id: "default", label: _t("js.theme.font.mono_default"), stack: null },
+        { id: "coder", label: _t("js.theme.font.code"), stack: '"JetBrains Mono", "Fira Code", "Cascadia Code", ui-monospace, Consolas, monospace' },
+        { id: "body", label: _t("js.theme.font.same"), stack: "var(--font-body)" },
+        { id: "serif", label: _t("js.theme.font.serif"), stack: SERIF },
+        { id: "custom", label: _t("js.theme.font.custom"), stack: "custom" }
     ];
 
     // В CSS попадает только «безопасное» имя шрифта: буквы, цифры, пробел, дефис, точка.
@@ -133,81 +133,81 @@
     // scope "palette" — сбрасывается при смене пресета; остальное пресет не трогает.
     var MODULES = [
         {
-            id: "accent", title: "Акцент",
-            hint: "Цвет кнопок, активных пунктов меню, ссылок и фокуса. Часть тем задаёт свой акцент; выбранный здесь цвет его перекрывает.",
+            id: "accent", title: _t("js.theme.accent.title"),
+            hint: _t("js.theme.accent.hint"),
             fields: [
-                { key: "accent", label: "Акцентный цвет", kind: "color", cssVar: "--accent", swatches: true },
-                { key: "accentStrong", label: "Акцент: светлый вариант", kind: "color", cssVar: "--accent-strong",
-                  hint: "Ссылки и наведение. По умолчанию подбирается автоматически под акцент и тему." }
+                { key: "accent", label: _t("js.theme.accent.color"), kind: "color", cssVar: "--accent", swatches: true },
+                { key: "accentStrong", label: _t("js.theme.accent.light"), kind: "color", cssVar: "--accent-strong",
+                  hint: _t("js.theme.accent.light_hint") }
             ]
         },
         {
-            id: "surfaces", title: "Поверхности", scope: "palette",
-            hint: "Фоны и границы. Смена пресета сбрасывает эти цвета к палитре пресета.",
+            id: "surfaces", title: _t("js.theme.surfaces.title"), scope: "palette",
+            hint: _t("js.theme.surfaces.hint"),
             fields: [
-                { key: "bg", label: "Фон страницы", kind: "color", cssVar: "--bg" },
-                { key: "bgPanel", label: "Панели и карточки", kind: "color", cssVar: "--bg-panel" },
-                { key: "bgElevated", label: "Поля ввода и вложенные блоки", kind: "color", cssVar: "--bg-elevated" },
-                { key: "bgHover", label: "Наведение", kind: "color", cssVar: "--bg-hover" },
-                { key: "border", label: "Границы", kind: "color", cssVar: "--border" },
-                { key: "borderSoft", label: "Мягкие границы", kind: "color", cssVar: "--border-soft" }
+                { key: "bg", label: _t("js.theme.surfaces.bg"), kind: "color", cssVar: "--bg" },
+                { key: "bgPanel", label: _t("js.theme.surfaces.panel"), kind: "color", cssVar: "--bg-panel" },
+                { key: "bgElevated", label: _t("js.theme.surfaces.input"), kind: "color", cssVar: "--bg-elevated" },
+                { key: "bgHover", label: _t("js.theme.surfaces.hover"), kind: "color", cssVar: "--bg-hover" },
+                { key: "border", label: _t("js.theme.surfaces.border"), kind: "color", cssVar: "--border" },
+                { key: "borderSoft", label: _t("js.theme.surfaces.border_soft"), kind: "color", cssVar: "--border-soft" }
             ]
         },
         {
-            id: "text", title: "Текст", scope: "palette",
-            hint: "Цвета текста. Рядом показан контраст с фоном (норма WCAG AA — от 4.5).",
+            id: "text", title: _t("js.theme.text.title"), scope: "palette",
+            hint: _t("js.theme.text.hint"),
             contrastPairs: [
-                { fg: "text", bg: "bg", label: "Основной / фон" },
-                { fg: "textMuted", bg: "bgPanel", label: "Приглушённый / панель" },
-                { fg: "textDim", bg: "bgPanel", label: "Слабый / панель" },
-                { fg: "accentStrong", bg: "bgPanel", label: "Акцент / панель" }
+                { fg: "text", bg: "bg", label: _t("js.theme.text.main_bg") },
+                { fg: "textMuted", bg: "bgPanel", label: _t("js.theme.text.muted_panel") },
+                { fg: "textDim", bg: "bgPanel", label: _t("js.theme.text.faint_panel") },
+                { fg: "accentStrong", bg: "bgPanel", label: _t("js.theme.text.accent_panel") }
             ],
             fields: [
-                { key: "text", label: "Основной текст", kind: "color", cssVar: "--text" },
-                { key: "textMuted", label: "Приглушённый текст", kind: "color", cssVar: "--text-muted" },
-                { key: "textDim", label: "Слабый текст (подписи, даты)", kind: "color", cssVar: "--text-dim" }
+                { key: "text", label: _t("js.theme.text.main"), kind: "color", cssVar: "--text" },
+                { key: "textMuted", label: _t("js.theme.text.muted"), kind: "color", cssVar: "--text-muted" },
+                { key: "textDim", label: _t("js.theme.text.faint"), kind: "color", cssVar: "--text-dim" }
             ]
         },
         {
-            id: "status", title: "Статусы и предупреждения", scope: "palette",
-            hint: "Цвета уровней риска, ошибок и предупреждений. Цвета ролей пользователей не настраиваются.",
+            id: "status", title: _t("js.theme.status.title"), scope: "palette",
+            hint: _t("js.theme.status.hint"),
             fields: [
-                { key: "riskLow", label: "Низкий риск / успех", kind: "color", cssVar: "--risk-low" },
-                { key: "riskMedium", label: "Средний риск / предупреждение", kind: "color", cssVar: "--risk-medium" },
-                { key: "riskHigh", label: "Высокий риск", kind: "color", cssVar: "--risk-high" },
-                { key: "danger", label: "Опасные действия / ошибки", kind: "color", cssVar: "--danger" }
+                { key: "riskLow", label: _t("js.theme.status.low"), kind: "color", cssVar: "--risk-low" },
+                { key: "riskMedium", label: _t("js.theme.status.medium"), kind: "color", cssVar: "--risk-medium" },
+                { key: "riskHigh", label: _t("js.theme.status.high"), kind: "color", cssVar: "--risk-high" },
+                { key: "danger", label: _t("js.theme.status.danger"), kind: "color", cssVar: "--danger" }
             ]
         },
         {
-            id: "typography", title: "Типографика",
-            hint: "Свой шрифт должен быть установлен на вашем устройстве — из интернета шрифты не подгружаются.",
+            id: "typography", title: _t("js.theme.typo.title"),
+            hint: _t("js.theme.typo.hint"),
             fields: [
-                { key: "font", label: "Основной шрифт", kind: "font", list: FONTS_BODY, defaultId: "system", customKey: "fontCustom" },
-                { key: "fontMono", label: "Шрифт заголовков и данных", kind: "font", list: FONTS_MONO, defaultId: "default", customKey: "fontMonoCustom" },
-                { key: "fontSize", label: "Размер текста", kind: "range", min: 13, max: 19, step: 1, unit: "px", cssVar: "--font-size-base", def: 15, deferred: true,
-                  hint: "Масштабирует текст во всём интерфейсе. Применяется, когда вы отпустите ползунок." },
-                { key: "lineHeight", label: "Межстрочный интервал", kind: "range", min: 1.3, max: 1.8, step: 0.05, unit: "", cssVar: "--line-height-base", def: 1.5, deferred: true }
+                { key: "font", label: _t("js.theme.typo.main"), kind: "font", list: FONTS_BODY, defaultId: "system", customKey: "fontCustom" },
+                { key: "fontMono", label: _t("js.theme.typo.heading"), kind: "font", list: FONTS_MONO, defaultId: "default", customKey: "fontMonoCustom" },
+                { key: "fontSize", label: _t("js.theme.typo.size"), kind: "range", min: 13, max: 19, step: 1, unit: "px", cssVar: "--font-size-base", def: 15, deferred: true,
+                  hint: _t("js.theme.typo.size_hint") },
+                { key: "lineHeight", label: _t("js.theme.typo.line"), kind: "range", min: 1.3, max: 1.8, step: 0.05, unit: "", cssVar: "--line-height-base", def: 1.5, deferred: true }
             ]
         },
         {
-            id: "shape", title: "Форма и компоновка",
-            hint: "Скругления и размеры основных областей.",
+            id: "shape", title: _t("js.theme.layout.title"),
+            hint: _t("js.theme.layout.hint"),
             fields: [
-                { key: "radius", label: "Скругление углов", kind: "range", min: 0, max: 14, step: 1, unit: "px", cssVar: "--radius", def: 3 },
-                { key: "contentMax", label: "Максимальная ширина контента", kind: "range", min: 800, max: 1800, step: 50, unit: "px", cssVar: "--content-max", def: 1100, deferred: true,
+                { key: "radius", label: _t("js.theme.layout.radius"), kind: "range", min: 0, max: 14, step: 1, unit: "px", cssVar: "--radius", def: 3 },
+                { key: "contentMax", label: _t("js.theme.layout.max_width"), kind: "range", min: 800, max: 1800, step: 50, unit: "px", cssVar: "--content-max", def: 1100, deferred: true,
                   fit: true, disabledWhen: "contentFull",
-                  hint: "Ограничивает ширину контента; шире окна браузера он стать не может. Применяется, когда вы отпустите ползунок." },
-                { key: "contentFull", label: "Контент на всю ширину окна", kind: "toggle", def: false,
-                  hint: "Снимает ограничение ширины: контент занимает всё место справа от боковой панели." },
-                { key: "sidebarW", label: "Ширина боковой панели", kind: "range", min: 200, max: 320, step: 10, unit: "px", cssVar: "--sidebar-w", def: 240, deferred: true,
-                  hint: "Применяется, когда вы отпустите ползунок." }
+                  hint: _t("js.theme.layout.max_width_hint") },
+                { key: "contentFull", label: _t("js.theme.layout.full"), kind: "toggle", def: false,
+                  hint: _t("js.theme.layout.full_hint") },
+                { key: "sidebarW", label: _t("js.theme.layout.sidebar"), kind: "range", min: 200, max: 320, step: 10, unit: "px", cssVar: "--sidebar-w", def: 240, deferred: true,
+                  hint: _t("js.theme.layout.sidebar_hint") }
             ]
         },
         {
-            id: "behavior", title: "Поведение",
+            id: "behavior", title: _t("js.theme.behavior.title"),
             fields: [
-                { key: "reduceMotion", label: "Уменьшить анимации", kind: "toggle", def: false,
-                  hint: "Отключает плавные переходы и анимации интерфейса." }
+                { key: "reduceMotion", label: _t("js.theme.behavior.motion"), kind: "toggle", def: false,
+                  hint: _t("js.theme.behavior.motion_hint") }
             ]
         }
     ];
@@ -449,8 +449,8 @@
         },
         importJSON: function (text) {
             var raw;
-            try { raw = JSON.parse(text); } catch (e) { throw new Error("Файл не является корректным JSON."); }
-            if (!raw || raw.app !== "vision-triage-theme") throw new Error("Это не файл темы Vision Triage.");
+            try { raw = JSON.parse(text); } catch (e) { throw new Error(_t("js.theme.import.bad_json")); }
+            if (!raw || raw.app !== "vision-triage-theme") throw new Error(_t("js.theme.import.not_theme"));
             remember();
             state = sanitizeState(raw);
             commit();

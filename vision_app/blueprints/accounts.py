@@ -3,6 +3,7 @@
 import json
 
 from flask import Blueprint, abort, flash, jsonify, redirect, render_template, request, send_file, session, url_for
+from flask_babel import gettext
 from flask_login import current_user, login_required, login_user, logout_user
 from sqlalchemy import func, select
 
@@ -42,13 +43,9 @@ def register():
         session.permanent = True
         login_user(user)
         if is_first:
-            flash(
-                "Регистрация выполнена. Вы первый пользователь системы — "
-                "вам присвоена роль «Главный администратор».",
-                "success",
-            )
+            flash(gettext("flash.register.first_user"), "success")
         else:
-            flash("Регистрация прошла успешно. Добро пожаловать!", "success")
+            flash(gettext("flash.register.ok"), "success")
         return redirect(url_for("analyzer.dashboard"))
 
     return render_template("accounts/register.html", form=form)
@@ -68,25 +65,38 @@ def login():
         ).first()
 
         if user is None or not user.check_password(form.password.data):
-            error = "Неверный логин или пароль."
+            error = gettext("flash.login.bad_credentials")
         elif not user.is_active:
-            error = "Этот аккаунт деактивирован."
+            error = gettext("flash.login.inactive")
         else:
             session.permanent = True
             login_user(user)
             if user.role == Role.BLOCKED:
                 return redirect(url_for("accounts.blocked"))
-            flash(f"С возвращением, {user.username}!", "success")
+            flash(gettext("flash.login.welcome_back", username=user.username), "success")
             target = request.args.get("next")
             return redirect(target if is_safe_next(target) else url_for("analyzer.dashboard"))
 
     return render_template("accounts/login.html", form=form, error=error)
 
 
+@bp.route("/language/<code>")
+def set_language(code: str):
+    """Переключение языка. Не требует входа — ссылка доступна и на странице входа.
+    Неизвестный язык → 404; при безопасном next — туда, иначе на главную страницу."""
+    if code not in ("ru", "en"):
+        abort(404)
+    next_url = request.args.get("next")
+    target = next_url if is_safe_next(next_url) else "/"
+    resp = redirect(target)
+    resp.set_cookie("lang", code, max_age=31536000, samesite="Lax", httponly=True)
+    return resp
+
+
 @bp.route("/logout/", methods=["POST"])
 def logout():
     logout_user()
-    flash("Вы вышли из системы.", "info")
+    flash(gettext("flash.logout"), "info")
     return redirect(url_for("accounts.login"))
 
 
@@ -125,7 +135,7 @@ def profile():
         if form.color.data:
             current_user.color = form.color.data.lower()
         db.session.commit()
-        flash("Данные аккаунта обновлены.", "success")
+        flash(gettext("flash.account.updated"), "success")
         return redirect(url_for("accounts.profile"))
 
     finished = (AnalysisResult.user_id == current_user.id, AnalysisResult.status == Status.DONE)
@@ -159,10 +169,10 @@ def delete_own_account():
         user = current_user._get_current_object()
         logout_user()
         delete_user_account(user)
-        flash(f"Аккаунт «{username}» удалён.", "success")
+        flash(gettext("flash.account.deleted", username=username), "success")
         return redirect(url_for("accounts.login"))
 
-    flash("Команда подтверждения введена неверно. Аккаунт не удалён.", "error")
+    flash(gettext("flash.account.delete_mismatch"), "error")
     return redirect(url_for("accounts.profile"))
 
 
@@ -191,7 +201,7 @@ def avatar_upload():
     """
     upload = request.files.get("avatar")
     if upload is None:
-        return jsonify(ok=False, error="Файл не выбран."), 400
+        return jsonify(ok=False, error=gettext("flash.avatar.no_file")), 400
 
     raw_params = request.form.get("params")
     try:
@@ -203,7 +213,7 @@ def avatar_upload():
             try:
                 params = avatars.parse_params(json.loads(raw_params))
             except ValueError as exc:  # битый JSON (AvatarError — тоже ValueError, текст у неё свой)
-                raise avatars.AvatarError("Некорректные параметры редактора.") from exc
+                raise avatars.AvatarError(gettext("flash.avatar.bad_params")) from exc
             limit = conf("AVATAR_MAX_ANIMATED_BYTES")
             raw = upload.stream.read(limit + 1)
             data, _animated = avatars.process_animated(raw, params)
@@ -214,7 +224,7 @@ def avatar_upload():
     current_user.avatar_updated_at = utcnow()
     current_user.avatar_url = avatars.avatar_link(current_user.id, current_user.avatar_version)
     db.session.commit()
-    flash("Аватар обновлён.", "success")
+    flash(gettext("flash.avatar.updated"), "success")
     return jsonify(ok=True, url=current_user.avatar_url)
 
 
@@ -226,5 +236,5 @@ def avatar_delete():
         current_user.avatar_updated_at = None
         current_user.avatar_url = None
         db.session.commit()
-        flash("Аватар удалён.", "success")
+        flash(gettext("flash.avatar.deleted"), "success")
     return redirect(url_for("accounts.profile"))

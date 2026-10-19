@@ -73,7 +73,7 @@
       if (!hint) return;
       if (selected.size > 0) {
         hint.hidden = false;
-        hint.textContent = "Выбрано всего: " + selected.size + (root.dataset.multiPage === "1" ? " (включая другие страницы/фильтры)" : "");
+        hint.textContent = _t("js.list.selected_total", { n: selected.size }) + (root.dataset.multiPage === "1" ? " " + _t("js.list.selected_other_pages") : "");
       } else {
         hint.hidden = true;
         hint.textContent = "";

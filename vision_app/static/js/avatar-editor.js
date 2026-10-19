@@ -226,11 +226,11 @@
     function open(file) {
         showError("");
         if (!file) return;
-        if (file.size > MAX_FILE) { alert("Файл слишком большой."); return; }
+        if (file.size > MAX_FILE) { alert(_t("js.avatar.too_big")); return; }
         readBuffer(file, function (buffer) {
             var anim = buffer ? isAnimated(buffer) : false;
             if (anim && file.size > MAX_ANIMATED) {
-                alert("Анимация слишком большая: максимум " + Math.floor(MAX_ANIMATED / 1048576) + " МБ.");
+                alert(_t("js.avatar.anim_too_big", { mb: Math.floor(MAX_ANIMATED / 1048576) }));
                 fileInput.value = "";
                 return;
             }
@@ -258,7 +258,7 @@
                 editor.scrollIntoView({ block: "nearest", behavior: "smooth" });
             };
             next.onerror = function () {
-                alert("Не удалось открыть изображение. Попробуйте PNG, JPEG, WebP или GIF.");
+                alert(_t("js.avatar.cannot_open"));
             };
             next.src = objectUrl;
         });
@@ -346,9 +346,9 @@
             return resp.json().then(function (j) { return { ok: resp.ok, json: j }; });
         }).then(function (res) {
             if (res.ok && res.json.ok) { window.location.reload(); } // сообщение «Аватар обновлён» придёт из flash
-            else { fail(btn, res.json.error || "Не удалось сохранить аватар."); }
+            else { fail(btn, res.json.error || _t("js.avatar.save_failed")); }
         }).catch(function () {
-            fail(btn, "Не удалось сохранить аватар. Обновите страницу и попробуйте снова.");
+            fail(btn, _t("js.avatar.save_failed_reload"));
         });
     }
 
@@ -370,7 +370,7 @@
         }
         render(); // на случай отложенного кадра
         canvas.toBlob(function (blob) {
-            if (!blob) { fail(btn, "Не удалось подготовить изображение."); return; }
+            if (!blob) { fail(btn, _t("js.avatar.prepare_failed")); return; }
             body.append("avatar", blob, "avatar.png");
             send(btn, body);
         }, "image/png");

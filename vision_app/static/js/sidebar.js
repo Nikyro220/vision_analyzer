@@ -34,7 +34,7 @@
     // в развёрнутом title не нужен, он только мешал бы всплывающими подсказками.
     function sync(btn) {
         var collapsed = isCollapsed();
-        var label = collapsed ? "Развернуть панель" : "Свернуть панель";
+        var label = collapsed ? _t("js.sidebar.expand") : _t("js.sidebar.collapse");
         btn.setAttribute("aria-expanded", collapsed ? "false" : "true");
         btn.setAttribute("aria-label", label);
         btn.setAttribute("title", label);

@@ -1,0 +1,3635 @@
+# Translations for vision_app (en).
+# Ключи area.section.item; править тут, затем pybabel compile -d vision_app/translations.
+msgid ""
+msgstr ""
+"Project-Id-Version: vision_app VERSION\n"
+"Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
+"POT-Creation-Date: 2026-10-19 00:00+0000\n"
+"PO-Revision-Date: 2026-10-19 00:00+0000\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: en\n"
+"Language-Team: en <LL@li.org>\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.18.0\n"
+
+msgid "account.data.title"
+msgstr "Account information"
+
+msgid "account.delete"
+msgstr "Delete account"
+
+msgid "account.delete.confirm"
+msgstr "Are you sure you want to delete the account \"%(username)s\"? This cannot be undone."
+
+msgid "account.edit.title"
+msgstr "Change information"
+
+msgid "account.field.color"
+msgstr "Color"
+
+msgid "account.field.fullname"
+msgstr "Full name"
+
+msgid "account.field.login"
+msgstr "Login"
+
+msgid "account.field.nickname"
+msgstr "Nickname"
+
+msgid "account.field.nickname_title"
+msgstr "Account name"
+
+msgid "account.field.registered"
+msgstr "Registration date"
+
+msgid "account.field.role"
+msgstr "Role"
+
+msgid "account.history.unnamed"
+msgstr "unnamed"
+
+msgid "appearance.noscript"
+msgstr "JavaScript must be enabled to change appearance settings."
+
+msgid "appearance.subtitle"
+msgstr "Interface theme, colors and fonts. Stored only in your browser."
+
+msgid "auth.blocked.heading"
+msgstr "Account blocked"
+
+msgid "auth.blocked.hint"
+msgstr "Contact an administrator if you think this is a mistake."
+
+msgid "auth.blocked.logout"
+msgstr "Log out of account"
+
+msgid "auth.blocked.text"
+msgstr "An administrator has restricted access to the system for the account \"%(username)s\"."
+
+msgid "auth.blocked.title"
+msgstr "Access blocked"
+
+msgid "auth.login.no_account"
+msgstr "Don't have an account?"
+
+msgid "auth.login.register_link"
+msgstr "Sign up"
+
+msgid "auth.login.submit"
+msgstr "Log in"
+
+msgid "auth.login.subtitle"
+msgstr "Log in to submit an image for risk analysis."
+
+msgid "auth.login.title"
+msgstr "Log in"
+
+msgid "auth.register.have_account"
+msgstr "Already have an account?"
+
+msgid "auth.register.heading"
+msgstr "Create an account"
+
+msgid "auth.register.subtitle"
+msgstr "After signing up you get immediate access to image analysis with the \"User\" role."
+
+msgid "auth.register.title"
+msgstr "Sign up"
+
+msgid "avatars.error.anim_heavy"
+msgstr "The animation is too heavy: reduce the size or the number of frames."
+
+msgid "avatars.error.anim_output"
+msgstr "The animation turned out too heavy (over %(kb)s KB). Try a shorter file."
+
+msgid "avatars.error.empty"
+msgstr "The file is empty."
+
+msgid "avatars.error.format_animated"
+msgstr "PNG, JPEG, WebP and GIF are supported."
+
+msgid "avatars.error.format_static"
+msgstr "Only PNG, JPEG and WebP are supported."
+
+msgid "avatars.error.no_frames"
+msgstr "The file has no frames."
+
+msgid "avatars.error.too_big"
+msgstr "The file is too large (at most %(kb)s KB)."
+
+msgid "avatars.error.too_large_image"
+msgstr "The image is too large (at most %(side)sx%(side)s)."
+
+msgid "avatars.error.too_many_frames"
+msgstr "Too many frames (%(count)s, at most %(max)s)."
+
+msgid "avatars.error.too_zoomed"
+msgstr "The zoom is too strong for this picture. Reduce the scale or stretch."
+
+msgid "avatars.error.unreadable"
+msgstr "Could not read the image."
+
+msgid "base.title.suffix"
+msgstr "Analysis panel"
+
+msgid "catform.advanced.hint"
+msgstr "Almost never needed. This is for auxiliary text that in the prompt must go <i>after</i> the closing <code>&lt;signal_category&gt;</code> as a separate block (for example, a reference of known phrases for transcription) — and not as one more rule paragraph inside it."
+
+msgid "catform.advanced.title"
+msgstr "Extra blocks for Full/Compact (rarely needed)"
+
+msgid "catform.compact.copy"
+msgstr "Copy from Full"
+
+msgid "catform.compact.label"
+msgstr "Compact — shortened version, fallback"
+
+msgid "catform.help.compact"
+msgstr "<b>Compact</b> — the same idea, but condensed: used only if the model could not confidently identify the categories on the first pass. You can build it by clicking \"Copy from Full\" and shortening it by hand."
+
+msgid "catform.help.language"
+msgstr "<b>The special word <code>__OUTPUT_LANGUAGE__</code></b> — if a rule needs to ask the model to write something (for example, in detail/rationale), do not name a specific language (\"write in Russian\") — the analysis may also run in English. Instead, insert <code>__OUTPUT_LANGUAGE__</code> literally — the server substitutes the right language before sending it to the model. It only works in Full/Compact; in Summary it is pointless, nothing substitutes it there. The \"Insert __OUTPUT_LANGUAGE__\" button next to the field does this without typos — nothing helps except an exact match: neither an extra space nor a different number of underscores will work, and the form will not let such text be saved and will tell you what is wrong."
+
+msgid "catform.help.rules"
+msgstr "<b>Rules (Full)</b> — a detailed description of the signs for the second, careful pass. Write them as separate paragraphs using the \"Add rule\" button — for example, one paragraph on what we are looking for in general, another with a list of specific signs, another on which combination of them counts as the signal being found and how it affects the risk level. The <code>&lt;signal_category&gt;</code> tag is wrapped around automatically — you do not need to write it yourself."
+
+msgid "catform.help.scene"
+msgstr "<b>Scene example</b> — optional; a ready-made analysis of a similar situation helps the model."
+
+msgid "catform.help.summary"
+msgstr "<b>Summary</b> — a short description in English for a quick first pass: what must be visible in the photo for the model to look closely at this category at all."
+
+msgid "catform.help.title"
+msgstr "How a category works — read before your first time"
+
+msgid "catform.insert_placeholder"
+msgstr "Insert __OUTPUT_LANGUAGE__"
+
+msgid "catform.js.rule_delete"
+msgstr "Delete this rule"
+
+msgid "catform.js.scene_add"
+msgstr "+ Add scene"
+
+msgid "catform.js.scene_delete"
+msgstr "✕ Delete scene"
+
+msgid "catform.js.scene_desc"
+msgstr "Scene description"
+
+msgid "catform.js.scene_title"
+msgstr "Scene {letter}"
+
+msgid "catform.js.signal_add"
+msgstr "+ Add signal"
+
+msgid "catform.js.signal_delete"
+msgstr "Delete signal"
+
+msgid "catform.js.signals_label"
+msgstr "Signals (empty — no signals)"
+
+msgid "catform.name.hint"
+msgstr "Latin letters, digits and \"_\" only. Change with care — the analysis server sees this same name in the prompt."
+
+msgid "catform.new"
+msgstr "New category"
+
+msgid "catform.rule.add"
+msgstr "+ Add rule"
+
+msgid "catform.rules.hint"
+msgstr "Each block below is a separate paragraph of the final text. Add one meaningful block at a time: what we look for → specific signs → when to count the signal as found → how it affects risk."
+
+msgid "catform.rules.label"
+msgstr "Rules (Full) — used in the careful second pass"
+
+msgid "catform.scenes.hint"
+msgstr "Ready-made analyses of similar situations for the model — separately for each language. A scene: a description, a list of signals (id and category are filled in automatically), a rationale, a risk level and the \"needs human review\" flag. The JSON is assembled automatically."
+
+msgid "catform.scenes.label"
+msgstr "Scene examples"
+
+msgid "catform.title"
+msgstr "Category \"%(name)s\""
+
+msgid "catform.title.hint"
+msgstr "Only for the list in this panel; it does not affect analysis."
+
+msgid "chat.action.cancelled"
+msgstr "Cancelled by the administrator."
+
+msgid "chat.action.detail.delete"
+msgstr "The account, all its analyses, chats and image files will be permanently deleted"
+
+msgid "chat.action.detail.role"
+msgstr "Role: %(old)s → %(new)s"
+
+msgid "chat.action.detail.role_lost"
+msgstr "The current role \"%(role)s\" will be lost: after unblocking the user will become a regular user"
+
+msgid "chat.action.detail.unblock_role"
+msgstr "Role after unblocking: User"
+
+msgid "chat.action.done.delete"
+msgstr "The account \"%(name)s\" was deleted together with its data."
+
+msgid "chat.action.done.edit"
+msgstr "The data of \"%(name)s\" was updated: %(fields)s."
+
+msgid "chat.action.done.role"
+msgstr "The role of \"%(name)s\" was changed: %(old)s → %(new)s."
+
+msgid "chat.action.error.already_blocked"
+msgstr "the user is already blocked"
+
+msgid "chat.action.error.foreign"
+msgstr "the request belongs to another administrator"
+
+msgid "chat.action.error.head_only"
+msgstr "user actions are available only to the head administrator"
+
+msgid "chat.action.error.no_rights"
+msgstr "you have no permission to manage this user"
+
+msgid "chat.action.error.not_blocked"
+msgstr "the user is not blocked"
+
+msgid "chat.action.error.processed"
+msgstr "the request has already been processed"
+
+msgid "chat.action.error.role_forbidden"
+msgstr "this role cannot be assigned; available: %(roles)s"
+
+msgid "chat.action.error.same_role"
+msgstr "the user already has the role \"%(role)s\""
+
+msgid "chat.action.error.self"
+msgstr "you cannot change, block or delete your own account"
+
+msgid "chat.action.error.type_login"
+msgstr "to delete, enter the login \"%(username)s\" exactly as written"
+
+msgid "chat.action.error.user_not_found"
+msgstr "user not found (an exact login or id is required)"
+
+msgid "chat.action.expired"
+msgstr "The confirmation period has expired."
+
+msgid "chat.action.expired_retry"
+msgstr "The confirmation period has expired. Ask to prepare the action again."
+
+msgid "chat.action.failed"
+msgstr "Not done: %(error)s."
+
+msgid "chat.action.failed_internal"
+msgstr "Not done: internal error."
+
+msgid "chat.action.summary.block"
+msgstr "Block \"%(name)s\""
+
+msgid "chat.action.summary.delete"
+msgstr "Delete the account \"%(name)s\" with all its data"
+
+msgid "chat.action.summary.edit"
+msgstr "Change the data of \"%(name)s\""
+
+msgid "chat.action.summary.set_role"
+msgstr "Change the role of \"%(name)s\" to \"%(new)s\""
+
+msgid "chat.action.summary.unblock"
+msgstr "Unblock \"%(name)s\""
+
+msgid "chat.action.title.set_role"
+msgstr "Change role"
+
+msgid "chat.attach.empty"
+msgstr "The file \"%(name)s\" is empty."
+
+msgid "chat.attach.label"
+msgstr "Attach an image"
+
+msgid "chat.attach.not_image"
+msgstr "The file \"%(name)s\" is not an image or is corrupted."
+
+msgid "chat.attach.title"
+msgstr "Attach an image (up to %(count)s, up to %(mb)s MB each)"
+
+msgid "chat.attach.too_big"
+msgstr "The file \"%(name)s\" is too large (at most %(mb)s MB)."
+
+msgid "chat.attach.too_many"
+msgstr "You can attach at most %(max)s images to one message."
+
+msgid "chat.attach.unsupported"
+msgstr "The format of the file \"%(name)s\" is not supported."
+
+msgid "chat.category.confirm_hint"
+msgstr "To delete, enter the category name: "
+
+msgid "chat.category.detail.create"
+msgstr "It will be created DISABLED (a draft): it does not take part in analyses until enabled by a separate request"
+
+msgid "chat.category.detail.delete"
+msgstr "The category will be deleted permanently; its name will remain in already saved analyses"
+
+msgid "chat.category.detail.delete_hint"
+msgstr "If you only need to remove it from analysis — disable it instead of deleting"
+
+msgid "chat.category.detail.disable"
+msgstr "The category will stop taking part in new analyses; it will be kept and can be enabled again"
+
+msgid "chat.category.detail.enable"
+msgstr "The category will start being sent to the analysis server and affect the analyses of all users"
+
+msgid "chat.category.detail.title"
+msgstr "Title: %(title)s"
+
+msgid "chat.category.detail.update"
+msgstr "The change will affect the analyses of all users if the category is enabled"
+
+msgid "chat.category.done.create"
+msgstr "The category \"%(name)s\" was created disabled (a draft). It can be enabled with a separate request."
+
+msgid "chat.category.done.update"
+msgstr "The category \"%(name)s\" was updated: %(fields)s."
+
+msgid "chat.category.error.admins_only"
+msgstr "only panel administrators can manage categories"
+
+msgid "chat.category.error.already_disabled"
+msgstr "the category is already disabled"
+
+msgid "chat.category.error.already_enabled"
+msgstr "the category is already enabled"
+
+msgid "chat.category.error.changed"
+msgstr "the category changed after the request was prepared — ask to prepare the change again"
+
+msgid "chat.category.error.not_found"
+msgstr "category not found (an exact name from the list or an id is required)"
+
+msgid "chat.category.error.type_name"
+msgstr "to delete, enter the name \"%(name)s\" exactly as written"
+
+msgid "chat.category.field.position"
+msgstr "Position"
+
+msgid "chat.category.page_link"
+msgstr "category page"
+
+msgid "chat.category.summary.create"
+msgstr "Create the category \"%(name)s\""
+
+msgid "chat.category.summary.delete"
+msgstr "Delete the category \"%(name)s\""
+
+msgid "chat.category.summary.disable"
+msgstr "Disable the category \"%(name)s\""
+
+msgid "chat.category.summary.enable"
+msgstr "Enable the category \"%(name)s\""
+
+msgid "chat.category.summary.update"
+msgstr "Change the category \"%(name)s\""
+
+msgid "chat.category.title.create"
+msgstr "Create a category"
+
+msgid "chat.category.title.delete"
+msgstr "Delete a category"
+
+msgid "chat.category.title.disable"
+msgstr "Disable a category"
+
+msgid "chat.category.title.enable"
+msgstr "Enable a category"
+
+msgid "chat.category.title.update"
+msgstr "Change a category"
+
+msgid "chat.composer.hint"
+msgstr "Enter — send · Shift+Enter — new line · ↑/↓ — previous messages · you can drag an image in or paste it from the clipboard"
+
+msgid "chat.copy_all"
+msgstr "Copy the whole conversation to the clipboard"
+
+msgid "chat.delete"
+msgstr "Delete chat"
+
+msgid "chat.delete.confirm"
+msgstr "Delete this chat permanently?"
+
+msgid "chat.empty.hint"
+msgstr "Ask about risk categories, what an existing /analyze report means, sampling settings — or attach an image (paperclip, drag and drop, or paste from the clipboard) and ask a question about it — the model will see the picture itself. To run a full risk analysis, ask it to add the image to the analysis: it will join the shared queue and the result will appear in the chat on its own."
+
+msgid "chat.empty.title"
+msgstr "chat is empty"
+
+msgid "chat.error.busy"
+msgstr "The model is still answering the previous message — wait for the answer."
+
+msgid "chat.error.empty"
+msgstr "Empty message."
+
+msgid "chat.error.too_long"
+msgstr "The message is too long (at most %(max)s characters)."
+
+msgid "chat.export.analyses"
+msgstr "Analyses: %(items)s"
+
+msgid "chat.export.attachments"
+msgstr "Attachments: %(names)s"
+
+msgid "chat.export.created"
+msgstr "Created: %(date)s"
+
+msgid "chat.export.model"
+msgstr "Model"
+
+msgid "chat.export.title"
+msgstr "Chat: %(title)s"
+
+msgid "chat.export.you"
+msgstr "You"
+
+msgid "chat.export_json"
+msgstr "Export conversation as JSON"
+
+msgid "chat.fallback_reply"
+msgstr "Could not get data from the analysis history. Try rephrasing the question."
+
+msgid "chat.heading"
+msgstr "Chat with the model"
+
+msgid "chat.input.placeholder"
+msgstr "Message…"
+
+msgid "chat.job.cancelled"
+msgstr "%(subject)s was cancelled — the queue entry no longer exists."
+
+msgid "chat.job.default_label"
+msgstr "Analysis #%(id)s"
+
+msgid "chat.job.done"
+msgstr "%(subject)s is complete. Risk level: %(risk)s."
+
+msgid "chat.job.failed"
+msgstr "%(subject)s finished with an error: %(error)s"
+
+msgid "chat.job.needs_review"
+msgstr "Human review is required."
+
+msgid "chat.job.see_report"
+msgstr "The detailed report is in the link below."
+
+msgid "chat.job.subject_image"
+msgstr "Analysis of the image \"%(name)s\""
+
+msgid "chat.job.subject_link"
+msgstr "Analysis of the link \"%(name)s\""
+
+msgid "chat.new"
+msgstr "+ New chat"
+
+msgid "chat.resize.label"
+msgstr "Resize the chat window (arrow keys — resize, Home — reset)"
+
+msgid "chat.resize.title"
+msgstr "Drag to resize. Double-click to reset"
+
+msgid "chat.role.model"
+msgstr "model"
+
+msgid "chat.role.user"
+msgstr "you"
+
+msgid "chat.send"
+msgstr "Send"
+
+msgid "chat.session.default_title"
+msgstr "New chat"
+
+msgid "chat.sessions.empty"
+msgstr "There are no chats yet."
+
+msgid "chat.sessions.hide"
+msgstr "Hide chat list"
+
+msgid "chat.sessions.show"
+msgstr "Show chat list"
+
+msgid "chat.subtitle"
+msgstr "Free-form conversation with the model, without the risk-analysis JSON schema."
+
+msgid "chat.target.answering"
+msgstr "Currently answering: <strong>%(backend)s</strong> · model: <strong>%(model)s</strong>."
+
+msgid "chat.target.default"
+msgstr "The default backend answers."
+
+msgid "chat.title.image"
+msgstr "Image: %(name)s"
+
+msgid "common.cancel"
+msgstr "Cancel"
+
+msgid "common.change"
+msgstr "Change"
+
+msgid "common.delete"
+msgstr "Delete"
+
+msgid "common.id_col"
+msgstr "#"
+
+msgid "common.id_tag"
+msgstr "#%(id)s"
+
+msgid "common.nothing_found"
+msgstr "Nothing found."
+
+msgid "common.save"
+msgstr "Save"
+
+msgid "credentials.error.bad_master"
+msgstr "%(env)s has an invalid format (a Fernet key is required: 32 bytes in urlsafe base64)."
+
+msgid "credentials.error.chars"
+msgstr "The key must not contain spaces, line breaks or non-ASCII characters."
+
+msgid "credentials.error.empty"
+msgstr "The key is empty."
+
+msgid "credentials.error.setup"
+msgstr "The %(env)s variable is not set — API keys cannot be stored without it. Generate a value with: python -c \"from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())\" — put it in the .env file in the project root (%(env)s=...) and restart the application."
+
+msgid "credentials.error.too_long"
+msgstr "The key value is too long."
+
+msgid "dashboard.heading"
+msgstr "New image analysis"
+
+msgid "dashboard.intake.drop_hint"
+msgstr "or drag files here"
+
+msgid "dashboard.intake.label"
+msgstr "Links to posts or images"
+
+msgid "dashboard.intake.pick"
+msgstr "Choose images"
+
+msgid "dashboard.intake.placeholder"
+msgstr "Paste a link to a post or image (Ctrl+V). For several links, put each on a new line."
+
+msgid "dashboard.queue.empty"
+msgstr "The queue is empty. Uploaded files and links will appear here."
+
+msgid "dashboard.queue.error"
+msgstr "Unable to refresh the queue — retrying…"
+
+msgid "dashboard.queue.hint"
+msgstr "Processing runs in the background: you can close the page and the queue will not be lost. Finished results will appear on the right."
+
+msgid "dashboard.queue.title"
+msgstr "Queue"
+
+msgid "dashboard.recent.empty"
+msgstr "No completed analyses yet. Upload your first image or link on the left."
+
+msgid "dashboard.recent.title"
+msgstr "Recent uploads"
+
+msgid "dashboard.sources.direct"
+msgstr "direct image links"
+
+msgid "dashboard.sources.hint"
+msgstr "The analysis server fetches the image and post text. For videos, the cover is used."
+
+msgid "dashboard.sources.label"
+msgstr "Supported sites"
+
+msgid "dashboard.sources.news"
+msgstr "news sites"
+
+msgid "dashboard.submit"
+msgstr "Add to queue"
+
+msgid "dashboard.subtitle"
+msgstr "Upload files or paste links to posts — everything is queued and processed by the vision model one at a time."
+
+msgid "dashboard.target.analyzing"
+msgstr "Analyzed by <strong>%(model)s</strong> on <strong>%(backend)s</strong>"
+
+msgid "dashboard.target.default"
+msgstr "The default backend and model are used."
+
+msgid "dashboard.target.default_model"
+msgstr "default model"
+
+msgid "dashboard.upload.title"
+msgstr "Upload"
+
+msgid "error.404.text"
+msgstr "This page does not exist or you do not have access to it."
+
+msgid "error.404.title"
+msgstr "Page not found"
+
+msgid "error.405.text"
+msgstr "This address does not accept this type of request."
+
+msgid "error.405.title"
+msgstr "Method not allowed"
+
+msgid "error.500.text"
+msgstr "Something went wrong. Please try again later."
+
+msgid "error.500.title"
+msgstr "Internal error"
+
+msgid "error.card.home"
+msgstr "Go to home page"
+
+msgid "flash.account.delete_mismatch"
+msgstr "The confirmation command was entered incorrectly. The account was not deleted."
+
+msgid "flash.account.deleted"
+msgstr "The account \"%(username)s\" has been deleted."
+
+msgid "flash.account.updated"
+msgstr "Account information updated."
+
+msgid "flash.avatar.bad_params"
+msgstr "Invalid editor parameters."
+
+msgid "flash.avatar.deleted"
+msgstr "Avatar deleted."
+
+msgid "flash.avatar.no_file"
+msgstr "No file selected."
+
+msgid "flash.avatar.updated"
+msgstr "Avatar updated."
+
+msgid "flash.backend.analysis_cleared"
+msgstr "Selection reset: the server picks the backend, the model is auto."
+
+msgid "flash.backend.analysis_set"
+msgstr "Analyses will run on \"%(name)s\", model: %(model)s."
+
+msgid "flash.backend.analysis_uses"
+msgstr "Analyses run on \"%(title)s\"."
+
+msgid "flash.backend.chat_cleared"
+msgstr "The chat uses the same backend and model as analyses again."
+
+msgid "flash.backend.chat_set"
+msgstr "The chat will answer on \"%(name)s\", model: %(model)s."
+
+msgid "flash.backend.chat_uses"
+msgstr "The chat answers on \"%(title)s\"."
+
+msgid "flash.backend.down_warning"
+msgstr "\"%(title)s\" is currently unavailable — requests will fail (or go to another backend if fallback is on)."
+
+msgid "flash.backend.not_configured"
+msgstr "\"%(title)s\" is not configured — first enter the connection details (API key) on its card."
+
+msgid "flash.backend.unavailable"
+msgstr "The backend \"%(name)s\" is currently unavailable."
+
+msgid "flash.categories.exist"
+msgstr "Categories already exist — loading from the server is only for an empty list."
+
+msgid "flash.categories.import_failed"
+msgstr "Could not get categories from the analysis server — check that it is running."
+
+msgid "flash.categories.imported"
+msgstr "Categories were loaded from the analysis server."
+
+msgid "flash.category.added"
+msgstr "The category \"%(name)s\" has been added."
+
+msgid "flash.category.delete_stale"
+msgstr "Could not delete the category — the session is outdated, please try again."
+
+msgid "flash.category.deleted"
+msgstr "The category \"%(name)s\" has been deleted."
+
+msgid "flash.category.disabled"
+msgstr "The category \"%(name)s\" has been disabled."
+
+msgid "flash.category.enabled"
+msgstr "The category \"%(name)s\" has been enabled."
+
+msgid "flash.category.updated"
+msgstr "The category \"%(name)s\" has been updated."
+
+msgid "flash.csrf_expired"
+msgstr "The session has expired or the form is outdated. Please repeat the action."
+
+msgid "flash.file_too_large"
+msgstr "The file is too large. The maximum size is %(limit)s MB."
+
+msgid "flash.forbidden"
+msgstr "You do not have permission to access this page."
+
+msgid "flash.history.deleted"
+msgstr "Entries deleted: %(count)s."
+
+msgid "flash.history.new_cleared"
+msgstr "\"New\" marks cleared: %(items)s."
+
+msgid "flash.history.no_new"
+msgstr "There are no new marks."
+
+msgid "flash.history.none_selected"
+msgstr "Nothing selected."
+
+msgid "flash.history.nothing_to_delete"
+msgstr "Nothing to delete."
+
+msgid "flash.key.already_unset"
+msgstr "The key was not set anyway."
+
+msgid "flash.key.default_lost"
+msgstr "\"%(title)s\" is the default backend on the server and the key is gone: requests without an explicit choice will fail. Choose another backend in the \"Backend in use\" block."
+
+msgid "flash.key.empty"
+msgstr "Nothing to save: the field is empty (an empty field means \"do not change\")."
+
+msgid "flash.key.erased"
+msgstr "The key \"%(title)s\" has been erased."
+
+msgid "flash.key.no_answer"
+msgstr "no response"
+
+msgid "flash.key.saved_down"
+msgstr "The key \"%(title)s\" was saved, but the backend does not respond: %(reason)s"
+
+msgid "flash.key.saved_ok"
+msgstr "The key \"%(title)s\" was saved — the backend responds. You can load the model list with the \"Refresh list\" button."
+
+msgid "flash.key.saved_unchecked"
+msgstr "The key \"%(title)s\" was saved, but it could not be verified: %(error)s"
+
+msgid "flash.login.bad_credentials"
+msgstr "Wrong login or password."
+
+msgid "flash.login.inactive"
+msgstr "This account has been deactivated."
+
+msgid "flash.login.welcome_back"
+msgstr "Welcome back, %(username)s!"
+
+msgid "flash.logout"
+msgstr "You have logged out."
+
+msgid "flash.model.not_found"
+msgstr "The model \"%(model)s\" was not found on the backend \"%(name)s\"."
+
+msgid "flash.model.too_long"
+msgstr "The model name is too long."
+
+msgid "flash.models.fetch_failed"
+msgstr "Could not fetch the model list of \"%(title)s\": %(error)s"
+
+msgid "flash.models.refreshed"
+msgstr "The model list of \"%(title)s\" was refreshed: %(count)s."
+
+msgid "flash.panel.blocked"
+msgstr "The user \"%(username)s\" has been blocked."
+
+msgid "flash.panel.history_cleared"
+msgstr "The history of the user \"%(username)s\" was cleared: %(items)s deleted."
+
+msgid "flash.panel.no_analyses"
+msgstr "The user \"%(username)s\" has no completed analyses."
+
+msgid "flash.panel.no_block_rights"
+msgstr "You have no permission to block this user."
+
+msgid "flash.panel.no_delete_rights"
+msgstr "You have no permission to delete this user."
+
+msgid "flash.panel.role_changed"
+msgstr "The role of the user \"%(username)s\" was changed: %(old)s → %(new)s."
+
+msgid "flash.panel.role_forbidden"
+msgstr "You cannot assign this role."
+
+msgid "flash.panel.unblocked"
+msgstr "The user \"%(username)s\" has been unblocked."
+
+msgid "flash.panel.user_updated"
+msgstr "The data of the user \"%(username)s\" has been updated."
+
+msgid "flash.prompt.default_active"
+msgstr "The default chat system prompt is in effect."
+
+msgid "flash.prompt.reset"
+msgstr "The chat system prompt was reset to the default."
+
+msgid "flash.prompt.saved"
+msgstr "The chat system prompt was saved. It will apply from the next message."
+
+msgid "flash.queue.added"
+msgstr "Added to the queue: %(items)s (%(numbers)s)."
+
+msgid "flash.queue.and"
+msgstr " and "
+
+msgid "flash.queue.cannot_cancel"
+msgstr "The analysis is already being processed or finished — it cannot be cancelled."
+
+msgid "flash.queue.removed"
+msgstr "Removed from the queue."
+
+msgid "flash.queue.total_limit"
+msgstr "The shared queue is full (%(count)s of %(limit)s). Try again later."
+
+msgid "flash.queue.user_limit"
+msgstr "You already have %(count)s in your queue, the maximum is %(limit)s. Wait for processing and try again."
+
+msgid "flash.register.first_user"
+msgstr "Registration complete. You are the first user of the system — you have been given the \"Head administrator\" role."
+
+msgid "flash.register.ok"
+msgstr "Registration successful. Welcome!"
+
+msgid "flash.rename.done"
+msgstr "The name has been changed."
+
+msgid "flash.rename.empty"
+msgstr "The name cannot be empty."
+
+msgid "flash.rename.too_long"
+msgstr "The name is too long: at most %(max)s characters."
+
+msgid "flash.rename.unchanged"
+msgstr "The name has not changed."
+
+msgid "flash.result.deleted"
+msgstr "Result deleted."
+
+msgid "flash.result.pending"
+msgstr "The analysis is not finished yet — wait for the result or cancel it in the queue."
+
+msgid "flash.sampling.empty"
+msgstr "Nothing to save: all fields are empty (an empty field means \"do not change\")."
+
+msgid "flash.sampling.invalid"
+msgstr "The parameters were not saved — fix the errors in the form."
+
+msgid "flash.sampling.reset"
+msgstr "Parameters of %(title)s reset to defaults."
+
+msgid "flash.sampling.saved"
+msgstr "Parameters of %(title)s updated: %(changed)s."
+
+msgid "flash.session_stale"
+msgstr "The session is outdated, please try again."
+
+msgid "flash.settings.invalid"
+msgstr "The settings were not saved — fix the errors and try again."
+
+msgid "flash.settings.saved"
+msgstr "The settings have been saved and are already in effect."
+
+msgid "flash.upload.skipped_file"
+msgstr "Skipped file \"%(name)s\": %(reason)s."
+
+msgid "flash.upload.skipped_link"
+msgstr "Skipped link \"%(link)s\": %(reason)s."
+
+msgid "flash.upload.skipped_more"
+msgstr "…and %(count)s more skipped."
+
+msgid "flash.upload.skipped_more_links"
+msgstr "…and %(count)s more links skipped."
+
+msgid "forms.account.color"
+msgstr "User color"
+
+msgid "forms.account.color_format"
+msgstr "The color is given as #rrggbb."
+
+msgid "forms.account.color_hint"
+msgstr "Colors the avatar without a picture and your messages in the chat"
+
+msgid "forms.account.display_style"
+msgstr "How to display my name"
+
+msgid "forms.account.family_name"
+msgstr "Last name"
+
+msgid "forms.account.given_name"
+msgstr "First name"
+
+msgid "forms.account.middle_name"
+msgstr "Middle name"
+
+msgid "forms.account.nickname_placeholder"
+msgstr "Optional: what your account is called"
+
+msgid "forms.account.optional"
+msgstr "Optional"
+
+msgid "forms.category.compact"
+msgstr "Compact (shortened version, fallback)"
+
+msgid "forms.category.compact_extra"
+msgstr "Extra blocks for Compact (rarely needed)"
+
+msgid "forms.category.compact_required"
+msgstr "Fill in the compact version."
+
+msgid "forms.category.examples_bad"
+msgstr "Could not parse the scene examples — refresh the page and try again."
+
+msgid "forms.category.exists"
+msgstr "A category with this name already exists."
+
+msgid "forms.category.full"
+msgstr "Full (complete rules for the second pass)"
+
+msgid "forms.category.full_extra"
+msgstr "Extra blocks for Full (rarely needed)"
+
+msgid "forms.category.full_required"
+msgstr "Fill in the full rules."
+
+msgid "forms.category.is_active"
+msgstr "Enabled (used in analysis)"
+
+msgid "forms.category.name"
+msgstr "Technical name"
+
+msgid "forms.category.name_chars"
+msgstr "Only Latin letters, digits and \"_\" are allowed."
+
+msgid "forms.category.name_max"
+msgstr "No more than 64 characters."
+
+msgid "forms.category.name_required"
+msgstr "Enter the technical name of the category."
+
+msgid "forms.category.placeholder_typo"
+msgstr "This looks like a typo in the special word \"%(found)s\". It must be written exactly as \"%(expected)s\" (two underscores on each side, uppercase) — otherwise the analysis server will not substitute the language and the word will stay in the prompt as is."
+
+msgid "forms.category.position"
+msgstr "Order of appearance in the prompt"
+
+msgid "forms.category.position_range"
+msgstr "From 0 to 100000."
+
+msgid "forms.category.summary"
+msgstr "Summary (for the first, classifying pass)"
+
+msgid "forms.category.summary_placeholder"
+msgstr "A short description in English: what must be visible in the image for the category to become a candidate."
+
+msgid "forms.category.summary_required"
+msgstr "Fill in the summary."
+
+msgid "forms.category.title"
+msgstr "Title for the interface"
+
+msgid "forms.category.title_placeholder"
+msgstr "Weapons and dangerous objects"
+
+msgid "forms.common.email_invalid"
+msgstr "Enter a valid email address."
+
+msgid "forms.common.enter_login"
+msgstr "Enter a login."
+
+msgid "forms.common.enter_password"
+msgstr "Enter a password."
+
+msgid "forms.common.login_chars"
+msgstr "Only letters, digits and the characters @/./+/-/_ are allowed."
+
+msgid "forms.common.login_exists"
+msgstr "A user with this login already exists."
+
+msgid "forms.common.max150"
+msgstr "No more than 150 characters."
+
+msgid "forms.common.password"
+msgstr "Password"
+
+msgid "forms.delete.confirm_label"
+msgstr "Confirmation"
+
+msgid "forms.delete.confirm_required"
+msgstr "Enter the confirmation command."
+
+msgid "forms.link.invalid"
+msgstr "invalid address"
+
+msgid "forms.link.need_url"
+msgstr "a link like https://… is required"
+
+msgid "forms.link.too_long"
+msgstr "link is too long"
+
+msgid "forms.number.allowed"
+msgstr "Allowed value: %(range)s."
+
+msgid "forms.number.finite"
+msgstr "Enter an ordinary number."
+
+msgid "forms.number.float"
+msgstr "Enter a number (for example, 0.7)."
+
+msgid "forms.number.int"
+msgstr "Enter an integer."
+
+msgid "forms.number.or_auto"
+msgstr " or auto"
+
+msgid "forms.number.placeholder_int"
+msgstr "integer"
+
+msgid "forms.number.placeholder_number"
+msgstr "number"
+
+msgid "forms.password.common"
+msgstr "This password is too common."
+
+msgid "forms.password.digits_only"
+msgstr "The password cannot consist of digits only."
+
+msgid "forms.password.similar"
+msgstr "The password is too similar to the login."
+
+msgid "forms.password.too_short"
+msgstr "The password is too short. At least %(min)s characters."
+
+msgid "forms.prompt.too_long"
+msgstr "The prompt is too long: no more than %(limit)s characters."
+
+msgid "forms.range.any"
+msgstr "any number"
+
+msgid "forms.range.from_to"
+msgstr "from %(lo)s to %(hi)s"
+
+msgid "forms.range.ge"
+msgstr "at least %(lo)s"
+
+msgid "forms.range.gt"
+msgstr "greater than %(lo)s"
+
+msgid "forms.range.gt_to"
+msgstr "greater than %(lo)s to %(hi)s"
+
+msgid "forms.range.le"
+msgstr "at most %(hi)s"
+
+msgid "forms.register.mismatch"
+msgstr "The passwords you entered do not match."
+
+msgid "forms.register.password2"
+msgstr "Confirm password"
+
+msgid "forms.register.password2_placeholder"
+msgstr "Repeat the password"
+
+msgid "forms.register.password_placeholder"
+msgstr "Choose a password"
+
+msgid "forms.register.repeat_required"
+msgstr "Repeat the password."
+
+msgid "forms.register.username"
+msgstr "Username"
+
+msgid "forms.register.username_placeholder"
+msgstr "Choose a login"
+
+msgid "forms.setting.default"
+msgstr "Default: %(value)s."
+
+msgid "forms.upload.empty"
+msgstr "file is empty"
+
+msgid "forms.upload.images"
+msgstr "Images"
+
+msgid "forms.upload.invalid"
+msgstr "Upload a valid image or link. %(reasons)s"
+
+msgid "forms.upload.links"
+msgstr "Links to posts"
+
+msgid "forms.upload.not_image"
+msgstr "not an image or is corrupted"
+
+msgid "forms.upload.nothing"
+msgstr "Choose an image file or paste a link to a post."
+
+msgid "forms.upload.reason"
+msgstr "\"%(name)s\": %(why)s"
+
+msgid "forms.upload.too_many"
+msgstr "You can upload no more than %(max)s files at a time."
+
+msgid "forms.upload.too_many_total"
+msgstr "You can add no more than %(max)s files and links in total at a time."
+
+msgid "forms.upload.unsupported"
+msgstr "format is not supported"
+
+msgid "health.cache_hint"
+msgstr "Backend state is kept in a cache; tabs switch without requests to the server."
+
+msgid "health.card.address"
+msgstr "Address"
+
+msgid "health.card.error"
+msgstr "Error"
+
+msgid "health.card.in_use"
+msgstr "In use"
+
+msgid "health.card.model_auto"
+msgstr "Model (auto)"
+
+msgid "health.card.model_selected"
+msgstr "Selected model"
+
+msgid "health.card.not_configured"
+msgstr "Not configured"
+
+msgid "health.card.ok"
+msgstr "Working"
+
+msgid "health.card.selected_down"
+msgstr "Selected but unavailable"
+
+msgid "health.card.unavailable"
+msgstr "Unavailable"
+
+msgid "health.card.via_fallback"
+msgstr "(fallback)"
+
+msgid "health.conn.title"
+msgstr "Connection"
+
+msgid "health.current.auto_model"
+msgstr "<strong>%(backend)s</strong>, model: auto"
+
+msgid "health.current.explicit"
+msgstr "<strong>%(backend)s</strong>, model: <strong>%(model)s</strong>"
+
+msgid "health.current.fallback"
+msgstr "(fallback: the server's primary backend is unavailable)"
+
+msgid "health.current.follows"
+msgstr "Same as for analyses: <strong>%(backend)s</strong>, model: <strong>%(model)s</strong>"
+
+msgid "health.current.none"
+msgstr "<strong>nothing</strong>: no backend is available right now"
+
+msgid "health.fallback_off"
+msgstr "Fallback is off — requests will fail with an error."
+
+msgid "health.fallback_on"
+msgstr "Fallback is on — requests will go to another available backend if the server can manage it."
+
+msgid "health.heading"
+msgstr "Analysis server"
+
+msgid "health.hint.analysis"
+msgstr "The choice for analyses does not affect chat until chat has its own."
+
+msgid "health.hint.chat"
+msgstr "The choice for chat does not affect analyses."
+
+msgid "health.hint.fallback_off"
+msgstr "Fallback is off: the request goes strictly to the selected backend."
+
+msgid "health.hint.fallback_on"
+msgstr "If a backend is unavailable or responds with 5xx, the server tries the next one: local first, then cloud ones (when a key is set)."
+
+msgid "health.key.erase"
+msgstr "Erase"
+
+msgid "health.key.erase.confirm"
+msgstr "Erase the saved key \"%(title)s\"?"
+
+msgid "health.key.locked_aria"
+msgstr "%(label)s (set, cannot be changed — erase it first)"
+
+msgid "health.key.no_master"
+msgstr "The key cannot be saved: the <code>VISION_CREDENTIALS_KEY</code> environment variable (the master encryption key) is not set. Generate a value with <code>python -c \"from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())\"</code> and restart the application."
+
+msgid "health.key.placeholder"
+msgstr "Paste the value"
+
+msgid "health.key.replace_hint"
+msgstr "To replace the key, first erase the current one, then enter a new one."
+
+msgid "health.key.set"
+msgstr "set"
+
+msgid "health.key.undecryptable"
+msgstr "cannot be decrypted — enter it again"
+
+msgid "health.key.unset"
+msgstr "not set"
+
+msgid "health.model.aria"
+msgstr "Model %(name)s"
+
+msgid "health.model.auto"
+msgstr "auto"
+
+msgid "health.model.placeholder"
+msgstr "Model ID (empty — auto)"
+
+msgid "health.model.title"
+msgstr "Model"
+
+msgid "health.models.cached"
+msgstr "Loaded %(date)s; kept in a cache, the page does not contact the provider for it."
+
+msgid "health.models.empty"
+msgstr "The backend returned no model list — enter the ID manually or leave it empty (auto)."
+
+msgid "health.models.error"
+msgstr "Could not fetch the model list: %(error)s. Enter the model ID manually."
+
+msgid "health.models.not_loaded"
+msgstr "The model list has not been loaded yet — click \"Refresh list\" or enter the ID manually."
+
+msgid "health.models.refresh"
+msgstr "Refresh list"
+
+msgid "health.option.auto"
+msgstr "Auto (decided by the server)"
+
+msgid "health.option.auto.lower"
+msgstr "auto (decided by the server)"
+
+msgid "health.option.like_analysis"
+msgstr "Same as for analyses"
+
+msgid "health.option.not_configured"
+msgstr "— not configured"
+
+msgid "health.option.unavailable"
+msgstr "— unavailable"
+
+msgid "health.refresh"
+msgstr "Refresh status"
+
+msgid "health.sampling.hint"
+msgstr "Leave a field empty to keep it unchanged. The parameters apply <strong>only to this backend</strong>: every backend has its own set of parameters and allowed values, and changes here do not affect other backends. They take effect immediately for all later requests to it (including those from other clients of the server)."
+
+msgid "health.sampling.reset"
+msgstr "Reset to defaults"
+
+msgid "health.sampling.save"
+msgstr "Save parameters"
+
+msgid "health.sampling.title"
+msgstr "Generation parameters"
+
+msgid "health.select.label"
+msgstr "Backend in use"
+
+msgid "health.server_down"
+msgstr "Server unavailable"
+
+msgid "health.subtitle"
+msgstr "Backends of vision_analyzer_server.py"
+
+msgid "health.subtitle.configure"
+msgstr ": model selection and generation parameters"
+
+msgid "health.tab.analysis"
+msgstr "Analysis"
+
+msgid "health.tab.chat"
+msgstr "Chat"
+
+msgid "health.tabs.label"
+msgstr "Purpose"
+
+msgid "health.target.analysis"
+msgstr "analysis"
+
+msgid "health.target.analysis_gen"
+msgstr "analysis"
+
+msgid "health.target.chat"
+msgstr "chat"
+
+msgid "health.target.chat_gen"
+msgstr "chat"
+
+msgid "health.target_down"
+msgstr "The selected backend \"%(backend)s\" is unavailable."
+
+msgid "health.unavailable.need_key"
+msgstr "Enter the connection details above — then model selection and generation parameters will appear here."
+
+msgid "health.unavailable.wait"
+msgstr "Model selection and parameters will become available once the backend is up."
+
+msgid "health.use"
+msgstr "Use"
+
+msgid "health.use_for"
+msgstr "Use for %(target)s"
+
+msgid "health.used_backend"
+msgstr "Backend in use — %(target)s"
+
+msgid "history.all"
+msgstr "All history"
+
+msgid "history.col.backend"
+msgstr "Backend"
+
+msgid "history.col.date"
+msgstr "Date"
+
+msgid "history.col.file"
+msgstr "File"
+
+msgid "history.col.review"
+msgstr "Human review"
+
+msgid "history.col.risk"
+msgstr "Risk"
+
+msgid "history.delete_selected"
+msgstr "Delete selected"
+
+msgid "history.delete_selected.confirm"
+msgstr "Delete the selected entries together with their images? This cannot be undone."
+
+msgid "history.empty.no_match"
+msgstr "Nothing found for \"%(query)s\"."
+
+msgid "history.empty.none"
+msgstr "History is empty — there are no completed analyses yet."
+
+msgid "history.heading"
+msgstr "Analysis history"
+
+msgid "history.reset_new"
+msgstr "Clear \"new\" marks (%(count)s)"
+
+msgid "history.review.no"
+msgstr "no"
+
+msgid "history.review.yes"
+msgstr "yes"
+
+msgid "history.search.placeholder"
+msgstr "Search by file name or number…"
+
+msgid "history.select_all"
+msgstr "Select all on this page"
+
+msgid "history.select_row"
+msgstr "Select entry %(id)s"
+
+msgid "history.subtitle"
+msgstr "All completed analyses of your images. Queued files are shown on the \"New analysis\" page."
+
+msgid "history.tag.error"
+msgstr "error"
+
+msgid "history.tag.new"
+msgstr "new"
+
+msgid "js.avatar.anim_too_big"
+msgstr "The animation is too large: at most {mb} MB."
+
+msgid "js.avatar.cannot_open"
+msgstr "Could not open the image. Try PNG, JPEG, WebP or GIF."
+
+msgid "js.avatar.prepare_failed"
+msgstr "Could not prepare the image."
+
+msgid "js.avatar.save_failed"
+msgstr "Could not save the avatar."
+
+msgid "js.avatar.save_failed_reload"
+msgstr "Could not save the avatar. Refresh the page and try again."
+
+msgid "js.avatar.too_big"
+msgstr "The file is too large."
+
+msgid "js.chat.action.cancel"
+msgstr "Cancel"
+
+msgid "js.chat.action.cancelled"
+msgstr "Cancelled"
+
+msgid "js.chat.action.confirm"
+msgstr "Confirm"
+
+msgid "js.chat.action.done"
+msgstr "Done"
+
+msgid "js.chat.action.expired"
+msgstr "The confirmation period has expired"
+
+msgid "js.chat.action.failed"
+msgstr "Not done"
+
+msgid "js.chat.action.running"
+msgstr "Running…"
+
+msgid "js.chat.action.title"
+msgstr "Action"
+
+msgid "js.chat.action.user_page"
+msgstr "user page"
+
+msgid "js.chat.analyses_count"
+msgstr "analyses: {n}"
+
+msgid "js.chat.analysis_n"
+msgstr "Analysis #{id}"
+
+msgid "js.chat.attach.remove"
+msgstr "Remove attachment"
+
+msgid "js.chat.confirm_login"
+msgstr "To delete, enter the login: "
+
+msgid "js.chat.copied"
+msgstr "Copied"
+
+msgid "js.chat.error.copy"
+msgstr "Could not copy the conversation. Download it with the JSON export button."
+
+msgid "js.chat.error.lost_reply"
+msgstr "The model reply was not received (the server may have been restarted). Send the message again."
+
+msgid "js.chat.error.no_answer"
+msgstr "Could not get a reply."
+
+msgid "js.chat.error.no_reply"
+msgstr "Could not get a reply from the model — the message was returned to the input field."
+
+msgid "js.chat.error.offline"
+msgstr "No connection to the server."
+
+msgid "js.chat.error.rejected"
+msgstr "The server rejected the request (the files may be too large)."
+
+msgid "js.chat.error.request"
+msgstr "Could not complete the request."
+
+msgid "js.chat.error.resend"
+msgstr "Could not send the previous message — the text was returned to the input field."
+
+msgid "js.chat.error.unreachable"
+msgstr "Could not reach the server. Check the connection and try again."
+
+msgid "js.chat.file"
+msgstr "file"
+
+msgid "js.chat.image"
+msgstr "image"
+
+msgid "js.chat.not_attached"
+msgstr "Not attached: {list}."
+
+msgid "js.chat.role.error"
+msgstr "error"
+
+msgid "js.chat.role.model"
+msgstr "model"
+
+msgid "js.chat.role.user"
+msgstr "you"
+
+msgid "js.chat.send"
+msgstr "Send"
+
+msgid "js.chat.sending"
+msgstr "Sending…"
+
+msgid "js.chat.skip.not_image"
+msgstr "\"{name}\" — not an image"
+
+msgid "js.chat.skip.too_big"
+msgstr "\"{name}\" — larger than {mb} MB"
+
+msgid "js.chat.skip.too_many"
+msgstr "\"{name}\" — at most {max} images per message"
+
+msgid "js.chat.user_n"
+msgstr "User #{id}"
+
+msgid "js.chat.valid_until"
+msgstr "Valid until {date}"
+
+msgid "js.list.selected_other_pages"
+msgstr "(including other pages/filters)"
+
+msgid "js.list.selected_total"
+msgstr "Selected in total: {n}"
+
+msgid "js.main.analyzing"
+msgstr "Analyzing…"
+
+msgid "js.queue.cancel"
+msgstr "Remove from queue"
+
+msgid "js.queue.clear_all"
+msgstr "Clear all"
+
+msgid "js.queue.comment"
+msgstr "Comment (optional)"
+
+msgid "js.queue.files_count"
+msgstr "Files: {n}"
+
+msgid "js.queue.new"
+msgstr "new"
+
+msgid "js.queue.next"
+msgstr "Queued · next"
+
+msgid "js.queue.processing"
+msgstr "Processing · {time}"
+
+msgid "js.queue.remove_file"
+msgstr "Remove this file from the selection"
+
+msgid "js.queue.selected"
+msgstr "Selected: {n}"
+
+msgid "js.queue.uploading"
+msgstr "Uploading…"
+
+msgid "js.queue.waiting"
+msgstr "Queued · ahead of you: {ahead}"
+
+msgid "js.settings.enabled"
+msgstr "enabled"
+
+msgid "js.settings.reset"
+msgstr "reset"
+
+msgid "js.sidebar.collapse"
+msgstr "Collapse sidebar"
+
+msgid "js.sidebar.expand"
+msgstr "Expand sidebar"
+
+msgid "js.theme.accent.color"
+msgstr "Accent color"
+
+msgid "js.theme.accent.hint"
+msgstr "The color of buttons, active menu items, links and focus. Some themes set their own accent; the color chosen here overrides it."
+
+msgid "js.theme.accent.light"
+msgstr "Accent: light variant"
+
+msgid "js.theme.accent.light_hint"
+msgstr "Links and hover. By default it is picked automatically for the accent and theme."
+
+msgid "js.theme.accent.quick"
+msgstr "Quick accent choice"
+
+msgid "js.theme.accent.random"
+msgstr "Random"
+
+msgid "js.theme.accent.title"
+msgstr "Accent"
+
+msgid "js.theme.applied"
+msgstr "Theme applied."
+
+msgid "js.theme.applied_reset"
+msgstr "Theme applied. Your own surface, text and status colors were reset — \"Undo\" will bring them back."
+
+msgid "js.theme.auto"
+msgstr "Auto"
+
+msgid "js.theme.behavior.motion"
+msgstr "Reduce animations"
+
+msgid "js.theme.behavior.motion_hint"
+msgstr "Turns off smooth transitions and interface animations."
+
+msgid "js.theme.behavior.title"
+msgstr "Behavior"
+
+msgid "js.theme.color.blue"
+msgstr "Blue"
+
+msgid "js.theme.color.green"
+msgstr "Green"
+
+msgid "js.theme.color.orange"
+msgstr "Orange"
+
+msgid "js.theme.color.pink"
+msgstr "Pink"
+
+msgid "js.theme.color.red"
+msgstr "Red"
+
+msgid "js.theme.color.teal"
+msgstr "Teal"
+
+msgid "js.theme.color.violet"
+msgstr "Violet"
+
+msgid "js.theme.color.yellow"
+msgstr "Yellow"
+
+msgid "js.theme.contrast.bad"
+msgstr "poor"
+
+msgid "js.theme.contrast.low"
+msgstr "low"
+
+msgid "js.theme.default"
+msgstr "default"
+
+msgid "js.theme.export"
+msgstr "Export"
+
+msgid "js.theme.exported"
+msgstr "Theme saved to a file."
+
+msgid "js.theme.fit.full"
+msgstr "\"Full width\" is on — the slider has no effect."
+
+msgid "js.theme.fit.now"
+msgstr "The window currently fits up to {px} px."
+
+msgid "js.theme.fit.over"
+msgstr "A larger value is set — the window actually limits the width; widen it or turn on \"Content across the full window width\"."
+
+msgid "js.theme.font.aria"
+msgstr "{label} — font name"
+
+msgid "js.theme.font.code"
+msgstr "Programmer"
+
+msgid "js.theme.font.custom"
+msgstr "Custom font…"
+
+msgid "js.theme.font.grotesque"
+msgstr "Grotesque"
+
+msgid "js.theme.font.humanist"
+msgstr "Humanist"
+
+msgid "js.theme.font.mono"
+msgstr "Monospaced"
+
+msgid "js.theme.font.mono_default"
+msgstr "Monospaced (default)"
+
+msgid "js.theme.font.placeholder"
+msgstr "For example: Inter, PT Sans"
+
+msgid "js.theme.font.same"
+msgstr "Same as the main font"
+
+msgid "js.theme.font.serif"
+msgstr "Serif"
+
+msgid "js.theme.font.system"
+msgstr "System (default)"
+
+msgid "js.theme.font.wide"
+msgstr "Readable (wide)"
+
+msgid "js.theme.import"
+msgstr "Import"
+
+msgid "js.theme.import.bad_json"
+msgstr "The file is not valid JSON."
+
+msgid "js.theme.import.not_theme"
+msgstr "This is not a Vision Triage theme file."
+
+msgid "js.theme.imported"
+msgstr "Theme imported."
+
+msgid "js.theme.layout.full"
+msgstr "Content across the full window width"
+
+msgid "js.theme.layout.full_hint"
+msgstr "Removes the width limit: the content takes all the space to the right of the sidebar."
+
+msgid "js.theme.layout.hint"
+msgstr "Corner rounding and sizes of the main areas."
+
+msgid "js.theme.layout.max_width"
+msgstr "Maximum content width"
+
+msgid "js.theme.layout.max_width_hint"
+msgstr "Limits the content width; it cannot become wider than the browser window. Applied when you release the slider."
+
+msgid "js.theme.layout.radius"
+msgstr "Corner rounding"
+
+msgid "js.theme.layout.sidebar"
+msgstr "Sidebar width"
+
+msgid "js.theme.layout.sidebar_hint"
+msgstr "Applied when you release the slider."
+
+msgid "js.theme.layout.title"
+msgstr "Shape and layout"
+
+msgid "js.theme.module.hint"
+msgstr "The preset changes the palette, and for some themes the accent color too. Your fonts and shape stay as they are. Themes are grouped: dark, light and high-contrast; alphabetically within groups. In the open list you can type the first letters of a name."
+
+msgid "js.theme.module.label"
+msgstr "Appearance theme"
+
+msgid "js.theme.module.title"
+msgstr "Theme"
+
+msgid "js.theme.preview.delete"
+msgstr "Delete"
+
+msgid "js.theme.preview.dim"
+msgstr "Faint text."
+
+msgid "js.theme.preview.heading"
+msgstr "Section heading"
+
+msgid "js.theme.preview.high"
+msgstr "high"
+
+msgid "js.theme.preview.input"
+msgstr "Input field"
+
+msgid "js.theme.preview.input_aria"
+msgstr "Example of an input field"
+
+msgid "js.theme.preview.link"
+msgstr "Link"
+
+msgid "js.theme.preview.low"
+msgstr "low"
+
+msgid "js.theme.preview.medium"
+msgstr "medium"
+
+msgid "js.theme.preview.muted"
+msgstr "Muted text."
+
+msgid "js.theme.preview.primary"
+msgstr "Primary"
+
+msgid "js.theme.preview.role_admin"
+msgstr "Admin"
+
+msgid "js.theme.preview.role_head"
+msgstr "Head admin"
+
+msgid "js.theme.preview.role_user"
+msgstr "User"
+
+msgid "js.theme.preview.secondary"
+msgstr "Secondary"
+
+msgid "js.theme.preview.text"
+msgstr "Regular interface text."
+
+msgid "js.theme.preview.title"
+msgstr "Preview"
+
+msgid "js.theme.reset_all"
+msgstr "Reset everything"
+
+msgid "js.theme.reset_done"
+msgstr "Appearance reset to default."
+
+msgid "js.theme.reset_section"
+msgstr "reset section"
+
+msgid "js.theme.sample_text"
+msgstr "The quick brown fox jumps over the lazy dog 0123456789"
+
+msgid "js.theme.status.danger"
+msgstr "Dangerous actions / errors"
+
+msgid "js.theme.status.high"
+msgstr "High risk"
+
+msgid "js.theme.status.hint"
+msgstr "Colors of risk levels, errors and warnings. User role colors cannot be configured."
+
+msgid "js.theme.status.low"
+msgstr "Low risk / success"
+
+msgid "js.theme.status.medium"
+msgstr "Medium risk / warning"
+
+msgid "js.theme.status.title"
+msgstr "Statuses and warnings"
+
+msgid "js.theme.storage_note"
+msgstr "The appearance is stored only in this browser and applied automatically. Other users and devices do not see it."
+
+msgid "js.theme.surfaces.bg"
+msgstr "Page background"
+
+msgid "js.theme.surfaces.border"
+msgstr "Borders"
+
+msgid "js.theme.surfaces.border_soft"
+msgstr "Soft borders"
+
+msgid "js.theme.surfaces.hint"
+msgstr "Backgrounds and borders. Changing the preset resets these colors to the preset palette."
+
+msgid "js.theme.surfaces.hover"
+msgstr "Hover"
+
+msgid "js.theme.surfaces.input"
+msgstr "Input fields and nested blocks"
+
+msgid "js.theme.surfaces.panel"
+msgstr "Panels and cards"
+
+msgid "js.theme.surfaces.title"
+msgstr "Surfaces"
+
+msgid "js.theme.system"
+msgstr "Same as system"
+
+msgid "js.theme.text.accent_panel"
+msgstr "Accent / panel"
+
+msgid "js.theme.text.faint"
+msgstr "Faint text (captions, dates)"
+
+msgid "js.theme.text.faint_panel"
+msgstr "Faint / panel"
+
+msgid "js.theme.text.hint"
+msgstr "Text colors. The contrast with the background is shown next to each one (the WCAG AA norm is 4.5 or higher)."
+
+msgid "js.theme.text.main"
+msgstr "Main text"
+
+msgid "js.theme.text.main_bg"
+msgstr "Main / background"
+
+msgid "js.theme.text.muted"
+msgstr "Muted text"
+
+msgid "js.theme.text.muted_panel"
+msgstr "Muted / panel"
+
+msgid "js.theme.text.title"
+msgstr "Text"
+
+msgid "js.theme.typo.heading"
+msgstr "Font of headings and data"
+
+msgid "js.theme.typo.hint"
+msgstr "A custom font must be installed on your device — fonts are not loaded from the internet."
+
+msgid "js.theme.typo.line"
+msgstr "Line spacing"
+
+msgid "js.theme.typo.main"
+msgstr "Main font"
+
+msgid "js.theme.typo.size"
+msgstr "Text size"
+
+msgid "js.theme.typo.size_hint"
+msgstr "Scales the text across the whole interface. Applied when you release the slider."
+
+msgid "js.theme.typo.title"
+msgstr "Typography"
+
+msgid "js.theme.undo"
+msgstr "↶ Undo"
+
+msgid "js.theme.undone"
+msgstr "Change undone."
+
+msgid "js.theme.value_auto"
+msgstr "auto"
+
+msgid "logs.auto_refresh"
+msgstr "Auto-refresh"
+
+msgid "logs.empty.no_dir"
+msgstr "The log folder has not been created yet."
+
+msgid "logs.empty.no_files"
+msgstr "There are no log files for the source \"%(title)s\" yet."
+
+msgid "logs.empty.no_match"
+msgstr "No entries match the selected conditions."
+
+msgid "logs.file.modified"
+msgstr "modified %(date)s"
+
+msgid "logs.file.shown"
+msgstr "showing %(shown)s of %(matched)s matching entries, newest first"
+
+msgid "logs.file.truncated"
+msgstr "· the file is large, only the last %(kb)s KB were read"
+
+msgid "logs.level.all"
+msgstr "All levels"
+
+msgid "logs.level.and_above"
+msgstr "and above"
+
+msgid "logs.level.label"
+msgstr "Level"
+
+msgid "logs.limit.label"
+msgstr "How many entries"
+
+msgid "logs.limit.option"
+msgstr "%(n)s entries"
+
+msgid "logs.no_files"
+msgstr "No files"
+
+msgid "logs.refresh"
+msgstr "Refresh"
+
+msgid "logs.search"
+msgstr "Search text…"
+
+msgid "logs.size.b"
+msgstr "%(n)s B"
+
+msgid "logs.size.kb"
+msgstr "%(n)s KB"
+
+msgid "logs.size.mb"
+msgstr "%(n)s MB"
+
+msgid "logs.source.flask"
+msgstr "Flask panel"
+
+msgid "logs.source.label"
+msgstr "Log source"
+
+msgid "logs.source.server"
+msgstr "Analysis server"
+
+msgid "logs.subtitle"
+msgstr "Flask panel and analysis server — in separate tabs. This section is visible only to the head admin."
+
+msgid "models.display_style.fi"
+msgstr "Last name, first name"
+
+msgid "models.owner.deleted"
+msgstr "deleted user (id %(id)s)"
+
+msgid "nav.account.logout"
+msgstr "Log out"
+
+msgid "nav.account.profile"
+msgstr "Profile"
+
+msgid "nav.admin.analyses"
+msgstr "All analyses"
+
+msgid "nav.admin.overview"
+msgstr "Overview"
+
+msgid "nav.admin.prompts"
+msgstr "Prompts"
+
+msgid "nav.admin.users"
+msgstr "Users"
+
+msgid "nav.analysis.chat"
+msgstr "Chat"
+
+msgid "nav.analysis.history"
+msgstr "History"
+
+msgid "nav.analysis.new"
+msgstr "New analysis"
+
+msgid "nav.group.admin"
+msgstr "Control panel"
+
+msgid "nav.group.analysis"
+msgstr "Analysis"
+
+msgid "nav.group.system"
+msgstr "System"
+
+msgid "nav.sidebar.collapse"
+msgstr "Collapse sidebar"
+
+msgid "nav.system.appearance"
+msgstr "Appearance"
+
+msgid "nav.system.logs"
+msgstr "Logs"
+
+msgid "nav.system.settings"
+msgstr "Settings"
+
+msgid "nav.system.status"
+msgstr "Server status"
+
+msgid "pagination.current"
+msgstr "Page %(page)s of %(pages)s"
+
+msgid "pagination.next"
+msgstr "Next →"
+
+msgid "pagination.prev"
+msgstr "← Back"
+
+msgid "panel.analyses.all_users"
+msgstr "All users"
+
+msgid "panel.analyses.any_risk"
+msgstr "Any risk"
+
+msgid "panel.analyses.delete_filtered"
+msgstr "Delete all found (%(total)s)"
+
+msgid "panel.analyses.delete_filtered.confirm"
+msgstr "Delete ALL found entries (%(total)s items) together with their images — not only those on this page? This cannot be undone."
+
+msgid "panel.analyses.filter_hint.none"
+msgstr "No filter set — the entire history of the system will be deleted."
+
+msgid "panel.analyses.filter_hint.set"
+msgstr "By the current filter, across all pages."
+
+msgid "panel.analyses.orphan_hint"
+msgstr "Account deleted, the entry is left over from an older version — `flask purge-orphans` will remove such entries"
+
+msgid "panel.analyses.review_only"
+msgstr "Only those needing review"
+
+msgid "panel.analyses.search_user"
+msgstr "Search by user…"
+
+msgid "panel.analyses.subtitle"
+msgstr "Analysis results of all users of the system."
+
+msgid "panel.col.registered"
+msgstr "Registered"
+
+msgid "panel.col.review"
+msgstr "Review"
+
+msgid "panel.col.user"
+msgstr "User"
+
+msgid "panel.stats.analyses_done"
+msgstr "Analyses completed"
+
+msgid "panel.stats.backend"
+msgstr "Analysis backend"
+
+msgid "panel.stats.by_role"
+msgstr "Users by role"
+
+msgid "panel.stats.default"
+msgstr "· default:"
+
+msgid "panel.stats.details"
+msgstr "Detailed status →"
+
+msgid "panel.stats.heading"
+msgstr "System overview"
+
+msgid "panel.stats.high"
+msgstr "High risk"
+
+msgid "panel.stats.online"
+msgstr "Online"
+
+msgid "panel.stats.subtitle"
+msgstr "Summary of users and analysis results."
+
+msgid "panel.stats.users_total"
+msgstr "Total users"
+
+msgid "panel.stats.waiting_review"
+msgstr "Awaiting human review"
+
+msgid "panel.user.all_history"
+msgstr "All history (%(count)s) →"
+
+msgid "panel.user.block"
+msgstr "Block"
+
+msgid "panel.user.clear_history"
+msgstr "Clear history (%(count)s)"
+
+msgid "panel.user.clear_history.confirm"
+msgstr "Delete the entire history of the user \"%(username)s\" (%(count)s items) together with the images? This cannot be undone."
+
+msgid "panel.user.delete.hint"
+msgstr "This is irreversible: the account and the entire analysis history of the user \"%(username)s\" will be deleted. To confirm, enter the command below manually — it uses this user's login (it cannot be copied):"
+
+msgid "panel.user.no_analyses"
+msgstr "This user has no completed analyses."
+
+msgid "panel.user.no_email"
+msgstr "Email not specified"
+
+msgid "panel.user.no_rights"
+msgstr "You have no permission to modify this user."
+
+msgid "panel.user.profile_data"
+msgstr "Profile data"
+
+msgid "panel.user.registered"
+msgstr "· registered %(date)s"
+
+msgid "panel.user.save_role"
+msgstr "Save role"
+
+msgid "panel.user.unblock"
+msgstr "Unblock"
+
+msgid "panel.user_history.back"
+msgstr "← Back to profile"
+
+msgid "panel.user_history.heading"
+msgstr "History: %(username)s"
+
+msgid "panel.user_history.title"
+msgstr "History · %(username)s"
+
+msgid "panel.user_history.total"
+msgstr "Completed analyses: %(total)s"
+
+msgid "panel.users.all_roles"
+msgstr "All roles"
+
+msgid "panel.users.filter"
+msgstr "Filter"
+
+msgid "panel.users.search"
+msgstr "Search by login…"
+
+msgid "panel.users.subtitle"
+msgstr "Manage roles and blocks."
+
+msgid "plural.files.one"
+msgid_plural "plural.files.other"
+msgstr[0] "%(n)s file"
+msgstr[1] "%(n)s files"
+
+msgid "plural.links.one"
+msgid_plural "plural.links.other"
+msgstr[0] "%(n)s link"
+msgstr[1] "%(n)s links"
+
+msgid "plural.records.one"
+msgid_plural "plural.records.other"
+msgstr[0] "%(n)s entry"
+msgstr[1] "%(n)s entries"
+
+msgid "profile.avatar.anim_note"
+msgstr "Animated file: the preview is live, but the server will process the final frames. Source size — up to %(size)s MB."
+
+msgid "profile.avatar.change"
+msgstr "Change avatar"
+
+msgid "profile.avatar.ctl.bri"
+msgstr "Brightness"
+
+msgid "profile.avatar.ctl.con"
+msgstr "Contrast"
+
+msgid "profile.avatar.ctl.dx"
+msgstr "Position X"
+
+msgid "profile.avatar.ctl.dy"
+msgstr "Position Y"
+
+msgid "profile.avatar.ctl.hue"
+msgstr "Hue"
+
+msgid "profile.avatar.ctl.rot"
+msgstr "Rotation"
+
+msgid "profile.avatar.ctl.sat"
+msgstr "Saturation"
+
+msgid "profile.avatar.ctl.sx"
+msgstr "Stretch X"
+
+msgid "profile.avatar.ctl.sy"
+msgstr "Stretch Y"
+
+msgid "profile.avatar.ctl.zoom"
+msgstr "Scale"
+
+msgid "profile.avatar.delete.confirm"
+msgstr "Delete avatar?"
+
+msgid "profile.avatar.drag_hint"
+msgstr "Drag with the mouse or finger to move. Mouse wheel to zoom. The circle shows how the avatar appears in the menu."
+
+msgid "profile.avatar.flip_btn"
+msgstr "Flip"
+
+msgid "profile.avatar.flip_title"
+msgstr "Mirror horizontally"
+
+msgid "profile.avatar.hint"
+msgstr "PNG, JPEG, WebP, GIF or BMP. Click on the circle or \"Upload photo\". GIF and animated WebP are saved with animation. Without a photo, the avatar is filled with your color (you can choose it below). Other users can see your avatar."
+
+msgid "profile.avatar.pick_title"
+msgstr "Click to choose a new photo"
+
+msgid "profile.avatar.preview"
+msgstr "Avatar preview"
+
+msgid "profile.avatar.reset_all"
+msgstr "Reset all"
+
+msgid "profile.avatar.reset_one"
+msgstr "Reset: %(label)s"
+
+msgid "profile.avatar.rotate_left"
+msgstr "Rotate 90° left"
+
+msgid "profile.avatar.rotate_right"
+msgstr "Rotate 90° right"
+
+msgid "profile.avatar.save"
+msgstr "Save avatar"
+
+msgid "profile.avatar.title"
+msgstr "Avatar"
+
+msgid "profile.avatar.upload"
+msgstr "Upload photo"
+
+msgid "profile.delete.hint"
+msgstr "This is irreversible: the account and all your analysis history will be deleted. To confirm, enter the command below manually — it uses your login (you cannot copy it):"
+
+msgid "profile.history.empty"
+msgstr "You have no completed analyses yet."
+
+msgid "profile.subtitle"
+msgstr "Your account's main information."
+
+msgid "prompts.categories.empty"
+msgstr "There are no categories yet."
+
+msgid "prompts.categories.import"
+msgstr "Load from the analysis server"
+
+msgid "prompts.categories.subtitle"
+msgstr "Signals that the analysis server looks for in an image. They are stored only here — on every analysis the current set is sent to the server as one-off categories."
+
+msgid "prompts.categories.title"
+msgstr "Scoring categories"
+
+msgid "prompts.category.add"
+msgstr "Add category"
+
+msgid "prompts.category.delete.confirm"
+msgstr "Delete the category \"%(name)s\"? This cannot be undone."
+
+msgid "prompts.category.disable"
+msgstr "Disable"
+
+msgid "prompts.category.enable"
+msgstr "Enable"
+
+msgid "prompts.category.off"
+msgstr "disabled"
+
+msgid "prompts.category.on"
+msgstr "enabled"
+
+msgid "prompts.chat.count"
+msgstr " Characters: {n} of {max}."
+
+msgid "prompts.chat.hint"
+msgstr "Defines the role, tone and general answer rules of the assistant in the chat. Applied from the next message, in all chats. The tool descriptions (search over analyses and users, queueing images) are appended after this text by the system itself — there is no need to repeat them, and they cannot be changed here. An empty field restores the default text."
+
+msgid "prompts.chat.reset"
+msgstr "Reset to default"
+
+msgid "prompts.chat.reset.confirm"
+msgstr "Restore the default chat system prompt? Your text will be deleted."
+
+msgid "prompts.chat.save"
+msgstr "Save prompt"
+
+msgid "prompts.chat.show_default"
+msgstr "Show default text"
+
+msgid "prompts.chat.tag.changed"
+msgstr "changed"
+
+msgid "prompts.chat.tag.default"
+msgstr "default"
+
+msgid "prompts.chat.title"
+msgstr "Chat system prompt"
+
+msgid "prompts.col.actions"
+msgstr "Actions"
+
+msgid "prompts.col.name"
+msgstr "Name"
+
+msgid "prompts.col.order"
+msgstr "Order"
+
+msgid "prompts.col.status"
+msgstr "Status"
+
+msgid "prompts.col.title"
+msgstr "Title"
+
+msgid "prompts.subtitle"
+msgstr "Texts that define the model's behavior: the assistant role in chat and the scoring categories."
+
+msgid "queue.cancel"
+msgstr "Remove from queue"
+
+msgid "queue.error.file_missing"
+msgstr "The image file was not found on disk."
+
+msgid "queue.error.internal"
+msgstr "Internal processing error: %(error)s"
+
+msgid "queue.error.link_failed"
+msgstr "Could not get the image from the link."
+
+msgid "queue.error.save_failed"
+msgstr "Could not save the downloaded image: %(error)s"
+
+msgid "queue.status.next"
+msgstr "Queued · next"
+
+msgid "queue.status.processing"
+msgstr "Processing · %(time)s"
+
+msgid "queue.status.waiting"
+msgstr "Queued · ahead of you: %(ahead)s"
+
+msgid "result.back_to_queue"
+msgstr "← Back to queue"
+
+msgid "result.card.context"
+msgstr "Context"
+
+msgid "result.card.context_short"
+msgstr "context"
+
+msgid "result.card.description"
+msgstr "Description"
+
+msgid "result.card.raw"
+msgstr "Model response (not JSON)"
+
+msgid "result.card.reasoning"
+msgstr "Reasoning"
+
+msgid "result.card.recommendation"
+msgstr "Recommendation"
+
+msgid "result.card.signals"
+msgstr "Signals"
+
+msgid "result.card.text_in_image"
+msgstr "Text in the image"
+
+msgid "result.delete"
+msgstr "Delete result"
+
+msgid "result.delete.confirm"
+msgstr "Delete this result together with its image? This cannot be undone."
+
+msgid "result.error.title"
+msgstr "Analysis error"
+
+msgid "result.id_hint"
+msgstr "Analysis number — use it to find the entry in the history and in the chat"
+
+msgid "result.owner"
+msgstr "· user %(user)s"
+
+msgid "result.pending"
+msgstr "The analysis is not finished yet. The page refreshes by itself — the result will appear here and in the history."
+
+msgid "result.raw_note"
+msgstr "The model did not answer in the report format, so it could not be parsed. Its answer is shown below as is."
+
+msgid "result.rename.hint"
+msgstr "Double-click to rename"
+
+msgid "result.rename.label"
+msgstr "Name"
+
+msgid "result.source"
+msgstr "· source:"
+
+msgid "result.tag.backend"
+msgstr "backend: %(name)s"
+
+msgid "result.tag.needs_review"
+msgstr "Needs human review"
+
+msgid "result.title"
+msgstr "Analysis result"
+
+msgid "result.uploaded"
+msgstr "Uploaded %(date)s"
+
+msgid "risk.level.high"
+msgstr "High"
+
+msgid "risk.level.low"
+msgstr "Low"
+
+msgid "risk.level.medium"
+msgstr "Medium"
+
+msgid "risk.level.unknown"
+msgstr "Undetermined"
+
+msgid "role.admin"
+msgstr "Administrator"
+
+msgid "role.blocked"
+msgstr "Blocked"
+
+msgid "role.head_admin"
+msgstr "Head administrator"
+
+msgid "role.user"
+msgstr "User"
+
+msgid "services.credential.default_label"
+msgstr "API key"
+
+msgid "services.error.bad_categories"
+msgstr "The server returned an invalid category list."
+
+msgid "services.error.bad_category"
+msgstr "The server returned an invalid description of the category \"%(name)s\"."
+
+msgid "services.error.bad_embeddings"
+msgstr "The server returned an invalid /embeddings response."
+
+msgid "services.error.bad_json"
+msgstr "The server returned an invalid JSON response."
+
+msgid "services.error.connect"
+msgstr "Could not connect to the image analysis server."
+
+msgid "services.error.connect_hint"
+msgstr "Could not connect to the image analysis server. Check that vision_analyzer_server.py is running."
+
+msgid "services.error.embeddings_loading"
+msgstr "The embeddings model is still downloading or loading."
+
+msgid "services.error.embeddings_status"
+msgstr "Could not get the embeddings status: %(error)s"
+
+msgid "services.error.expected_object"
+msgstr "a JSON object was expected"
+
+msgid "services.error.no_embeddings_status"
+msgstr "The analysis server does not provide the embeddings status (outdated version?)."
+
+msgid "services.error.no_link_image"
+msgstr "The analysis server did not return the image from the link (an outdated server version without return_images?)."
+
+msgid "services.error.no_model_answer"
+msgstr "The server returned no model answer."
+
+msgid "services.error.no_params"
+msgstr "There are no parameters to save."
+
+msgid "services.error.no_providers"
+msgstr "The analysis server does not provide the provider list (outdated version?)."
+
+msgid "services.error.no_results"
+msgstr "The server returned no analysis results."
+
+msgid "services.error.request"
+msgstr "Error requesting the analysis server: %(error)s"
+
+msgid "services.error.server"
+msgstr "The server returned an error (%(status)s): %(message)s"
+
+msgid "services.error.status"
+msgstr "Could not get the server status: %(error)s"
+
+msgid "services.error.timeout"
+msgstr "The image analysis server is not responding (timeout)."
+
+msgid "services.error.timeout_late"
+msgstr "The image analysis server did not respond in time (timeout)."
+
+msgid "services.error.timeout_short"
+msgstr "The server did not respond in time (timeout)."
+
+msgid "settings.allowed"
+msgstr "Allowed:"
+
+msgid "settings.allowed.from"
+msgstr "from %(value)s"
+
+msgid "settings.allowed.to"
+msgstr "to %(value)s"
+
+msgid "settings.body_marks_check_default_limit.label"
+msgstr "Body mark check: images per call"
+
+msgid "settings.body_marks_check_max_limit.label"
+msgstr "Body mark check: maximum images per call"
+
+msgid "settings.body_marks_check_time_budget.label"
+msgstr "Body mark check: time per call, sec"
+
+msgid "settings.bulk_delete_max_ids.label"
+msgstr "Entries per bulk deletion"
+
+msgid "settings.caption_max_chars.label"
+msgstr "Image caption length, chars"
+
+msgid "settings.chat_action_max_pending.label"
+msgstr "Chat actions: unconfirmed requests"
+
+msgid "settings.chat_action_ttl_minutes.label"
+msgstr "Chat actions: request lifetime, min"
+
+msgid "settings.chat_attachment_cache_seconds.label"
+msgstr "Attachment cache in the browser, sec"
+
+msgid "settings.chat_attachment_name_max.label"
+msgstr "Attachment name length, chars"
+
+msgid "settings.chat_context_images.hint"
+msgstr "Each image takes roughly 1–1.5k tokens of context."
+
+msgid "settings.chat_context_images.label"
+msgstr "Attachments the model \"sees\" directly"
+
+msgid "settings.chat_job_answer_chars.label"
+msgstr "Analysis result: answer length, chars"
+
+msgid "settings.chat_job_category_chars.label"
+msgstr "Analysis result: category length, chars"
+
+msgid "settings.chat_job_detail_chars.label"
+msgstr "Analysis result: detail length, chars"
+
+msgid "settings.chat_job_field_chars.label"
+msgstr "Analysis result: field length, chars"
+
+msgid "settings.chat_job_max_signals.label"
+msgstr "Analysis result: number of signals"
+
+msgid "settings.chat_max_history_messages.label"
+msgstr "History messages sent to the model"
+
+msgid "settings.chat_max_image_bytes.hint"
+msgstr "The overall request limit is \"Maximum request size\"."
+
+msgid "settings.chat_max_image_bytes.label"
+msgstr "Maximum size of a single image, MB"
+
+msgid "settings.chat_max_images_per_message.label"
+msgstr "Images per message"
+
+msgid "settings.chat_max_message_len.label"
+msgstr "Maximum message length, chars"
+
+msgid "settings.chat_max_tool_calls.label"
+msgstr "Tool calls per turn"
+
+msgid "settings.chat_model_jpeg_quality.label"
+msgstr "JPEG quality for the model"
+
+msgid "settings.chat_model_max_side.label"
+msgstr "Max image side for the model, px"
+
+msgid "settings.chat_model_passthrough_bytes.label"
+msgstr "Files up to this size go to the model as is, bytes"
+
+msgid "settings.chat_prompt_max_chars.hint"
+msgstr "Limit for the \"Chat system prompt\" field in the \"Prompts\" section."
+
+msgid "settings.chat_prompt_max_chars.label"
+msgstr "Chat system prompt length, chars"
+
+msgid "settings.chat_title_len.label"
+msgstr "Auto chat title length, chars"
+
+msgid "settings.chat_turn_stale_seconds.hint"
+msgstr "If the server crashed mid-response, the chat will accept messages again after this time."
+
+msgid "settings.chat_turn_stale_seconds.label"
+msgstr "Model response \"staleness\", sec"
+
+msgid "settings.collapse_all"
+msgstr "Collapse all"
+
+msgid "settings.dashboard_recent_limit.label"
+msgstr "Home: latest analyses"
+
+msgid "settings.date_format.label"
+msgstr "Date"
+
+msgid "settings.datetime_chat_format.label"
+msgstr "Date in the chat list"
+
+msgid "settings.datetime_format.label"
+msgstr "Date and time"
+
+msgid "settings.datetime_short_format.label"
+msgstr "Date and time without year"
+
+msgid "settings.dedup_cli_batch.label"
+msgstr "Hashes: entries per pass in the CLI"
+
+msgid "settings.dedup_default_batch.label"
+msgstr "Hashes: default entries"
+
+msgid "settings.dedup_idle_batch.label"
+msgstr "Hashes: entries per idle pass"
+
+msgid "settings.dedup_idle_pause.label"
+msgstr "Hashes: pause when there is nothing to compute, sec"
+
+msgid "settings.default_lang.hint"
+msgstr "Passed to the analysis server as lang=..."
+
+msgid "settings.default_lang.label"
+msgstr "Model response language"
+
+msgid "settings.default_value"
+msgstr "default value"
+
+msgid "settings.embedding_batch_size.hint"
+msgstr "The server accepts at most 64 texts per request."
+
+msgid "settings.embedding_batch_size.label"
+msgstr "Batch size for the server"
+
+msgid "settings.embedding_idle_batches.label"
+msgstr "Batches per idle pass"
+
+msgid "settings.embedding_idle_pause_nothing.label"
+msgstr "Pause: nothing to index, sec"
+
+msgid "settings.embedding_idle_pause_retry.label"
+msgstr "Pause: model downloading / failure, sec"
+
+msgid "settings.embedding_idle_pause_unavailable.label"
+msgstr "Pause: embeddings disabled/unavailable, sec"
+
+msgid "settings.embedding_max_matched_ids.label"
+msgstr "How many ids above the threshold to keep for statistics"
+
+msgid "settings.embedding_max_text_chars.hint"
+msgstr "The server-side limit is 8000."
+
+msgid "settings.embedding_max_text_chars.label"
+msgstr "Maximum text length for an embedding, chars"
+
+msgid "settings.embedding_memory_cache.hint"
+msgstr "Do not read vectors from the DB on every search. If turned off, search works as before but slower."
+
+msgid "settings.embedding_memory_cache.label"
+msgstr "In-memory vector cache"
+
+msgid "settings.embedding_min_similarity.hint"
+msgstr "Results below this value are excluded. If results are noisy, raise it."
+
+msgid "settings.embedding_min_similarity.label"
+msgstr "Similarity threshold (cosine)"
+
+msgid "settings.embedding_relative_margin.hint"
+msgstr "Only results not lower than \"best score − margin\" are returned. 0 — disable."
+
+msgid "settings.embedding_relative_margin.label"
+msgstr "Margin from the best result"
+
+msgid "settings.embedding_scan_limit.label"
+msgstr "How many vectors to compare per query"
+
+msgid "settings.enabled"
+msgstr "enabled"
+
+msgid "settings.err.bounds"
+msgstr "\"%(lo)s\" cannot be greater than \"%(hi)s\"."
+
+msgid "settings.err.choice"
+msgstr "\"%(label)s\": allowed values are %(choices)s."
+
+msgid "settings.err.date_format"
+msgstr "\"%(label)s\": invalid date format."
+
+msgid "settings.err.empty"
+msgstr "\"%(label)s\": the value cannot be empty."
+
+msgid "settings.err.enter"
+msgstr "\"%(label)s\": enter %(kind)s."
+
+msgid "settings.err.kind_int"
+msgstr "an integer"
+
+msgid "settings.err.kind_number"
+msgstr "a number"
+
+msgid "settings.err.max"
+msgstr "\"%(label)s\": the value cannot be greater than %(value)s."
+
+msgid "settings.err.min"
+msgstr "\"%(label)s\": the value cannot be less than %(value)s."
+
+msgid "settings.err.timezone"
+msgstr "\"%(label)s\": unknown time zone \"%(value)s\"."
+
+msgid "settings.err.too_long"
+msgstr "\"%(label)s\": the value is too long."
+
+msgid "settings.err.url"
+msgstr "\"%(label)s\": the address must start with http:// or https://."
+
+msgid "settings.expand_all"
+msgstr "Expand all"
+
+msgid "settings.file_hash_chunk_bytes.label"
+msgstr "Chunk size when reading a file for SHA-256, bytes"
+
+msgid "settings.filter.placeholder"
+msgstr "Find a setting by title or name…"
+
+msgid "settings.group.changed"
+msgstr "· changed: %(count)s"
+
+msgid "settings.group.g1.desc"
+msgstr "Vision server client: address, timeouts, response language."
+
+msgid "settings.group.g1.title"
+msgstr "Analysis server"
+
+msgid "settings.group.g10.desc"
+msgstr "Passwords, sessions, cookies and CSRF."
+
+msgid "settings.group.g10.title"
+msgstr "Security and sessions"
+
+msgid "settings.group.g11.title"
+msgstr "Database"
+
+msgid "settings.group.g2.desc"
+msgstr "Background processing of uploaded images."
+
+msgid "settings.group.g2.title"
+msgstr "Analysis queue"
+
+msgid "settings.group.g3.desc"
+msgstr "Bounds within which the values above can be chosen. The lower bound cannot exceed the upper one."
+
+msgid "settings.group.g3.title"
+msgstr "Allowed value limits"
+
+msgid "settings.group.g4.desc"
+msgstr "Embeddings and background indexing of analysis descriptions."
+
+msgid "settings.group.g4.title"
+msgstr "Semantic search"
+
+msgid "settings.group.g5.desc"
+msgstr "Messages, history and images in the chat with the model."
+
+msgid "settings.group.g5.title"
+msgstr "Chat"
+
+msgid "settings.group.g6.desc"
+msgstr "Analysis results for the model and search over analyses and users. The numbers end up in the model prompt."
+
+msgid "settings.group.g6.title"
+msgstr "Chat tools"
+
+msgid "settings.group.g7.desc"
+msgstr "Sizes, cache and background computing of file hashes."
+
+msgid "settings.group.g7.title"
+msgstr "Uploads, files and thumbnails"
+
+msgid "settings.group.g8.desc"
+msgstr "How many entries to show on pages."
+
+msgid "settings.group.g8.title"
+msgstr "Lists and pagination"
+
+msgid "settings.group.g9.desc"
+msgstr "Time zone and date formats (strftime syntax: %d.%m.%Y %H:%M)."
+
+msgid "settings.group.g9.title"
+msgstr "Date and time"
+
+msgid "settings.history_per_page.label"
+msgstr "\"My history\": entries per page"
+
+msgid "settings.max_content_length.hint"
+msgstr "Hard limit: larger files are rejected (HTTP 413)."
+
+msgid "settings.max_content_length.label"
+msgstr "Maximum request size, MB"
+
+msgid "settings.model_name_max_len.label"
+msgstr "Model name length in \"Server status\""
+
+msgid "settings.models_cache_ttl.hint"
+msgstr "How long a cloud provider's model list is kept in the DB before auto-refresh. 0 — do not cache."
+
+msgid "settings.models_cache_ttl.label"
+msgstr "Cloud provider model list cache, sec"
+
+msgid "settings.panel_per_page.label"
+msgstr "Admin panel: entries per page"
+
+msgid "settings.password_min_length.label"
+msgstr "Minimum password length"
+
+msgid "settings.password_username_min_len.label"
+msgstr "Logins shorter than this are not compared with the password"
+
+msgid "settings.password_username_similarity.label"
+msgstr "Password-to-login similarity threshold"
+
+msgid "settings.permanent_session_lifetime.hint"
+msgstr "Applies to sessions that will be renewed after the change."
+
+msgid "settings.permanent_session_lifetime.label"
+msgstr "Session lifetime, days"
+
+msgid "settings.queue_claim_retries.label"
+msgstr "Task claim attempts on a race"
+
+msgid "settings.queue_error_pause_seconds.label"
+msgstr "Pause after a loop error, sec"
+
+msgid "settings.queue_max_files_per_upload.label"
+msgstr "Files per upload"
+
+msgid "settings.queue_max_files_per_upload_max.label"
+msgstr "Files per upload: maximum"
+
+msgid "settings.queue_max_files_per_upload_min.label"
+msgstr "Files per upload: minimum"
+
+msgid "settings.queue_max_pending_per_user.label"
+msgstr "Queued tasks per user"
+
+msgid "settings.queue_max_pending_per_user_max.label"
+msgstr "Tasks per user: maximum"
+
+msgid "settings.queue_max_pending_per_user_min.label"
+msgstr "Tasks per user: minimum"
+
+msgid "settings.queue_max_pending_total.hint"
+msgstr "Overall ceiling for the queue and processing. The per-user limit applies separately."
+
+msgid "settings.queue_max_pending_total.label"
+msgstr "Queued tasks in total (all users)"
+
+msgid "settings.queue_max_pending_total_max.label"
+msgstr "Tasks in total: maximum"
+
+msgid "settings.queue_max_pending_total_min.label"
+msgstr "Tasks in total: minimum"
+
+msgid "settings.queue_poll_seconds.hint"
+msgstr "How often a worker checks an empty queue."
+
+msgid "settings.queue_poll_seconds.label"
+msgstr "Queue polling interval, sec"
+
+msgid "settings.queue_poll_seconds_max.label"
+msgstr "Polling interval: maximum, sec"
+
+msgid "settings.queue_poll_seconds_min.label"
+msgstr "Polling interval: minimum, sec"
+
+msgid "settings.queue_stop_join_timeout.label"
+msgstr "Wait for thread stop, sec"
+
+msgid "settings.queue_worker_enabled.hint"
+msgstr "If turned off, uploaded files will pile up in the queue unprocessed."
+
+msgid "settings.queue_worker_enabled.label"
+msgstr "Queue processing enabled"
+
+msgid "settings.queue_workers.hint"
+msgstr "How many analyses to run in parallel."
+
+msgid "settings.queue_workers.label"
+msgstr "Worker threads"
+
+msgid "settings.queue_workers_max.hint"
+msgstr "The ceiling protects against a typo like 100 threads."
+
+msgid "settings.queue_workers_max.label"
+msgstr "Worker threads: maximum"
+
+msgid "settings.queue_workers_min.label"
+msgstr "Worker threads: minimum"
+
+msgid "settings.rejected_files_shown.label"
+msgstr "Rejected files in the message"
+
+msgid "settings.reset"
+msgstr "reset"
+
+msgid "settings.reset_done"
+msgstr "reset done"
+
+msgid "settings.save_hint"
+msgstr "The form is saved as a whole: if even one value is invalid, nothing changes."
+
+msgid "settings.search_default_limit.label"
+msgstr "Analysis search: default number of entries"
+
+msgid "settings.search_desc_chars.label"
+msgstr "Analysis search: description length, chars"
+
+msgid "settings.search_max_cards.label"
+msgstr "Analysis search: cards under the answer"
+
+msgid "settings.search_max_keywords.label"
+msgstr "Analysis search: keywords"
+
+msgid "settings.search_max_limit.label"
+msgstr "Analysis search: maximum entries"
+
+msgid "settings.search_max_query_chars.label"
+msgstr "Analysis search: query length, chars"
+
+msgid "settings.search_max_since_days.label"
+msgstr "Analysis search: depth, days"
+
+msgid "settings.search_scan_limit.label"
+msgstr "Analysis search: rows to scan"
+
+msgid "settings.session_cookie_httponly.label"
+msgstr "Session cookie is inaccessible to JavaScript (HttpOnly)"
+
+msgid "settings.session_cookie_samesite.hint"
+msgstr "None only works together with \"Session cookie over HTTPS only\"."
+
+msgid "settings.session_cookie_samesite.label"
+msgstr "Session cookie: SameSite"
+
+msgid "settings.session_cookie_secure.hint"
+msgstr "Turn on only if the site is opened over HTTPS: otherwise login will stop working for everyone, including you. It can be reverted with the command `flask reset-settings SESSION_COOKIE_SECURE`."
+
+msgid "settings.session_cookie_secure.label"
+msgstr "Session cookie over HTTPS only"
+
+msgid "settings.setting_str_max_len.label"
+msgstr "Maximum length of a string setting"
+
+msgid "settings.sql_in_chunk.hint"
+msgstr "Limit on the number of SQL parameters (999 in SQLite)."
+
+msgid "settings.sql_in_chunk.label"
+msgstr "id batch size in DELETE/IN"
+
+msgid "settings.subtitle"
+msgstr "All parameters from <code>config.py</code> that are safe to change on the fly — they take effect immediately after saving, without a restart. The \"default\" value comes from <code>config.py</code> and environment variables. Theme, fonts and interface sizes are configured in the <a href=\"%(url)s\">\"Appearance\"</a> section, which is available to all users."
+
+msgid "settings.thumb_cache_seconds.label"
+msgstr "Thumbnail cache in the browser, sec"
+
+msgid "settings.thumb_quality.label"
+msgstr "Thumbnail JPEG quality"
+
+msgid "settings.thumb_size.hint"
+msgstr "Thumbnails already created keep their previous size."
+
+msgid "settings.thumb_size.label"
+msgstr "Thumbnail size, px"
+
+msgid "settings.time_format.label"
+msgstr "Time"
+
+msgid "settings.timezone.hint"
+msgstr "A name from the IANA database, for example Asia/Aqtobe."
+
+msgid "settings.timezone.label"
+msgstr "Time zone"
+
+msgid "settings.user_recent_analyses_limit.label"
+msgstr "Profile and user card: latest analyses"
+
+msgid "settings.user_search_default_limit.label"
+msgstr "User search: default number of entries"
+
+msgid "settings.user_search_max_cards.label"
+msgstr "User search: cards under the answer"
+
+msgid "settings.user_search_max_limit.label"
+msgstr "User search: maximum entries"
+
+msgid "settings.user_search_max_since_days.label"
+msgstr "User search: depth, days"
+
+msgid "settings.vision_api_backend_name_chars.hint"
+msgstr "No more than 32 — that is what fits in the DB column."
+
+msgid "settings.vision_api_backend_name_chars.label"
+msgstr "Backend name length, chars"
+
+msgid "settings.vision_api_base_url.hint"
+msgstr "For example http://127.0.0.1:6769"
+
+msgid "settings.vision_api_base_url.label"
+msgstr "Analysis server address"
+
+msgid "settings.vision_api_call_timeout.hint"
+msgstr "/models, /providers/<name>/settings, /categories, etc."
+
+msgid "settings.vision_api_call_timeout.label"
+msgstr "Auxiliary requests timeout, sec"
+
+msgid "settings.vision_api_embed_timeout.label"
+msgstr "POST /embeddings timeout, sec"
+
+msgid "settings.vision_api_error_chars.hint"
+msgstr "How many characters of an error response to show to the user."
+
+msgid "settings.vision_api_error_chars.label"
+msgstr "Server error text length, chars"
+
+msgid "settings.vision_api_fallback.hint"
+msgstr "If a backend is unavailable or responds with 5xx, the server tries the next one: local first, then cloud ones (cloud only if allowed on the server and a key is set). Works with a manually selected backend too."
+
+msgid "settings.vision_api_fallback.label"
+msgstr "Fall back to another backend on failure"
+
+msgid "settings.vision_api_health_timeout.label"
+msgstr "/health and GET /embeddings timeout, sec"
+
+msgid "settings.vision_api_model_name_chars.hint"
+msgstr "No more than 120 — that is what fits in the DB column."
+
+msgid "settings.vision_api_model_name_chars.label"
+msgstr "Model name length, chars"
+
+msgid "settings.vision_api_models_timeout.hint"
+msgstr "/models of cloud providers (Gemini, Anthropic); separate from the general auxiliary requests timeout."
+
+msgid "settings.vision_api_models_timeout.label"
+msgstr "Cloud provider model list timeout, sec"
+
+msgid "settings.vision_api_raw_text_chars.hint"
+msgstr "For responses without valid JSON."
+
+msgid "settings.vision_api_raw_text_chars.label"
+msgstr "Truncation of the \"raw\" model response, chars"
+
+msgid "settings.vision_api_timeout.label"
+msgstr "/analyze and /chat timeout, sec"
+
+msgid "settings.vision_api_timeout_max.label"
+msgstr "/analyze timeout: maximum, sec"
+
+msgid "settings.vision_api_timeout_min.label"
+msgstr "/analyze timeout: minimum, sec"
+
+msgid "settings.warn.out_of_bounds"
+msgstr "\"%(label)s\": the current value %(value)s is outside the new bounds."
+
+msgid "settings.wtf_csrf_time_limit.hint"
+msgstr "0 — no limit (the token lives as long as the session)."
+
+msgid "settings.wtf_csrf_time_limit.label"
+msgstr "CSRF token lifetime, sec"
+
+msgid "stats.row.account_age"
+msgstr "Account age"
+
+msgid "stats.row.account_days"
+msgstr "%(days)s d."
+
+msgid "stats.row.active"
+msgstr "Queued / processing"
+
+msgid "stats.row.by_link"
+msgstr "Via post link"
+
+msgid "stats.row.chats"
+msgstr "Chats / messages"
+
+msgid "stats.row.first"
+msgstr "First analysis"
+
+msgid "stats.row.last"
+msgstr "Last analysis"
+
+msgid "stats.row.last_days"
+msgstr "Last 7 / 30 days"
+
+msgid "stats.row.risk_mid_low"
+msgstr "Risk medium / low"
+
+msgid "stats.row.unknown"
+msgstr " · undetermined: %(count)s"
+
+msgid "stats.row.with_error"
+msgstr "With errors"
+
+msgid "stats.tile.done"
+msgstr "completed"
+
+msgid "stats.tile.high"
+msgstr "high risk"
+
+msgid "stats.tile.review"
+msgstr "need review"
+
+msgid "stats.tile.total"
+msgstr "total analyses"
+
+msgid "stats.title"
+msgstr "Statistics"
+
+msgid "status.done"
+msgstr "Done"
+
+msgid "status.processing"
+msgstr "Processing"
+
+msgid "status.queued"
+msgstr "Queued"
+
+msgid "theme.abyss.hint"
+msgstr "Deep dark blue"
+
+msgid "theme.andromeda.hint"
+msgstr "Cosmic turquoise"
+
+msgid "theme.ayu_dark.hint"
+msgstr "Graphite with a yellow accent"
+
+msgid "theme.ayu_dark.label"
+msgstr "Ayu Dark"
+
+msgid "theme.ayu_light.hint"
+msgstr "Neutral with an orange accent"
+
+msgid "theme.ayu_light.label"
+msgstr "Ayu Light"
+
+msgid "theme.ayu_mirage.hint"
+msgstr "Soft blue-gray"
+
+msgid "theme.bluloco_light.hint"
+msgstr "Neutral with blue"
+
+msgid "theme.bluloco_light.label"
+msgstr "Bluloco Light"
+
+msgid "theme.carbon.hint"
+msgstr "Strict gray, IBM style"
+
+msgid "theme.carbon_light.hint"
+msgstr "Strict light, IBM style"
+
+msgid "theme.carbon_light.label"
+msgstr "Carbon Light"
+
+msgid "theme.catppuccin_frappe.hint"
+msgstr "Pastel, soft"
+
+msgid "theme.catppuccin_latte.hint"
+msgstr "Soft pastel tones"
+
+msgid "theme.catppuccin_macchiato.hint"
+msgstr "Pastel, medium depth"
+
+msgid "theme.catppuccin_mocha.hint"
+msgstr "Soft pastel tones"
+
+msgid "theme.challenger_deep.hint"
+msgstr "Deep blue-violet"
+
+msgid "theme.cobalt2.hint"
+msgstr "Saturated blue"
+
+msgid "theme.coffee.hint"
+msgstr "Warm brown"
+
+msgid "theme.coffee.label"
+msgstr "Coffee"
+
+msgid "theme.contrast.hint"
+msgstr "Maximum readability"
+
+msgid "theme.contrast.label"
+msgstr "High-contrast"
+
+msgid "theme.contrast_light.hint"
+msgstr "Black on white"
+
+msgid "theme.contrast_light.label"
+msgstr "High-contrast light"
+
+msgid "theme.cyberpunk.hint"
+msgstr "Neon night"
+
+msgid "theme.darcula.hint"
+msgstr "Like in IntelliJ IDEA"
+
+msgid "theme.dark.hint"
+msgstr "Standard"
+
+msgid "theme.dark.label"
+msgstr "Dark"
+
+msgid "theme.dayfox.hint"
+msgstr "Daytime Nightfox"
+
+msgid "theme.dracula.hint"
+msgstr "Purple-pink classic"
+
+msgid "theme.everblush.hint"
+msgstr "Cool green-gray"
+
+msgid "theme.everforest_dark.hint"
+msgstr "Calm forest"
+
+msgid "theme.everforest_dark.label"
+msgstr "Everforest Dark"
+
+msgid "theme.everforest_light.hint"
+msgstr "Calm light forest"
+
+msgid "theme.everforest_light.label"
+msgstr "Everforest Light"
+
+msgid "theme.flexoki_dark.hint"
+msgstr "Warm ink on paper"
+
+msgid "theme.flexoki_dark.label"
+msgstr "Flexoki Dark"
+
+msgid "theme.flexoki_light.hint"
+msgstr "Warm paper"
+
+msgid "theme.flexoki_light.label"
+msgstr "Flexoki Light"
+
+msgid "theme.forest.hint"
+msgstr "Dark green"
+
+msgid "theme.forest.label"
+msgstr "Forest"
+
+msgid "theme.github_dark.hint"
+msgstr "Familiar bluish graphite"
+
+msgid "theme.github_dark.label"
+msgstr "GitHub Dark"
+
+msgid "theme.github_dark_hc.hint"
+msgstr "GitHub high contrast"
+
+msgid "theme.github_dark_hc.label"
+msgstr "GitHub High Contrast"
+
+msgid "theme.github_dimmed.hint"
+msgstr "Softer than the standard dark GitHub"
+
+msgid "theme.github_dimmed.label"
+msgstr "GitHub Dimmed"
+
+msgid "theme.github_light.hint"
+msgstr "Clean and neutral"
+
+msgid "theme.github_light.label"
+msgstr "GitHub Light"
+
+msgid "theme.graphite.hint"
+msgstr "Neutral gray"
+
+msgid "theme.graphite.label"
+msgstr "Graphite"
+
+msgid "theme.group.contrast"
+msgstr "High contrast"
+
+msgid "theme.group.dark"
+msgstr "Dark"
+
+msgid "theme.group.light"
+msgstr "Light"
+
+msgid "theme.gruvbox_dark.hint"
+msgstr "Warm retro palette"
+
+msgid "theme.gruvbox_dark.label"
+msgstr "Gruvbox Dark"
+
+msgid "theme.gruvbox_light.hint"
+msgstr "Warm retro palette"
+
+msgid "theme.gruvbox_light.label"
+msgstr "Gruvbox Light"
+
+msgid "theme.hackthebox.hint"
+msgstr "Dark blue with lime"
+
+msgid "theme.hc_amber.hint"
+msgstr "Amber on black"
+
+msgid "theme.hc_amber.label"
+msgstr "Amber terminal"
+
+msgid "theme.hc_green.hint"
+msgstr "Green on black"
+
+msgid "theme.hc_green.label"
+msgstr "Green terminal"
+
+msgid "theme.hc_yellow.hint"
+msgstr "For low vision"
+
+msgid "theme.hc_yellow.label"
+msgstr "Yellow on black"
+
+msgid "theme.horizon.hint"
+msgstr "Warm dark with coral"
+
+msgid "theme.horizon_bright.hint"
+msgstr "Light coral"
+
+msgid "theme.iceberg.hint"
+msgstr "Cold blue"
+
+msgid "theme.jellybeans.hint"
+msgstr "Muted graphite"
+
+msgid "theme.kanagawa.hint"
+msgstr "Japanese woodblock print"
+
+msgid "theme.kimbie_dark.hint"
+msgstr "Warm brown"
+
+msgid "theme.laserwave.hint"
+msgstr "Retro laser"
+
+msgid "theme.lavender.hint"
+msgstr "Light lilac"
+
+msgid "theme.lavender.label"
+msgstr "Lavender"
+
+msgid "theme.light.hint"
+msgstr "For bright lighting"
+
+msgid "theme.light.label"
+msgstr "Light"
+
+msgid "theme.material_lighter.hint"
+msgstr "Material light"
+
+msgid "theme.material_ocean.hint"
+msgstr "Deep dark blue"
+
+msgid "theme.material_palenight.hint"
+msgstr "Pastel violet-blue"
+
+msgid "theme.melange_dark.hint"
+msgstr "Warm brown-gray"
+
+msgid "theme.melange_dark.label"
+msgstr "Melange Dark"
+
+msgid "theme.melange_light.hint"
+msgstr "Warm paper"
+
+msgid "theme.melange_light.label"
+msgstr "Melange Light"
+
+msgid "theme.midnight.hint"
+msgstr "Deep blue"
+
+msgid "theme.midnight.label"
+msgstr "Midnight"
+
+msgid "theme.min_light.hint"
+msgstr "Minimalist"
+
+msgid "theme.min_light.label"
+msgstr "Min Light"
+
+msgid "theme.mint.hint"
+msgstr "Light greenish"
+
+msgid "theme.mint.label"
+msgstr "Mint"
+
+msgid "theme.molokai.hint"
+msgstr "Vim classic"
+
+msgid "theme.monokai.hint"
+msgstr "Warm editor palette"
+
+msgid "theme.monokai_pro.hint"
+msgstr "Warm modern Monokai"
+
+msgid "theme.moonlight.hint"
+msgstr "Moonlit blue-violet"
+
+msgid "theme.night_owl.hint"
+msgstr "Deep blue for night work"
+
+msgid "theme.night_owl_light.hint"
+msgstr "Light version of Night Owl"
+
+msgid "theme.night_owl_light.label"
+msgstr "Night Owl Light"
+
+msgid "theme.nightfox.hint"
+msgstr "Blue-steel"
+
+msgid "theme.nord.hint"
+msgstr "Cold blue-gray"
+
+msgid "theme.nord.label"
+msgstr "Arctic"
+
+msgid "theme.nord_light.hint"
+msgstr "Snowy version of Nord"
+
+msgid "theme.nord_light.label"
+msgstr "Nord Light"
+
+msgid "theme.oceanic_next.hint"
+msgstr "Blue-gray ocean"
+
+msgid "theme.oled.hint"
+msgstr "Black background to save power"
+
+msgid "theme.one_dark.hint"
+msgstr "Like in Atom and VS Code"
+
+msgid "theme.one_light.hint"
+msgstr "Light one from Atom"
+
+msgid "theme.panda.hint"
+msgstr "Dark with pink"
+
+msgid "theme.paper.hint"
+msgstr "Warm, like a book page"
+
+msgid "theme.paper.label"
+msgstr "Paper"
+
+msgid "theme.papercolor_light.hint"
+msgstr "Soft light paper"
+
+msgid "theme.papercolor_light.label"
+msgstr "PaperColor Light"
+
+msgid "theme.peach.hint"
+msgstr "Light warm pinkish"
+
+msgid "theme.peach.label"
+msgstr "Peach"
+
+msgid "theme.plum.hint"
+msgstr "Dark purple"
+
+msgid "theme.plum.label"
+msgstr "Plum"
+
+msgid "theme.poimandres.hint"
+msgstr "Cold mint-blue"
+
+msgid "theme.quiet_light.hint"
+msgstr "Calm light"
+
+msgid "theme.rose_pine.hint"
+msgstr "Muted powdery"
+
+msgid "theme.rose_pine_dawn.hint"
+msgstr "Warm powdery light"
+
+msgid "theme.rose_pine_moon.hint"
+msgstr "Powdery, lighter than usual"
+
+msgid "theme.sepia.hint"
+msgstr "Warm, like old paper"
+
+msgid "theme.sepia.label"
+msgstr "Sepia"
+
+msgid "theme.shades_of_purple.hint"
+msgstr "Bright purple"
+
+msgid "theme.sky.hint"
+msgstr "Light bluish"
+
+msgid "theme.sky.label"
+msgstr "Sky"
+
+msgid "theme.snazzy_light.hint"
+msgstr "Clean light"
+
+msgid "theme.snazzy_light.label"
+msgstr "Snazzy Light"
+
+msgid "theme.solarized_dark.hint"
+msgstr "A classic for code"
+
+msgid "theme.solarized_dark.label"
+msgstr "Solarized Dark"
+
+msgid "theme.solarized_light.hint"
+msgstr "A classic for code"
+
+msgid "theme.solarized_light.label"
+msgstr "Solarized Light"
+
+msgid "theme.sonokai.hint"
+msgstr "Muted Monokai"
+
+msgid "theme.spacegray.hint"
+msgstr "Cold gray-blue"
+
+msgid "theme.srcery.hint"
+msgstr "Warm retro palette"
+
+msgid "theme.synthwave_84.hint"
+msgstr "Neon retro wave"
+
+msgid "theme.tokyo_night.hint"
+msgstr "Cool blue-violet"
+
+msgid "theme.tokyo_night_day.hint"
+msgstr "Daytime Tokyo Night"
+
+msgid "theme.tokyo_night_storm.hint"
+msgstr "Lighter than the regular Tokyo Night"
+
+msgid "theme.tomorrow.hint"
+msgstr "Classic light"
+
+msgid "theme.tomorrow_night.hint"
+msgstr "Tomorrow classic"
+
+msgid "theme.tomorrow_night_blue.hint"
+msgstr "Dark blue classic"
+
+msgid "theme.tomorrow_night_bright.hint"
+msgstr "Black and bright"
+
+msgid "theme.vesper.hint"
+msgstr "Minimalist black with peach"
+
+msgid "theme.vscode_dark.hint"
+msgstr "Like Dark+ in VS Code"
+
+msgid "theme.vscode_dark.label"
+msgstr "VS Code Dark"
+
+msgid "theme.vscode_light.hint"
+msgstr "Like Light+ in VS Code"
+
+msgid "theme.vscode_light.label"
+msgstr "VS Code Light"
+
+msgid "theme.zenburn.hint"
+msgstr "Low contrast for long work"
+

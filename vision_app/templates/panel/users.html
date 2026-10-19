@@ -1,31 +1,31 @@
 {% extends "base.html" %}
 {% from "partials/avatar.html" import avatar %}
-{% block title %}Пользователи{% endblock %}
+{% block title %}{{ _('nav.admin.users') }}{% endblock %}
 {% block content %}
 <div class="page-header">
-    <h1>Пользователи</h1>
-    <p class="page-sub">Управление ролями и блокировками.</p>
+    <h1>{{ _('nav.admin.users') }}</h1>
+    <p class="page-sub">{{ _('panel.users.subtitle') }}</p>
 </div>
 
 <form method="get" class="filter-bar">
-    <input type="text" name="q" placeholder="Поиск по логину…" value="{{ query }}" class="input">
+    <input type="text" name="q" placeholder="{{ _('panel.users.search') }}" value="{{ query }}" class="input">
     <select name="role" class="input">
-        <option value="">Все роли</option>
+        <option value="">{{ _('panel.users.all_roles') }}</option>
         {% for role, label in roles %}
         <option value="{{ role }}" {% if role_filter == role %}selected{% endif %}>{{ label }}</option>
         {% endfor %}
     </select>
-    <button type="submit" class="btn btn-secondary">Фильтровать</button>
+    <button type="submit" class="btn btn-secondary">{{ _('panel.users.filter') }}</button>
 </form>
 
 <div class="table-wrap">
     <table class="data-table">
         <thead>
             <tr>
-                <th>Логин</th>
+                <th>{{ _('account.field.login') }}</th>
                 <th>Email</th>
-                <th>Роль</th>
-                <th>Регистрация</th>
+                <th>{{ _('account.field.role') }}</th>
+                <th>{{ _('panel.col.registered') }}</th>
             </tr>
         </thead>
         <tbody>
@@ -37,7 +37,7 @@
                 <td>{{ u.created_at|localdt('date') }}</td>
             </tr>
             {% else %}
-            <tr><td colspan="4" class="empty-hint">Ничего не найдено.</td></tr>
+            <tr><td colspan="4" class="empty-hint">{{ _('common.nothing_found') }}</td></tr>
             {% endfor %}
         </tbody>
     </table>

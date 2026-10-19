@@ -17,6 +17,7 @@ from flask import (
     send_from_directory,
     url_for,
 )
+from flask_babel import gettext, ngettext
 from flask_login import current_user, login_required
 from sqlalchemy import delete, func, or_, select, update
 
@@ -46,12 +47,9 @@ from ..settings_store import (
     set_analysis_target, set_chat_target,
 )
 from ..thumbs import ensure_thumb
-from ..utils import is_safe_next, local_dt, paginate, plural, query_to_id
+from ..utils import is_safe_next, local_dt, paginate, query_to_id
 
 bp = Blueprint("analyzer", __name__)
-
-_FILES = ("файл", "файла", "файлов")
-_LINKS = ("ссылка", "ссылки", "ссылок")
 
 
 def _own_results(q: str = ""):
@@ -110,9 +108,9 @@ def queue_snapshot() -> dict:
         pending.append(
             {
                 "id": row.id,
-                "name": row.original_name or "без имени",
+                "name": row.original_name or gettext("account.history.unnamed"),
                 "status": row.status,
-                "status_label": STATUS_LABELS.get(row.status, row.status),
+                "status_label": str(STATUS_LABELS.get(row.status, row.status)),
                 "ahead": position.get(row.id, 0),
                 "elapsed": max(int((now - _as_utc(since)).total_seconds()), 0),
                 "cancel_url": url_for("analyzer.cancel_queued", pk=row.id) if row.status == Status.QUEUED else "",
@@ -122,9 +120,9 @@ def queue_snapshot() -> dict:
     recent = [
         {
             "id": row.id,
-            "name": row.original_name or "без имени",
+            "name": row.original_name or gettext("account.history.unnamed"),
             "risk_level": row.risk_level,
-            "risk_label": RISK_LABELS.get(row.risk_level, row.risk_level),
+            "risk_label": str(RISK_LABELS.get(row.risk_level, row.risk_level)),
             "error": row.is_error,
             "is_new": row.is_new,
             "date": local_dt(row.created_at, "short"),
@@ -144,9 +142,9 @@ def _enqueue_uploads(form: ImageUploadForm):
     if hit:
         scope, now_count, limit = hit
         if scope == "user":
-            msg = f"В вашей очереди уже {now_count}, максимум — {limit}. Дождитесь обработки и повторите."
+            msg = gettext("flash.queue.user_limit", count=now_count, limit=limit)
         else:
-            msg = f"Общая очередь заполнена ({now_count} из {limit}). Повторите позже."
+            msg = gettext("flash.queue.total_limit", count=now_count, limit=limit)
         flash(msg, "error")
         return redirect(url_for("analyzer.dashboard"))
 
@@ -196,22 +194,22 @@ def _enqueue_uploads(form: ImageUploadForm):
         raise
 
     wake_worker(current_app)
-    numbers = ", ".join(f"№{row.id}" for row in [*added, *link_rows])  # id доступны после commit
+    numbers = ", ".join(gettext("common.id_tag", id=row.id) for row in [*added, *link_rows])  # id доступны после commit
     parts = []
     if added:
-        parts.append(plural(len(added), _FILES))
+        parts.append(ngettext("plural.files.one", "plural.files.other", len(added), n=len(added)))
     if link_rows:
-        parts.append(plural(len(link_rows), _LINKS))
-    flash(f"Добавлено в очередь: {' и '.join(parts)} ({numbers}).", "success")
+        parts.append(ngettext("plural.links.one", "plural.links.other", len(link_rows), n=len(link_rows)))
+    flash(gettext("flash.queue.added", items=gettext("flash.queue.and").join(parts), numbers=numbers), "success")
     shown = conf("REJECTED_FILES_SHOWN")
     for name, reason in form.rejected[:shown]:
-        flash(f"Пропущен файл «{name}»: {reason}.", "warning")
+        flash(gettext("flash.upload.skipped_file", name=name, reason=reason), "warning")
     if len(form.rejected) > shown:
-        flash(f"…и ещё пропущено: {len(form.rejected) - shown}.", "warning")
+        flash(gettext("flash.upload.skipped_more", count=len(form.rejected) - shown), "warning")
     for link, reason in form.rejected_links[:shown]:
-        flash(f"Пропущена ссылка «{link}»: {reason}.", "warning")
+        flash(gettext("flash.upload.skipped_link", link=link, reason=reason), "warning")
     if len(form.rejected_links) > shown:
-        flash(f"…и ещё пропущено ссылок: {len(form.rejected_links) - shown}.", "warning")
+        flash(gettext("flash.upload.skipped_more_links", count=len(form.rejected_links) - shown), "warning")
     return redirect(url_for("analyzer.dashboard"))
 
 
@@ -262,9 +260,9 @@ def cancel_queued(pk: int):
 
     if result.rowcount:
         remove_image_files([image_path])
-        flash("Убрано из очереди.", "success")
+        flash(gettext("flash.queue.removed"), "success")
     else:
-        flash("Анализ уже обрабатывается или завершён — отменить его нельзя.", "info")
+        flash(gettext("flash.queue.cannot_cancel"), "info")
     return _redirect_back("analyzer.dashboard")
 
 
@@ -308,9 +306,9 @@ def mark_seen():
     )
     db.session.commit()
     if result.rowcount:
-        flash(f"Метки «новое» сброшены: {plural(result.rowcount, ('запись', 'записи', 'записей'))}.", "success")
+        flash(gettext("flash.history.new_cleared", items=ngettext("plural.records.one", "plural.records.other", result.rowcount, n=result.rowcount)), "success")
     else:
-        flash("Новых меток нет.", "info")
+        flash(gettext("flash.history.no_new"), "info")
     return _redirect_back("analyzer.history")
 
 @bp.route("/history/delete/", methods=["POST"])
@@ -319,10 +317,10 @@ def delete_selected():
     """Удалить выбранные записи истории (только админы)."""
     ids = [int(x) for x in request.form.getlist("ids") if x.isdigit()][: conf("BULK_DELETE_MAX_IDS")]
     if not ids:
-        flash("Ничего не выбрано.", "info")
+        flash(gettext("flash.history.none_selected"), "info")
     else:
         count = delete_finished(AnalysisResult.id.in_(ids))
-        flash(f"Удалено записей: {count}." if count else "Нечего удалять.", "success" if count else "info")
+        flash(gettext("flash.history.deleted", count=count) if count else gettext("flash.history.nothing_to_delete"), "success" if count else "info")
     return _redirect_back("analyzer.history")
 
 
@@ -332,10 +330,10 @@ def delete_result(pk: int):
     """Удалить один результат вместе с изображением (только админы)."""
     result = db.get_or_404(AnalysisResult, pk)
     if result.is_pending:
-        flash("Анализ ещё не завершён — дождитесь результата или отмените его в очереди.", "error")
+        flash(gettext("flash.result.pending"), "error")
         return redirect(url_for("analyzer.result_detail", pk=pk))
     delete_finished(AnalysisResult.id == pk)
-    flash("Результат удалён.", "success")
+    flash(gettext("flash.result.deleted"), "success")
     return _redirect_back("analyzer.history")
 
 
@@ -355,15 +353,15 @@ def rename_result(pk: int):
     # Схлопываем переводы строк/табы в пробелы: имя показывается в одну строку.
     name = " ".join(request.form.get("name", "").split())
     if not name:
-        flash("Название не может быть пустым.", "error")
+        flash(gettext("flash.rename.empty"), "error")
     elif len(name) > RENAME_MAX_LEN:
-        flash(f"Название слишком длинное: максимум {RENAME_MAX_LEN} символов.", "error")
+        flash(gettext("flash.rename.too_long", max=RENAME_MAX_LEN), "error")
     elif name == result.original_name:
-        flash("Название не изменилось.", "info")
+        flash(gettext("flash.rename.unchanged"), "info")
     else:
         result.original_name = name
         db.session.commit()
-        flash("Название изменено.", "success")
+        flash(gettext("flash.rename.done"), "success")
     return redirect(url_for("analyzer.result_detail", pk=pk))
 
 
@@ -641,7 +639,7 @@ def _backend_is_available(name: str) -> bool:
         flash(str(exc), "error")
         return False
     if not info.get("ok"):
-        flash(f"Бэкенд «{name}» сейчас недоступен.", "error")
+        flash(gettext("flash.backend.unavailable", name=name), "error")
         return False
     return True
 
@@ -653,7 +651,7 @@ def _validated_model(name: str) -> str | None:
     model = request.form.get("model", "").strip()
 
     if len(model) > conf("MODEL_NAME_MAX_LEN"):
-        flash("Слишком длинное название модели.", "error")
+        flash(gettext("flash.model.too_long"), "error")
         return None
     if not _backend_is_available(name):
         return None
@@ -666,7 +664,7 @@ def _validated_model(name: str) -> str | None:
         except VisionApiError:
             known = []  # список недоступен — не блокируем, сервер сам отклонит неизвестную модель
         if known and model not in known:
-            flash(f"Модель «{model}» не найдена у бэкенда «{name}».", "error")
+            flash(gettext("flash.model.not_found", model=model, name=name), "error")
             return None
     return model
 
@@ -679,13 +677,13 @@ def save_model(name: str):
     if model is None:
         return _back()
 
-    shown = model or "авто (определяет сервер)"
+    shown = model or gettext("health.option.auto.lower")
     if _tab() == "chat":
         set_chat_target(name, model)
-        flash(f"Чат будет отвечать на «{name}», модель: {shown}.", "success")
+        flash(gettext("flash.backend.chat_set", name=name, model=shown), "success")
     else:
         set_analysis_target(name, model)
-        flash(f"Анализы будут выполняться на «{name}», модель: {shown}.", "success")
+        flash(gettext("flash.backend.analysis_set", name=name, model=shown), "success")
     return _back()
 
 
@@ -703,29 +701,28 @@ def save_used_backend():
     if not name:
         if chat:
             clear_chat_target()
-            flash("Чат снова использует тот же бэкенд и модель, что и анализы.", "success")
+            flash(gettext("flash.backend.chat_cleared"), "success")
         else:
             clear_analysis_target()
-            flash("Выбор сброшен: бэкенд выбирает сервер, модель — авто.", "success")
+            flash(gettext("flash.backend.analysis_cleared"), "success")
         return _back()
 
     provider = _require_backend(name)
     if not provider.configured:
-        flash(f"«{provider.title}» не настроен — сначала введите данные подключения (API-ключ) на его карточке.", "error")
+        flash(gettext("flash.backend.not_configured", title=provider.title), "error")
         return _back()
 
     current_backend, current_model = (get_chat_target() if has_chat_target() else ("", "")) if chat else get_analysis_target()
     model = current_model if current_backend == name else ""
     (set_chat_target if chat else set_analysis_target)(name, model)
-    flash(f"{'Чат отвечает' if chat else 'Анализы выполняются'} на «{provider.title}».", "success")
+    flash((gettext("flash.backend.chat_uses", title=provider.title) if chat else gettext("flash.backend.analysis_uses", title=provider.title)), "success")
 
     try:
         ok = ((check_health().get("backends") or {}).get(name) or {}).get("ok")
     except VisionApiError:
         ok = True  # статус неизвестен — не пугаем
     if not ok:
-        flash(f"«{provider.title}» сейчас недоступен — запросы будут завершаться ошибкой "
-              "(или уйдут на другой бэкенд, если включён фолбэк).", "info")
+        flash(gettext("flash.backend.down_warning", title=provider.title), "info")
     return _back()
 
 
@@ -739,11 +736,11 @@ def save_sampling(name: str):
     form = provider_settings_form_class(provider.settings)(prefix=name)
 
     if not form.validate_on_submit():
-        flash("Параметры не сохранены — исправьте ошибки в форме.", "error")
+        flash(gettext("flash.sampling.invalid"), "error")
         return _render_health(bound_forms={name: form}, status_code=400)
 
     if not form.values:
-        flash("Нечего сохранять: все поля пустые (пустое поле означает «не менять»).", "info")
+        flash(gettext("flash.sampling.empty"), "info")
         return _back()
 
     try:
@@ -753,7 +750,7 @@ def save_sampling(name: str):
         return _back()
 
     changed = ", ".join(f"{k}={'auto' if v is None else v}" for k, v in form.values.items())
-    flash(f"Параметры {provider.title} обновлены: {changed}.", "success")
+    flash(gettext("flash.sampling.saved", title=provider.title, changed=changed), "success")
     return _back()
 
 
@@ -769,7 +766,7 @@ def reset_sampling(name: str):
     except VisionApiError as exc:
         flash(str(exc), "error")
         return _back()
-    flash(f"Параметры {provider.title} сброшены к значениям по умолчанию.", "success")
+    flash(gettext("flash.sampling.reset", title=provider.title), "success")
     return _back()
 
 
@@ -791,20 +788,19 @@ def save_provider_settings(name: str):
         invalidate_models_cache(name)
         invalidate_providers()
         invalidate_health()
-        flash(f"Ключ «{provider.title}» удалён." if removed else "Ключ и так не был задан.", "success" if removed else "info")
+        flash(gettext("flash.key.erased", title=provider.title) if removed else gettext("flash.key.already_unset"), "success" if removed else "info")
         if removed:
             try:
                 is_default = check_health().get("default_backend") == name
             except VisionApiError:
                 is_default = False
             if is_default:
-                flash(f"«{provider.title}» — бэкенд по умолчанию на сервере, а ключа больше нет: запросы без явного выбора "
-                      "будут падать. Выберите другой бэкенд в блоке «Используемый бэкенд».", "error")
+                flash(gettext("flash.key.default_lost", title=provider.title), "error")
         return _back()
 
     raw = request.form.get("credential", "")
     if not raw.strip():
-        flash("Нечего сохранять: поле пустое (пустое поле означает «не менять»).", "info")
+        flash(gettext("flash.key.empty"), "info")
         return _back()
 
     try:
@@ -823,14 +819,14 @@ def save_provider_settings(name: str):
     try:
         probe = (check_health(force=True).get("backends") or {}).get(name) or {}
     except VisionApiError as exc:
-        flash(f"Ключ «{provider.title}» сохранён, но проверить его не удалось: {exc}", "error")
+        flash(gettext("flash.key.saved_unchecked", title=provider.title, error=exc), "error")
         return _back()
 
     if probe.get("ok"):
-        flash(f"Ключ «{provider.title}» сохранён — бэкенд отвечает. Список моделей можно загрузить кнопкой «Обновить список».", "success")
+        flash(gettext("flash.key.saved_ok", title=provider.title), "success")
     else:
-        reason = probe.get("error") or "нет ответа"
-        flash(f"Ключ «{provider.title}» сохранён, но бэкенд не отвечает: {reason}", "error")
+        reason = probe.get("error") or gettext("flash.key.no_answer")
+        flash(gettext("flash.key.saved_down", title=provider.title, reason=reason), "error")
     return _back()
 
 
@@ -844,7 +840,7 @@ def refresh_models(name: str):
     try:
         models = get_models(name, force=True)
     except VisionApiError as exc:
-        flash(f"Не удалось получить список моделей «{provider.title}»: {exc}", "error")
+        flash(gettext("flash.models.fetch_failed", title=provider.title, error=exc), "error")
         return _back()
-    flash(f"Список моделей «{provider.title}» обновлён: {len(models)}.", "success")
+    flash(gettext("flash.models.refreshed", title=provider.title, count=len(models)), "success")
     return _back()

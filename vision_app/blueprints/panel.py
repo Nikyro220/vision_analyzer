@@ -4,6 +4,7 @@ import json
 from urllib.parse import urlparse
 
 from flask import Blueprint, current_app, flash, jsonify, redirect, render_template, request, url_for
+from flask_babel import gettext, ngettext
 from flask_login import current_user
 from sqlalchemy import func, select
 from sqlalchemy.orm import joinedload
@@ -27,7 +28,7 @@ from ..settings_store import (
 from ..models import ROLE_CHOICES, ROLE_LABELS, AnalysisResult, Category, Role, Status, User
 from ..services import VisionApiError, check_health
 from ..user_stats import user_stats
-from ..utils import paginate, plural
+from ..utils import paginate
 
 bp = Blueprint("panel", __name__, url_prefix="/panel")
 
@@ -154,7 +155,7 @@ def user_edit(pk: int):
     target = db.get_or_404(User, pk)
 
     if not current_user.can_manage(target):
-        flash("У вас нет прав на изменение этого пользователя.", "error")
+        flash(gettext("panel.user.no_rights"), "error")
         return redirect(url_for("panel.user_detail", pk=target.id))
 
     form = AccountForm(current_id=target.id)
@@ -169,11 +170,11 @@ def user_edit(pk: int):
         if form.color.data:
             target.color = form.color.data.lower()
         db.session.commit()
-        flash(f"Данные пользователя «{target.username}» обновлены.", "success")
+        flash(gettext("flash.panel.user_updated", username=target.username), "success")
     else:
         for field_errors in form.errors.values():
             for error in field_errors:
-                flash(error, "error")
+                flash(str(error), "error")
 
     return redirect(url_for("panel.user_detail", pk=target.id))
 
@@ -185,7 +186,7 @@ def user_delete(pk: int):
     target = db.get_or_404(User, pk)
 
     if not current_user.can_manage(target):
-        flash("У вас нет прав на удаление этого пользователя.", "error")
+        flash(gettext("flash.panel.no_delete_rights"), "error")
         return redirect(url_for("panel.user_detail", pk=target.id))
 
     delete_sql = target.delete_command
@@ -194,10 +195,10 @@ def user_delete(pk: int):
     if form.validate_on_submit() and (form.confirm_sql.data or "").strip() == delete_sql:
         username = target.username
         delete_user_account(target)
-        flash(f"Аккаунт «{username}» удалён.", "success")
+        flash(gettext("flash.account.deleted", username=username), "success")
         return redirect(url_for("panel.users_list"))
 
-    flash("Команда подтверждения введена неверно. Аккаунт не удалён.", "error")
+    flash(gettext("flash.account.delete_mismatch"), "error")
     return redirect(url_for("panel.user_detail", pk=target.id))
 
 
@@ -208,11 +209,11 @@ def user_set_role(pk: int):
     new_role = request.form.get("role", "")
 
     if not current_user.can_manage(target):
-        flash("У вас нет прав на изменение этого пользователя.", "error")
+        flash(gettext("panel.user.no_rights"), "error")
         return redirect(url_for("panel.user_detail", pk=target.id))
 
     if new_role not in current_user.assignable_roles():
-        flash("Вы не можете назначить эту роль.", "error")
+        flash(gettext("flash.panel.role_forbidden"), "error")
         return redirect(url_for("panel.user_detail", pk=target.id))
 
     old_role = target.role
@@ -221,8 +222,8 @@ def user_set_role(pk: int):
 
     if old_role != new_role:
         flash(
-            f"Роль пользователя «{target.username}» изменена: "
-            f"{ROLE_LABELS[old_role]} → {ROLE_LABELS[new_role]}.",
+            gettext("flash.panel.role_changed", username=target.username,
+                    old=ROLE_LABELS[old_role], new=ROLE_LABELS[new_role]),
             "success",
         )
     return redirect(url_for("panel.user_detail", pk=target.id))
@@ -235,15 +236,15 @@ def user_toggle_block(pk: int):
     target = db.get_or_404(User, pk)
 
     if not current_user.can_manage(target):
-        flash("У вас нет прав на блокировку этого пользователя.", "error")
+        flash(gettext("flash.panel.no_block_rights"), "error")
         return redirect(url_for("panel.users_list"))
 
     if target.role == Role.BLOCKED:
         target.role = Role.USER
-        flash(f"Пользователь «{target.username}» разблокирован.", "success")
+        flash(gettext("flash.panel.unblocked", username=target.username), "success")
     else:
         target.role = Role.BLOCKED
-        flash(f"Пользователь «{target.username}» заблокирован.", "success")
+        flash(gettext("flash.panel.blocked", username=target.username), "success")
 
     db.session.commit()
     return redirect(_safe_referrer(url_for("panel.users_list")))
@@ -316,7 +317,7 @@ def analyses_delete_filtered():
     """Удалить ВСЕ завершённые анализы, подходящие под текущий фильтр (не только с этой страницы)."""
     conditions, risk_filter, review_only, query, user_query = _analysis_filters()
     count = delete_finished(*conditions[1:])  # первый пункт (status=done) delete_finished добавляет сам
-    flash(f"Удалено записей: {count}." if count else "Нечего удалять.", "success" if count else "info")
+    flash(gettext("flash.history.deleted", count=count) if count else gettext("flash.history.nothing_to_delete"), "success" if count else "info")
     return redirect(
         url_for(
             "panel.analyses_list",
@@ -336,9 +337,9 @@ def user_clear_history(pk: int):
     target = db.get_or_404(User, pk)
     count = delete_finished(AnalysisResult.user_id == target.id)
     if count:
-        flash(f"История пользователя «{target.username}» очищена: удалено {plural(count, ('запись', 'записи', 'записей'))}.", "success")
+        flash(gettext("flash.panel.history_cleared", username=target.username, items=ngettext("plural.records.one", "plural.records.other", count, n=count)), "success")
     else:
-        flash(f"У пользователя «{target.username}» нет завершённых анализов.", "info")
+        flash(gettext("flash.panel.no_analyses", username=target.username), "info")
     return redirect(url_for("panel.user_detail", pk=target.id))
 
 
@@ -356,9 +357,9 @@ def settings():
         if errors:
             for message in errors:
                 flash(message, "error")
-            flash("Настройки не сохранены — исправьте ошибки и повторите.", "error")
+            flash(gettext("flash.settings.invalid"), "error")
         else:
-            flash("Настройки сохранены и уже действуют.", "success")
+            flash(gettext("flash.settings.saved"), "success")
             for message in warnings:
                 flash(message, "warning")
         return redirect(url_for("panel.settings"))
@@ -422,13 +423,13 @@ def chat_prompt_save():
     if not form.validate_on_submit():
         for errors in form.errors.values():
             for message in errors:
-                flash(message, "error")
+                flash(str(message), "error")
         return _render_prompts(prompt_form=form, status=400)  # введённый текст не теряем
 
     if set_chat_prompt(form.prompt.data or ""):
-        flash("Системный промпт чата сохранён. Он применится со следующего сообщения.", "success")
+        flash(gettext("flash.prompt.saved"), "success")
     else:
-        flash("Действует стандартный системный промпт чата.", "info")
+        flash(gettext("flash.prompt.default_active"), "info")
     return redirect(url_for("panel.categories_list"))
 
 
@@ -437,10 +438,10 @@ def chat_prompt_save():
 def chat_prompt_reset():
     form = DeleteCategoryForm()  # пустая форма с CSRF-токеном
     if not form.validate_on_submit():
-        flash("Сессия устарела, попробуйте ещё раз.", "error")
+        flash(gettext("flash.session_stale"), "error")
     else:
         reset_chat_prompt()
-        flash("Системный промпт чата сброшен к стандартному.", "success")
+        flash(gettext("flash.prompt.reset"), "success")
     return redirect(url_for("panel.categories_list"))
 
 
@@ -451,13 +452,13 @@ def categories_import():
     только пока таблица пуста; существующие категории не трогает."""
     form = DeleteCategoryForm()  # пустая форма с CSRF-токеном
     if not form.validate_on_submit():
-        flash("Сессия устарела, попробуйте ещё раз.", "error")
+        flash(gettext("flash.session_stale"), "error")
     elif db.session.scalar(select(func.count(Category.id))):
-        flash("Категории уже есть — загрузка с сервера нужна только для пустого списка.", "warning")
+        flash(gettext("flash.categories.exist"), "warning")
     elif seed_default_categories():
-        flash("Категории загружены с сервера анализа.", "success")
+        flash(gettext("flash.categories.imported"), "success")
     else:
-        flash("Не удалось получить категории с сервера анализа — проверьте, что он запущен.", "error")
+        flash(gettext("flash.categories.import_failed"), "error")
     return redirect(url_for("panel.categories_list"))
 
 
@@ -502,7 +503,7 @@ def category_new():
         )
         db.session.add(category)
         db.session.commit()
-        flash(f"Категория «{category.name}» добавлена.", "success")
+        flash(gettext("flash.category.added", name=category.name), "success")
         return redirect(url_for("panel.categories_list"))
 
     return render_template(
@@ -534,7 +535,7 @@ def category_edit(pk: int):
         category.position = form.position.data if form.position.data is not None else category.position
         category.is_active = form.is_active.data
         db.session.commit()
-        flash(f"Категория «{category.name}» обновлена.", "success")
+        flash(gettext("flash.category.updated", name=category.name), "success")
         return redirect(url_for("panel.categories_list"))
 
     return render_template(
@@ -556,9 +557,9 @@ def category_delete(pk: int):
         name = category.name
         db.session.delete(category)
         db.session.commit()
-        flash(f"Категория «{name}» удалена.", "success")
+        flash(gettext("flash.category.deleted", name=name), "success")
     else:
-        flash("Не удалось удалить категорию — сессия устарела, попробуйте ещё раз.", "error")
+        flash(gettext("flash.category.delete_stale"), "error")
     return redirect(url_for("panel.categories_list"))
 
 
@@ -570,7 +571,8 @@ def category_toggle_active(pk: int):
     category.is_active = not category.is_active
     db.session.commit()
     flash(
-        f"Категория «{category.name}» {'включена' if category.is_active else 'выключена'}.",
+        (gettext("flash.category.enabled", name=category.name) if category.is_active
+         else gettext("flash.category.disabled", name=category.name)),
         "success",
     )
     return redirect(_safe_referrer(url_for("panel.categories_list")))
