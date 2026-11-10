@@ -1,6 +1,6 @@
 # Vision Analyzer
 
-Локальный риск-триаж изображений: vision-модель (vLLM, Ollama, Gemini или Anthropic Claude) смотрит на
+Локальный риск-триаж изображений: vision-модель (vLLM, Ollama, LM Studio, Gemini или Anthropic Claude) смотрит на
 картинку и возвращает структурированный отчёт — уровень риска, сигналы,
 рекомендацию. В репозитории два компонента:
 
@@ -72,7 +72,7 @@ cd inference && python server.py
 | `config.py` | Константы (в том числе настройки инструментов), параметры сэмплинга, логирование, бутстрап `locales`/`image_upscaler` |
 | `http_utils.py` | Общие хелперы HTTP-слоя: JSON-ответ, `_BodyError`, подготовка изображения (mime + апскейл + base64) |
 | `chat.py`, `chat_backends.py`, `chat_prompt.py` | Основной чат `/chat` — свободный диалог с историей, без JSON-схемы риск-отчёта; `chat_prompt.py` — его системная "личность" |
-| `providers/` | Бэкенды модели, по модулю на каждый: `vllm.py` (`/v1/chat/completions`), `ollama.py` (`/api/chat`), `gemini.py` (Google `generateContent`), `anthropic.py` (Anthropic Messages API); общий интерфейс — `base.py`, реестр — `__init__.py` |
+| `providers/` | Бэкенды модели, по модулю на каждый: `vllm.py` (`/v1/chat/completions`), `ollama.py` (`/api/chat`), `lmstudio.py` (`/v1/chat/completions` + `/api/v0/models`), `gemini.py` (Google `generateContent`), `anthropic.py` (Anthropic Messages API); общий интерфейс — `base.py`, реестр — `__init__.py` |
 | `fallback.py` | Цепочка фолбэка между бэкендами для `/chat` и `/analyze`: триггер — любая ошибка бэкенда, порядок (локальные → облачные) |
 | `locales.py`, `locales/*.json` | Тексты ответов сервера на разных языках |
 | `tools/vision_analyzer/` | Инструмент риск-триажа картинок (`POST /analyze`, `/categories`): `analyze.py` (разбор тела запроса, хендлер), `backends.py` (двухпроходный анализ, постобработка отчёта), `prompt.py` + `prompts/`, `categories.py` + `categories/`, `categories_api.py`, `link_fetcher.py` (картинки из ссылок на посты) |
@@ -84,7 +84,7 @@ cd inference && python server.py
 ### Эндпоинты
 
 - `GET /` — список команд и примеров (то же, что ниже, простым текстом).
-- `GET /health` — статус бэкендов (vLLM, Ollama; Gemini и Anthropic — если задан ключ или они выбраны по умолчанию): доступность и модель.
+- `GET /health` — статус бэкендов (vLLM, Ollama, LM Studio; Gemini и Anthropic — если задан ключ или они выбраны по умолчанию): доступность и модель.
 - `POST /analyze` — анализ одного или нескольких изображений. Тело запроса —
   любое из трёх: сырые байты картинки (`Content-Type: image/*`),
   `multipart/form-data` (`images`, plus `backend`/`model`/`lang`/`history`)
@@ -112,7 +112,7 @@ cd inference && python server.py
   либо задан параметр `fallback=1` (`fallback=0` — выключить даже без явного `backend`).
 - `POST /lang` — сменить язык ответов по умолчанию (`ru`/`en`/`kk`).
 - `GET/POST /config` — посмотреть/поменять `backend`, `ollama_host`,
-  `vllm_url`, `gemini_model`, `anthropic_model` без перезапуска. Ключей API здесь нет: сервер их не хранит
+  `vllm_url`, `lmstudio_url`, `gemini_model`, `anthropic_model` без перезапуска. Ключей API здесь нет: сервер их не хранит
   (см. ниже).
 - `GET/POST/DELETE /providers/{name}/settings` — настройки **одного** провайдера. У каждого
   провайдера свой набор параметров, свои значения по умолчанию и свои допустимые значения;
@@ -123,6 +123,7 @@ cd inference && python server.py
   | Провайдер | Параметры (по умолчанию) |
   |---|---|
   | `ollama` | `temperature` (0), `top_p` (1.0), `top_k` (1), `seed` (42), `num_ctx` (auto), `num_predict` (auto), `think` (true; `true`/`false` или `low`/`medium`/`high`) |
+  | `lmstudio` | `temperature` (0), `top_p` (1.0), `top_k` (auto), `seed` (42), `num_predict` (auto → `max_tokens`) |
   | `vllm` | `temperature` (0), `top_p` (1.0), `top_k` (auto), `seed` (42), `num_predict` (auto → `max_tokens`), `think_budget` (4096 → `thinking_token_budget`, 0 — без лимита) |
   | `gemini` | `temperature` (0), `seed` (42), `num_predict` (auto → `max_output_tokens`, включает токены размышлений), `think` (→ `thinking_level`) |
   | `anthropic` | `num_predict` (auto → `max_tokens`), `think` (→ `output_config.effort`) |
@@ -131,7 +132,7 @@ cd inference && python server.py
   алиас: теперь он работает с одним бэкендом (`?backend=`, по умолчанию — бэкенд по умолчанию),
   лишние параметры возвращает в `ignored`.
 - `GET /models` — полный список моделей, которые прямо сейчас отдаёт бэкенд
-  (`?backend=vllm|ollama|gemini|anthropic`, без параметра — все настроенные).
+  (`?backend=vllm|ollama|lmstudio|gemini|anthropic`, без параметра — все настроенные).
 
 - `GET /providers` — описание **всех** зарегистрированных провайдеров (в отличие от
   `/health`, где не настроенные скрыты): `name`, `label`, `fallback`, `configured`,
@@ -167,9 +168,10 @@ curl -H "X-Api-Key-Anthropic: sk-ant-..." "http://127.0.0.1:6769/models?backend=
 
 | Переменная | По умолчанию | Назначение |
 |---|---|---|
-| `VISION_ANALYZER_BACKEND` | `vllm` | Бэкенд по умолчанию (`vllm` / `ollama` / `gemini` / `anthropic`) |
+| `VISION_ANALYZER_BACKEND` | `vllm` | Бэкенд по умолчанию (`vllm` / `ollama` / `lmstudio` / `gemini` / `anthropic`) |
 | `VISION_ANALYZER_OLLAMA_HOST` | `http://127.0.0.1:11434` | Адрес Ollama |
 | `VISION_ANALYZER_VLLM_URL` | `http://host.docker.internal:8000/v1` | Адрес vLLM (OpenAI-совместимый) |
+| `VISION_ANALYZER_LMSTUDIO_URL` | `http://127.0.0.1:1234/v1` | Адрес сервера LM Studio (с `/v1`) |
 | `VISION_ANALYZER_GEMINI_MODEL` | `gemini-2.5-flash` | Модель Gemini по умолчанию |
 | `VISION_ANALYZER_GEMINI_SAFETY` | — (значения API) | Порог фильтров безопасности Gemini (`BLOCK_NONE`, `BLOCK_ONLY_HIGH`, …) |
 | `VISION_ANALYZER_GEMINI_API_BASE` | `https://generativelanguage.googleapis.com/v1beta` | Базовый URL API (например, свой прокси) |
@@ -327,8 +329,8 @@ flask --app vision_app set-role <логин> <роль>    # blocked | user | ad
 ## Требования
 
 - Python 3.11+
-- vLLM (OpenAI-совместимый эндпоинт) и/или локально запущенный Ollama с
-  vision-моделью, и/или ключ API Gemini (`providers/gemini.py`) или Anthropic (`providers/anthropic.py`);
+- vLLM (OpenAI-совместимый эндпоинт) и/или локально запущенный Ollama или LM Studio
+  (сервер включается во вкладке Developer) с vision-моделью, и/или ключ API Gemini (`providers/gemini.py`) или Anthropic (`providers/anthropic.py`);
   облачные провайдеры без дополнительных зависимостей — запросы идут через aiohttp
 - `requirements.txt` — общий для `inference/` и `vision_app/` (aiohttp/torch/
   Pillow для сервера анализа, Flask-стек для панели)

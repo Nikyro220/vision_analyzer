@@ -5,7 +5,7 @@ config.py — конфигурация vision_analyzer_server: констант�
 ними (_t, _current_lang), которые нужны и инструментам, и server.py. Собраны в одном месте, чтобы не дублировать
 try/except ImportError и предупреждения в логах по разным файлам.
 
-ВАЖНО про мутируемые "глобалы": BACKEND/OLLAMA_HOST/VLLM_URL/GEMINI_MODEL
+ВАЖНО про мутируемые "глобалы": BACKEND/OLLAMA_HOST/VLLM_URL/LMSTUDIO_URL/GEMINI_MODEL
 меняются "на лету" через POST /config (см. server.py:
 handle_config) присвоением config.BACKEND = ...", config.OLLAMA_HOST = ...",
 config.VLLM_URL = ...", config.GEMINI_MODEL = ...".
@@ -135,14 +135,17 @@ def _page(name: str, **kwargs) -> str:
 # ---------------------------------------------------------------------------
 
 # Значения по умолчанию — можно переопределить переменными окружения при
-# запуске (VISION_ANALYZER_BACKEND / _OLLAMA_HOST / _VLLM_URL / _GEMINI_* / _ANTHROPIC_*), а также
+# запуске (VISION_ANALYZER_BACKEND / _OLLAMA_HOST / _VLLM_URL / _LMSTUDIO_URL / _GEMINI_* / _ANTHROPIC_*), а также
 # "на лету", без перезапуска сервера, через GET/POST /config (см. server.py).
-# BACKEND/OLLAMA_HOST/VLLM_URL/GEMINI_*/ANTHROPIC_* остаются обычными module-level переменными —
+# BACKEND/OLLAMA_HOST/VLLM_URL/LMSTUDIO_URL/GEMINI_*/ANTHROPIC_* остаются обычными module-level переменными —
 # POST /config меняет их присвоением, тем же способом, что и
 # locales.set_default_lang() меняет DEFAULT_LANG.
-BACKEND = os.environ.get("VISION_ANALYZER_BACKEND", "vllm").strip().lower()  # "vllm", "ollama", "gemini" или "anthropic" (см. providers/)
+BACKEND = os.environ.get("VISION_ANALYZER_BACKEND", "vllm").strip().lower()  # "vllm", "ollama", "lmstudio", "gemini" или "anthropic" (см. providers/)
 OLLAMA_HOST = os.environ.get("VISION_ANALYZER_OLLAMA_HOST", "http://127.0.0.1:11434").strip()
 VLLM_URL = os.environ.get("VISION_ANALYZER_VLLM_URL", "http://host.docker.internal:8000/v1").strip()
+# LM Studio: OpenAI-совместимый сервер (по умолчанию порт 1234). Адрес — с суффиксом /v1; нативный
+# /api/v0/models провайдер находит сам, отрезая /v1 (см. providers/lmstudio.py).
+LMSTUDIO_URL = os.environ.get("VISION_ANALYZER_LMSTUDIO_URL", "http://127.0.0.1:1234/v1").strip().rstrip("/")
 
 # --- Gemini (providers/gemini.py) ---
 # Ключ API сервер НЕ хранит (ни в env, ни в памяти): клиент присылает его в каждом запросе

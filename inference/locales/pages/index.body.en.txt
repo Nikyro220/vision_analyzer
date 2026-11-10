@@ -12,7 +12,7 @@ This text — the list of commands and usage examples.
 ========================================================
 GET /health
 ========================================================
-Backend status (vLLM, Ollama, and the cloud backends Gemini and Anthropic — shown only
+Backend status (vLLM, Ollama, LM Studio, and the cloud backends Gemini and Anthropic — shown only
 when the request carries an API key (X-Api-Key-Gemini / X-Api-Key-Anthropic header) or
 they are the default backend):
 availability + model.
@@ -46,7 +46,7 @@ Request body is one of two forms:
   (a) a raw image in the request body, Content-Type: image/*
   (b) multipart/form-data with fields:
         images     — one or more images (required)
-        backend    — 'vllm' | 'ollama' | 'gemini' | 'anthropic' (optional, overrides BACKEND)
+        backend    — 'vllm' | 'ollama' | 'lmstudio' | 'gemini' | 'anthropic' (optional, overrides BACKEND)
         model      — model name/id (optional, otherwise auto-detected)
         lang       — 'ru' | 'en' (optional, language for this request
                      only — does not change the global default)
@@ -164,13 +164,13 @@ Accepts 'lang' three ways — query, JSON body, or form field:
 
 
 ========================================================
-GET/POST /config — view/change backend, ollama_host, vllm_url, gemini_model, anthropic_model
+GET/POST /config — view/change backend, ollama_host, vllm_url, lmstudio_url, gemini_model, anthropic_model
 ========================================================
 GET returns the current values. POST accepts 'backend', 'ollama_host',
-'vllm_url', 'gemini_model' and/or 'anthropic_model' (any subset, at least one) — via query,
+'vllm_url', 'lmstudio_url', 'gemini_model' and/or 'anthropic_model' (any subset, at least one) — via query,
 JSON body or form field, same as /lang. Takes effect immediately, no server
 restart needed. Startup values can also be set via the
-VISION_ANALYZER_BACKEND / _OLLAMA_HOST / _VLLM_URL / _GEMINI_MODEL /
+VISION_ANALYZER_BACKEND / _OLLAMA_HOST / _VLLM_URL / _LMSTUDIO_URL / _GEMINI_MODEL /
 _ANTHROPIC_MODEL environment variables.
 
 API keys are not accepted here: the server stores no keys, the client sends them
@@ -230,6 +230,8 @@ Parameters per backend (default in parentheses):
              think (true; true/false, and low/medium/high for GPT-OSS)
   vllm       temperature (0), top_p (1.0), top_k (auto = not sent), seed (42),
              num_predict (auto; sent as max_tokens), think_budget (4096; 0 = no limit)
+  lmstudio   temperature (0), top_p (1.0), top_k (auto = not sent), seed (42),
+             num_predict (auto; sent as max_tokens)
   gemini     temperature (0), seed (42), num_predict (auto; max_output_tokens),
              think (true; false/low/medium/high -> thinking_level)
   anthropic  num_predict (auto; max_tokens), think (true; low/medium/high -> output_config.effort)
@@ -257,7 +259,7 @@ _THINK_BUDGET still work and apply to every backend that has such a parameter.
   # restore defaults
   curl -X DELETE "http://xxx.xxx.xxx.xxx:6769/providers/ollama/settings"
 
-num_ctx exists only for ollama (vLLM fixes its context size at server start; Gemini has a large
+num_ctx exists only for ollama (vLLM fixes its context size at server start; LM Studio, when the model is loaded; Gemini has a large
 fixed window). With a long /chat history you may need to raise num_ctx for your model/VRAM.
 num_predict for Gemini and Anthropic includes thinking tokens: a value that is too small with
 think enabled gives an empty or truncated answer. Too small a num_predict on any backend cuts
@@ -280,7 +282,7 @@ that size — the truncation is logged on the server (WARNING).
 GET /models — list all models the backend currently reports
 ========================================================
 With no parameter — scans all configured backends (Gemini / Anthropic only when the
-X-Api-Key-Gemini / X-Api-Key-Anthropic header is present). ?backend=vllm|ollama|gemini|anthropic — just one. Unlike /health (which only shows the auto-detected first
+X-Api-Key-Gemini / X-Api-Key-Anthropic header is present). ?backend=vllm|ollama|lmstudio|gemini|anthropic — just one. Unlike /health (which only shows the auto-detected first
 model), this returns the full list.
 
   curl http://xxx.xxx.xxx.xxx:6769/models
@@ -476,7 +478,7 @@ Request body is one of two forms:
                      replaces it. 'replace' requires a non-empty 'system'
         history    — optional conversation history (same format as
                      POST /analyze — conversation history above)
-        backend    — 'vllm' | 'ollama' | 'gemini' | 'anthropic' (optional, overrides BACKEND)
+        backend    — 'vllm' | 'ollama' | 'lmstudio' | 'gemini' | 'anthropic' (optional, overrides BACKEND)
         model      — model name/id (optional, otherwise auto-detected)
         lang       — 'ru' | 'en' (optional, language for this request
                      only — does not change the global default)
@@ -505,13 +507,14 @@ the client on every request via the 'history' field (a JSON array,
 or, in query/multipart, a JSON string — same as /analyze).
 
 If backend isn't passed explicitly and the default backend is
-unreachable, the server automatically tries the other backend once
-(vllm <-> ollama) before returning an error. gemini and anthropic have no
-automatic fallback.
+unreachable, the server automatically tries the other local backends
+(vllm <-> ollama first; lmstudio falls back to ollama) before returning an error. The cloud
+backends gemini and anthropic take part only if the request carries their key.
 
 For backend=vllm, if the real max_model_len could be determined (see
 GET /sampling?backend=vllm -> vllm_context_window above), history is truncated
-(a rough estimate) to fit that size before sending — same as /analyze.
+(a rough estimate) to fit that size before sending — same as /analyze. For backend=lmstudio
+the loaded model's loaded_context_length (LM Studio's GET /api/v0/models) is used the same way.
 
 Response:
   {"reply": "...", "backend": "vllm"|"ollama", "model": "..."}

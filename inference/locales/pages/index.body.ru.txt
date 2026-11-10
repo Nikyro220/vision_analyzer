@@ -12,7 +12,7 @@ GET /
 ========================================================
 GET /health
 ========================================================
-Статус бэкендов (vLLM, Ollama, а также облачные Gemini и Anthropic — они показываются,
+Статус бэкендов (vLLM, Ollama, LM Studio, а также облачные Gemini и Anthropic — они показываются,
 только если в запросе пришёл ключ API (заголовок X-Api-Key-Gemini / X-Api-Key-Anthropic)
 или выбраны по умолчанию):
 доступность + модель.
@@ -46,7 +46,7 @@ POST /analyze — анализ изображения(й) на риск-сигн
   (а) сырое изображение в теле запроса, Content-Type: image/*
   (б) multipart/form-data с полями:
         images     — одно или несколько изображений (обязательно)
-        backend    — 'vllm' | 'ollama' | 'gemini' | 'anthropic' (необязательно, переопределяет BACKEND)
+        backend    — 'vllm' | 'ollama' | 'lmstudio' | 'gemini' | 'anthropic' (необязательно, переопределяет BACKEND)
         model      — имя/id модели (необязательно, иначе автоопределение)
         lang       — 'ru' | 'en' (необязательно, язык только для этого
                      запроса — не меняет глобальный дефолт)
@@ -163,13 +163,13 @@ POST /lang — сменить язык по умолчанию (для всех 
 
 
 ========================================================
-GET/POST /config — посмотреть/поменять backend, ollama_host, vllm_url, gemini_model, anthropic_model
+GET/POST /config — посмотреть/поменять backend, ollama_host, vllm_url, lmstudio_url, gemini_model, anthropic_model
 ========================================================
 GET возвращает текущие значения. POST принимает 'backend', 'ollama_host',
-'vllm_url', 'gemini_model' и/или 'anthropic_model' (любое подмножество, хотя бы одно) — через
+'vllm_url', 'lmstudio_url', 'gemini_model' и/или 'anthropic_model' (любое подмножество, хотя бы одно) — через
 query, JSON-тело или form-поле, как и /lang. Действует сразу, без перезапуска
 сервера. Стартовые значения также можно задать переменными окружения
-VISION_ANALYZER_BACKEND / _OLLAMA_HOST / _VLLM_URL / _GEMINI_MODEL /
+VISION_ANALYZER_BACKEND / _OLLAMA_HOST / _VLLM_URL / _LMSTUDIO_URL / _GEMINI_MODEL /
 _ANTHROPIC_MODEL.
 
 Ключи API здесь не принимаются: сервер ключи не хранит, клиент присылает
@@ -229,6 +229,8 @@ GET/POST/DELETE /providers/{name}/settings — настройки одного �
              think (true; true/false, а для GPT-OSS low/medium/high)
   vllm       temperature (0), top_p (1.0), top_k (auto = не передаётся), seed (42),
              num_predict (auto; уходит как max_tokens), think_budget (4096; 0 = без лимита)
+  lmstudio   temperature (0), top_p (1.0), top_k (auto = не передаётся), seed (42),
+             num_predict (auto; уходит как max_tokens)
   gemini     temperature (0), seed (42), num_predict (auto; max_output_tokens),
              think (true; false/low/medium/high -> thinking_level)
   anthropic  num_predict (auto; max_tokens), think (true; low/medium/high -> output_config.effort)
@@ -256,7 +258,7 @@ _THINK_BUDGET по-прежнему работают и действуют на 
   # вернуть значения по умолчанию
   curl -X DELETE "http://xxx.xxx.xxx.xxx:6769/providers/ollama/settings"
 
-num_ctx есть только у ollama (у vLLM размер контекста фиксируется при запуске сервера, у Gemini
+num_ctx есть только у ollama (у vLLM размер контекста фиксируется при запуске сервера, у LM Studio — при загрузке модели, у Gemini
 окно большое и фиксированное). При длинной истории в /chat может понадобиться увеличить num_ctx под
 свою модель/VRAM. num_predict у Gemini и Anthropic включает токены размышлений: слишком малое
 значение при включённом think даёт пустой или обрезанный ответ. Слишком малый num_predict
@@ -280,7 +282,7 @@ vLLM размер контекста (GET /v1/models -> max_model_len), либо
 GET /models — список всех моделей, которые сейчас отдаёт бэкенд
 ========================================================
 Без параметра — сканирует все настроенные бэкенды (Gemini/Anthropic — только если
-в запросе есть заголовок X-Api-Key-Gemini / X-Api-Key-Anthropic). ?backend=vllm|ollama|gemini|anthropic — только один. В отличие от /health (там только автоопределённая
+в запросе есть заголовок X-Api-Key-Gemini / X-Api-Key-Anthropic). ?backend=vllm|ollama|lmstudio|gemini|anthropic — только один. В отличие от /health (там только автоопределённая
 первая модель), здесь полный список.
 
   curl http://xxx.xxx.xxx.xxx:6769/models
@@ -484,7 +486,7 @@ POST /chat — свободный диалог с моделью (без risk-JS
                      нужно непустое 'system'
         history    — необязательная история диалога (тот же формат,
                      что у POST /analyze — история диалога выше)
-        backend    — 'vllm' | 'ollama' | 'gemini' | 'anthropic' (необязательно, переопределяет BACKEND)
+        backend    — 'vllm' | 'ollama' | 'lmstudio' | 'gemini' | 'anthropic' (необязательно, переопределяет BACKEND)
         model      — имя/id модели (необязательно, иначе автоопределение)
         lang       — 'ru' | 'en' (необязательно, язык только для этого
                      запроса — не меняет глобальный дефолт)
@@ -513,13 +515,14 @@ system_mode=replace: тогда модель получит только при�
 query/multipart, JSON-строка — как и у /analyze).
 
 Если backend не передан явно, а выбранный по умолчанию бэкенд
-недоступен по подключению, сервер один раз автоматически пробует
-второй бэкенд (vllm <-> ollama), прежде чем вернуть ошибку. У gemini и anthropic
-автофолбэка нет.
+недоступен по подключению, сервер автоматически пробует
+другие локальные бэкенды (сначала vllm <-> ollama; у lmstudio запасной — ollama), прежде чем вернуть
+ошибку. Облачные gemini и anthropic в автофолбэк попадают, только если в запросе есть их ключ.
 
 Для backend=vllm, если удалось узнать реальный max_model_len (см.
 GET /sampling?backend=vllm -> vllm_context_window выше), история перед отправкой
-оценочно обрезается под этот размер — так же, как и для /analyze.
+оценочно обрезается под этот размер — так же, как и для /analyze. Для backend=lmstudio
+так же используется loaded_context_length загруженной модели (GET /api/v0/models в LM Studio).
 
 Ответ:
   {"reply": "...", "backend": "vllm"|"ollama", "model": "..."}

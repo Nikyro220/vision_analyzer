@@ -14,9 +14,10 @@ server.py — HTTP-слой vision_analyzer_server: простые хендле�
 POST /chat — свободный диалог с моделью (текст + картинки, с историей),
 без риск-JSON-схемы /analyze — вынесен в chat.py/chat_backends.py.
 
-Поддерживает четыре бэкенда (см. providers/):
+Поддерживает пять бэкендов (см. providers/):
   - vllm   — OpenAI-совместимый API (/v1/chat/completions), напр. gvllm2.service
   - ollama — /api/chat с картинкой в base64 и принудительным JSON-выводом
+  - lmstudio — LM Studio: OpenAI-совместимый API (/v1/chat/completions), JSON через json_schema
   - gemini — Google Gemini (generateContent), по умолчанию gemini-2.5-flash
   - anthropic — Anthropic Claude (Messages API), по умолчанию claude-sonnet-5-5
 
@@ -178,7 +179,7 @@ async def handle_lang(request: web.Request) -> web.Response:
     return _json({"ok": True, "default_lang": lang, "available": available})
 
 
-_CONFIG_FIELDS = ("backend", "ollama_host", "vllm_url", "gemini_model", "anthropic_model")
+_CONFIG_FIELDS = ("backend", "ollama_host", "vllm_url", "lmstudio_url", "gemini_model", "anthropic_model")
 
 # Ключи API здесь не принимаются: поле -> текст ошибки (сервер ключи не хранит).
 _REJECTED_KEY_FIELDS = {
@@ -194,16 +195,17 @@ def _config_snapshot() -> dict:
         "available_backends": list(providers.names()),
         "ollama_host": config.OLLAMA_HOST,
         "vllm_url": config.VLLM_URL,
+        "lmstudio_url": config.LMSTUDIO_URL,
         "gemini_model": config.GEMINI_MODEL,
         "anthropic_model": config.ANTHROPIC_MODEL,
     }
 
 
 async def handle_config(request: web.Request) -> web.Response:
-    """GET — вернуть текущие backend/ollama_host/vllm_url/gemini_model/anthropic_model.
+    """GET — вернуть текущие backend/ollama_host/vllm_url/lmstudio_url/gemini_model/anthropic_model.
 
     POST — изменить одно или несколько полей "на лету", без перезапуска.
-    Принимает backend, ollama_host, vllm_url, gemini_model, anthropic_model (query, JSON-тело
+    Принимает backend, ollama_host, vllm_url, lmstudio_url, gemini_model, anthropic_model (query, JSON-тело
     или form-поле, как и /lang). Хотя бы одно поле должно быть передано.
 
     Ключи API здесь НЕ принимаются и нигде не хранятся: клиент присылает ключ провайдера
@@ -251,6 +253,9 @@ async def handle_config(request: web.Request) -> web.Response:
     if values["vllm_url"]:
         config.VLLM_URL = values["vllm_url"].strip()
 
+    if values["lmstudio_url"]:
+        config.LMSTUDIO_URL = values["lmstudio_url"].strip().rstrip("/")
+
     if values["gemini_model"]:
         config.GEMINI_MODEL = values["gemini_model"].strip()
 
@@ -264,8 +269,9 @@ async def handle_config(request: web.Request) -> web.Response:
     _health_cache.clear()
 
     logging.info(
-        "Конфигурация обновлена извне: backend=%s ollama_host=%s vllm_url=%s gemini_model=%s anthropic_model=%s",
-        config.BACKEND, config.OLLAMA_HOST, config.VLLM_URL, config.GEMINI_MODEL, config.ANTHROPIC_MODEL,
+        "Конфигурация обновлена извне: backend=%s ollama_host=%s vllm_url=%s lmstudio_url=%s gemini_model=%s anthropic_model=%s",
+        config.BACKEND, config.OLLAMA_HOST, config.VLLM_URL, config.LMSTUDIO_URL, config.GEMINI_MODEL,
+        config.ANTHROPIC_MODEL,
     )
     return _json({"ok": True, **_config_snapshot()})
 
@@ -398,7 +404,7 @@ async def handle_sampling(request: web.Request) -> web.Response:
 async def handle_models(request: web.Request) -> web.Response:
     """Сканирует бэкенд(ы) и возвращает список всех доступных там моделей.
 
-    ?backend=<имя> — только один бэкенд (vllm | ollama | gemini | anthropic); без
+    ?backend=<имя> — только один бэкенд (vllm | ollama | lmstudio | gemini | anthropic); без
     параметра — все настроенные (см. _visible_providers).
     Не путать с /health: там только уже автоопределённая (первая) модель,
     здесь — полный список, чтобы было видно, из чего вообще выбирать.
